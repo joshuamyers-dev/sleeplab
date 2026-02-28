@@ -7,8 +7,10 @@ from api.main import app  # noqa: F401 — imported for uvicorn
 
 
 def run_migrations() -> None:
-    migrations_dir = Path(__file__).parent / "migrations"
-    sql_files = sorted(migrations_dir.glob("*.sql"))
+    root = Path(__file__).parent
+    schema_file = root / "schema.sql"
+    migrations_dir = root / "migrations"
+    sql_files = [schema_file] + sorted(migrations_dir.glob("*.sql"))
 
     with engine.connect() as conn:
         conn.execute(text("""
