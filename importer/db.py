@@ -2,11 +2,30 @@
 PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
+import os
+from pathlib import Path
+
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, timedelta
 
-DB_DSN = "dbname=cpap"  # local Homebrew Postgres, no password needed
+
+def _load_dotenv() -> None:
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
+_raw_dsn = os.environ.get("DATABASE_URL", "dbname=cpap")
+DB_DSN = _raw_dsn.replace("postgresql+psycopg2://", "postgresql://", 1)
 
 
 def get_conn():
