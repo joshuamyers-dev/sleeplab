@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import calmNight from '../assets/calm-night.png'
-import doctorConvo from '../assets/doctor-convo.png'
-import logo from '../assets/logo.png'
+import calmNight from '../assets/calm-night.webp'
+import doctorConvo from '../assets/doctor-convo.webp'
+import logo from '../assets/logo.webp'
 import { Button } from '../components/ui/button'
 import { ChevronRightIcon } from '../components/icons/ChevronIcons'
 

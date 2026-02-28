@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
 import type { SummaryStats, SessionSummary } from '../api/client'
-import noDataIllustration from '../assets/no-data.png'
+import noDataIllustration from '../assets/no-data.webp'
 import AISummaryCard from '../components/AISummaryCard'
 import CalendarHeatmap from '../components/CalendarHeatmap'
 import AHITrendChart from '../components/AHITrendChart'

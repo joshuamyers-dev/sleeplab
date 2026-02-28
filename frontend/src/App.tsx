@@ -11,7 +11,7 @@ import {
   MoonIcon,
   SunIcon,
 } from './components/icons/ChevronIcons'
-import logo from './assets/logo.png'
+import logo from './assets/logo.webp'
 import Dashboard from './pages/Dashboard'
 import CalendarPage from './pages/Calendar'
 import ImportPage from './pages/Import'
