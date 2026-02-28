@@ -227,7 +227,6 @@ function postForm<T>(path: string, formData: FormData) {
   return request<T>(path, {
     method: 'POST',
     body: formData,
-    headers: {},
   })
 }
 
