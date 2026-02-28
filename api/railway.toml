@@ -2,4 +2,4 @@
 builder = "railpack"
 
 [deploy]
-startCommand = "cd .. && uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+startCommand = "uvicorn server:app --host 0.0.0.0 --port $PORT"
