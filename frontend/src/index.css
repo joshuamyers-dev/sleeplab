@@ -1,0 +1,174 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@layer base {
+  @keyframes modal-overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes modal-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes fade-up-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  :root {
+    color-scheme: light;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    --background: #E9E9EC;
+    --foreground: #373c3d;
+    --card: rgba(255, 255, 255, 0.92);
+    --card-foreground: #373c3d;
+    --muted-foreground: #667071;
+    --border: rgba(55, 60, 61, 0.14);
+
+    --neutral-900: #373c3d;
+    --neutral-700: #667071;
+    --neutral-500: #99a0a1;
+    --neutral-200: #d8dcdd;
+    --neutral-100: #eef1f1;
+
+    --red-700: #8e3d40;
+    --red-100: #f3e6e7;
+    --yellow-700: #8d8110;
+    --yellow-500: #c9b715;
+    --yellow-100: #f8f5d8;
+    --orange-700: #c55d37;
+    --orange-500: #e9784b;
+    --orange-100: #fbe8df;
+    --green-700: #4f7a28;
+    --green-500: #6aa136;
+    --green-100: #e9f2e1;
+    --blue-700: #43428a;
+    --blue-500: #5251a7;
+    --blue-100: #e7e7f6;
+
+    --primary: #5251a7;
+    --accent: #5251a7;
+    --accent-foreground: #ffffff;
+    --accent-hover: #43428a;
+    --accent-soft: rgba(82, 81, 167, 0.10);
+    --accent-border: rgba(82, 81, 167, 0.22);
+
+    --surface-strong: rgba(255, 255, 255, 0.96);
+    --surface-soft: rgba(238, 241, 241, 0.72);
+    --surface-muted: rgba(216, 220, 221, 0.7);
+    --popover-surface: rgba(255, 255, 255, 0.98);
+    --modal-surface: #ffffff;
+    --modal-backdrop: rgba(55, 60, 61, 0.22);
+    --modal-ring: rgba(82, 81, 167, 0.2);
+    --calendar-empty: #d8dcdd;
+    --danger-soft: rgba(142, 61, 64, 0.10);
+    --danger-text: #8e3d40;
+    --success-soft: rgba(106, 161, 54, 0.12);
+    --success-text: #4f7a28;
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --background: #111317;
+    --foreground: #fbfcfe;
+    --card: rgba(24, 27, 32, 0.96);
+    --card-foreground: #fbfcfe;
+    --muted-foreground: #d2d7df;
+    --border: rgba(233, 233, 236, 0.18);
+
+    --neutral-900: #fbfcfe;
+    --neutral-700: #d2d7df;
+    --neutral-500: #9ba3ad;
+    --neutral-200: #4b515b;
+    --neutral-100: #23272e;
+
+    --red-100: rgba(142, 61, 64, 0.18);
+    --yellow-100: rgba(201, 183, 21, 0.16);
+    --orange-100: rgba(233, 120, 75, 0.16);
+    --green-100: rgba(106, 161, 54, 0.16);
+    --blue-100: rgba(82, 81, 167, 0.18);
+
+    --primary: #a7a7ff;
+    --accent: #a7a7ff;
+    --accent-foreground: #111317;
+    --accent-hover: #c6c5ff;
+    --accent-soft: rgba(167, 167, 255, 0.18);
+    --accent-border: rgba(167, 167, 255, 0.36);
+
+    --surface-strong: rgba(28, 32, 38, 0.98);
+    --surface-soft: rgba(36, 41, 49, 0.92);
+    --surface-muted: rgba(43, 49, 58, 0.9);
+    --popover-surface: rgba(24, 27, 32, 0.985);
+    --modal-surface: #2a2f37;
+    --modal-backdrop: rgba(4, 6, 10, 0.66);
+    --modal-ring: rgba(167, 167, 255, 0.34);
+    --calendar-empty: #2a2f37;
+    --danger-soft: rgba(142, 61, 64, 0.24);
+    --danger-text: #f3c0c3;
+    --success-soft: rgba(106, 161, 54, 0.22);
+    --success-text: #c6eb9e;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  .motion-fade-up {
+    animation: fade-up-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-overlay-in,
+    .motion-panel-in,
+    .motion-fade-up {
+      animation: none !important;
+    }
+  }
+}

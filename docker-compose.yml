@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: cpap
+      POSTGRES_USER: cpap
+      POSTGRES_PASSWORD: cpap
+    ports:
+      - "5432:5432"
+    volumes:
+      - cpap_pgdata:/var/lib/postgresql/data
+volumes:
+  cpap_pgdata:

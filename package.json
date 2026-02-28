@@ -1,0 +1,17 @@
+{
+  "name": "sleeplab",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "api": "nx serve api",
+    "frontend": "nx serve frontend",
+    "dev": "nx run-many --target=serve --projects=api,frontend --parallel",
+    "build": "nx build frontend"
+  },
+  "devDependencies": {
+    "nx": "^17.3.2"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "frontend",
+  "projectType": "application",
+  "sourceRoot": "frontend/src",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run dev",
+        "cwd": "frontend"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run build",
+        "cwd": "frontend"
+      },
+      "outputs": ["frontend/dist"]
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run preview",
+        "cwd": "frontend"
+      }
+    }
+  }
+}
