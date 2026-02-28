@@ -1,0 +1,7 @@
+fastapi==0.124.4
+uvicorn==0.33.0
+sqlalchemy==2.0.46
+psycopg2-binary==2.9.10
+python-jose==3.5.0
+passlib==1.7.4
+openai==1.109.1
