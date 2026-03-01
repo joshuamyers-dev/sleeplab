@@ -6,6 +6,12 @@ SleepLab is a local-first sleep therapy dashboard for importing and exploring Re
 - A FastAPI backend in `api/`
 - A PostgreSQL-backed importer in `importer/` for ResMed `DATALOG` folders
 
+## Screenshots
+
+![SleepLab dashboard screenshot 1](https://sleeplab-static.s3.ap-southeast-2.amazonaws.com/screenshot-1.png)
+![SleepLab dashboard screenshot 2](https://sleeplab-static.s3.ap-southeast-2.amazonaws.com/screenshot-2.png)
+![SleepLab dashboard screenshot 3](https://sleeplab-static.s3.ap-southeast-2.amazonaws.com/screenshot-3.png)
+
 ## Stack
 
 - Frontend: React 19, Vite, TypeScript, Tailwind
