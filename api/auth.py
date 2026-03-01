@@ -11,6 +11,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db
+from .env import load_env
+
+load_env()
 
 # --- Secret key ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-production-f3a9b2c1")

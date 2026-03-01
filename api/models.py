@@ -1,5 +1,5 @@
 from pydantic import BaseModel, computed_field
-from typing import Optional
+from typing import Dict, List, Optional
 from datetime import datetime, date
 
 
@@ -53,22 +53,22 @@ class EventRecord(BaseModel):
 
 
 class MetricsResponse(BaseModel):
-    timestamps: list[str]
-    mask_pressure: list[Optional[float]]
-    pressure: list[Optional[float]]
-    epr_pressure: list[Optional[float]]
-    leak: list[Optional[float]]
-    resp_rate: list[Optional[float]]
-    tidal_vol: list[Optional[float]]
-    min_vent: list[Optional[float]]
-    snore: list[Optional[float]]
-    flow_lim: list[Optional[float]]
+    timestamps: List[str]
+    mask_pressure: List[Optional[float]]
+    pressure: List[Optional[float]]
+    epr_pressure: List[Optional[float]]
+    leak: List[Optional[float]]
+    resp_rate: List[Optional[float]]
+    tidal_vol: List[Optional[float]]
+    min_vent: List[Optional[float]]
+    snore: List[Optional[float]]
+    flow_lim: List[Optional[float]]
 
 
 class SpO2Response(BaseModel):
-    timestamps: list[str]
-    spo2: list[Optional[int]]
-    pulse: list[Optional[int]]
+    timestamps: List[str]
+    spo2: List[Optional[int]]
+    pulse: List[Optional[int]]
 
 
 class DailyStat(BaseModel):
@@ -84,5 +84,5 @@ class SummaryStats(BaseModel):
     compliance_pct: float
     avg_ahi: Optional[float]
     avg_pressure: Optional[float]
-    ahi_trend: list[DailyStat]
-    event_breakdown: dict
+    ahi_trend: List[DailyStat]
+    event_breakdown: Dict

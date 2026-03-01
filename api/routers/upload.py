@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -22,25 +23,25 @@ class UploadSession:
     user_id: str
     temp_root: Path
     datalog_path: Path
-    from_date: str | None
+    from_date: Optional[str]
     file_count: int = 0
 
 
-UPLOAD_SESSIONS: dict[str, UploadSession] = {}
+UPLOAD_SESSIONS: Dict[str, UploadSession] = {}
 
 
 class StartUploadRequest(BaseModel):
     root_name: str
-    from_date: str | None = None
+    from_date: Optional[str] = None
 
 
 @dataclass
 class ImportJobStatus:
     running: bool
-    started_at: str | None = None
+    started_at: Optional[str] = None
 
 
-IMPORT_JOBS: dict[str, ImportJobStatus] = {}
+IMPORT_JOBS: Dict[str, ImportJobStatus] = {}
 
 
 def _mark_import_running(user_id: str) -> None:
@@ -54,7 +55,7 @@ def _mark_import_finished(user_id: str) -> None:
     IMPORT_JOBS[user_id] = ImportJobStatus(running=False, started_at=None)
 
 
-def _run_import(datalog_path: str, user_id: str, from_date: str | None, cleanup_dir: str | None = None) -> None:
+def _run_import(datalog_path: str, user_id: str, from_date: Optional[str], cleanup_dir: Optional[str] = None) -> None:
     cmd = [
         sys.executable,
         str(IMPORTER_SCRIPT),
@@ -114,7 +115,7 @@ def start_datalog_upload(
 @router.post("/datalog/{upload_id}/batch")
 def upload_datalog_batch(
     upload_id: str,
-    files: list[UploadFile] = File(...),
+    files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
 ):
     session = _require_session(upload_id, current_user["id"])

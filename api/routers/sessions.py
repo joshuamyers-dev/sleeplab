@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Optional
+from typing import Dict, List, Optional
 from datetime import date
 
 from ..auth import get_current_user
@@ -11,7 +11,7 @@ from ..models import SessionSummary, SessionDetail, EventRecord, MetricsResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=list[SessionSummary])
+@router.get("/", response_model=List[SessionSummary])
 def list_sessions(
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=600),
@@ -22,7 +22,7 @@ def list_sessions(
 ):
     """List sessions with summary stats, sorted by folder_date DESC."""
     conditions = ["user_id = :uid"]
-    params: dict = {"limit": per_page, "offset": (page - 1) * per_page, "uid": current_user["id"]}
+    params: Dict = {"limit": per_page, "offset": (page - 1) * per_page, "uid": current_user["id"]}
 
     if date_from:
         conditions.append("folder_date >= :date_from")
@@ -68,7 +68,7 @@ def get_session(
     return SessionDetail.model_validate(dict(row))
 
 
-@router.get("/{session_id}/events", response_model=list[EventRecord])
+@router.get("/{session_id}/events", response_model=List[EventRecord])
 def get_session_events(
     session_id: str,
     current_user: dict = Depends(get_current_user),

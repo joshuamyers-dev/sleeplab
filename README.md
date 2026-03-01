@@ -31,10 +31,10 @@ cd frontend && npm install
 
 ### 2. Start Postgres
 
-The repo includes a local Postgres service:
+The repo includes a local Postgres service inside Docker Compose:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
 Default database settings from [`docker-compose.yml`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/docker-compose.yml):
@@ -133,6 +133,87 @@ Some summary endpoints depend on `OPENAI_API_KEY`.
 
 Without it, core dashboard features still work, but AI summary endpoints will not return generated output.
 
+## Self-Hosting With Docker Compose
+
+SleepLab can run as a self-hosted Docker stack with:
+
+- PostgreSQL
+- FastAPI backend
+- Nginx-served frontend
+- automatic schema migrations at API startup
+
+Key files:
+
+- [`Dockerfile`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/Dockerfile)
+- [`docker-compose.yml`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/docker-compose.yml)
+- [`docker/entrypoint.sh`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/docker/entrypoint.sh)
+- [`docker/nginx.conf`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/docker/nginx.conf)
+- [`.env.selfhost.example`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/.env.selfhost.example)
+
+### Required Configuration
+
+Set at minimum:
+
+- `SECRET_KEY`
+
+Optional but commonly needed:
+
+- `OPENAI_API_KEY`
+- `CORS_ALLOWED_ORIGINS`
+- `API_URL`
+
+The self-hosted compose stack always uses the internal Postgres DSN:
+
+```text
+postgresql+psycopg2://cpap:cpap@postgres:5432/cpap
+```
+
+For the default self-hosted setup, `CORS_ALLOWED_ORIGINS` is `*` so the frontend can talk to the API regardless of whether you access it via `localhost`, `127.0.0.1`, or a LAN hostname/IP. If you expose the app publicly, tighten that value to your actual frontend origin(s).
+
+### Start The Stack
+
+```bash
+docker compose up --build -d
+```
+
+### View Logs
+
+```bash
+docker compose logs -f
+```
+
+### Stop The Stack
+
+```bash
+docker compose down
+```
+
+### Default Self-Hosted URLs
+
+- Frontend: `http://localhost:8080`
+- API: `http://localhost:8000`
+
+### Persistence
+
+Database data is stored in the named volume:
+
+- `sleeplab_postgres_data`
+
+### Upgrade Workflow
+
+```bash
+git pull
+docker compose up --build -d
+```
+
+Migrations run automatically through [`server.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/server.py) when the API starts.
+
+### Troubleshooting
+
+- If the frontend loads but API requests fail, verify `API_URL` and `CORS_ALLOWED_ORIGINS`.
+- If the API container exits early, inspect `docker compose logs app` for DB or migration errors.
+- If AI summaries are unavailable, confirm `OPENAI_API_KEY` is set.
+
 ## Project Layout
 
 ```text
@@ -154,5 +235,5 @@ cd frontend && npm run lint
 
 ## Notes
 
-- The backend currently uses a hardcoded database URL in [`api/database.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/api/database.py).
+- The backend reads `DATABASE_URL` from environment and falls back to a local development default in [`api/database.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/api/database.py).
 - The backend uses a fallback development JWT secret if `SECRET_KEY` is not set. Set a real `SECRET_KEY` outside local development.

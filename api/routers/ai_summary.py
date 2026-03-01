@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import date, timedelta
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from openai import OpenAI
@@ -30,12 +31,12 @@ SYSTEM_PROMPT = (
 
 
 class AISummaryResponse(BaseModel):
-    insights: str | None = None
-    going_well: list[str] | None = None
-    whats_not: list[str] | None = None
-    recommended_changes: list[str] | None = None
-    disclaimer: str | None = None
-    error: str | None = None
+    insights: Optional[str] = None
+    going_well: Optional[List[str]] = None
+    whats_not: Optional[List[str]] = None
+    recommended_changes: Optional[List[str]] = None
+    disclaimer: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.get("/ai-summary", response_model=AISummaryResponse)
@@ -190,7 +191,7 @@ def _fmt_float(value: object) -> str:
     return f"{float(value):.2f}"
 
 
-def _parse_ai_payload(raw_text: str) -> dict:
+def _parse_ai_payload(raw_text: str) -> Dict:
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
@@ -212,7 +213,7 @@ def _parse_ai_payload(raw_text: str) -> dict:
         return json.loads(cleaned[start:end + 1])
 
 
-def _ensure_list(value: object) -> list[str]:
+def _ensure_list(value: object) -> List[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -242,11 +243,11 @@ SESSION_AI_SYSTEM_PROMPT = (
 
 
 class SessionAISummaryResponse(BaseModel):
-    headline: str | None = None
-    observations: list[str] | None = None
-    recommendations: list[str] | None = None
-    flag: str | None = None
-    error: str | None = None
+    headline: Optional[str] = None
+    observations: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
+    flag: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.get("/sessions/{session_id}/ai-summary", response_model=SessionAISummaryResponse)
@@ -332,11 +333,11 @@ TREND_AI_SYSTEM_PROMPT = (
 
 
 class TrendAISummaryResponse(BaseModel):
-    headline: str | None = None
-    anomalies: list[str] | None = None
-    trend_direction: str | None = None
-    flag: str | None = None
-    error: str | None = None
+    headline: Optional[str] = None
+    anomalies: Optional[List[str]] = None
+    trend_direction: Optional[str] = None
+    flag: Optional[str] = None
+    error: Optional[str] = None
 
 
 @router.get("/trend-ai", response_model=TrendAISummaryResponse)

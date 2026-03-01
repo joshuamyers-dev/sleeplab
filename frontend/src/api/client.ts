@@ -1,4 +1,6 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+import { getApiBaseUrl } from '../config'
+
+const BASE = getApiBaseUrl()
 const TOKEN_STORAGE_KEY = 'cpap_auth_token'
 
 export class UnauthorizedError extends Error {
