@@ -16,7 +16,6 @@ import Dashboard from './pages/Dashboard'
 import CalendarPage from './pages/Calendar'
 import ImportPage from './pages/Import'
 import InsightsPage from './pages/Insights'
-import LandingPage from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import SessionDetail from './pages/SessionDetail'
@@ -58,7 +57,7 @@ function RootRoute() {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <LandingPage />
+  return <Navigate to="/login" replace />
 }
 
 function getUserInitials(firstName: string, lastName: string, email: string) {
@@ -80,7 +79,6 @@ function AppLayout() {
   const [isSyncing, setIsSyncing] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const wasSyncingRef = useRef(false)
-  const isMarketingPage = location.pathname === '/' && !user && !isLoading
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -184,10 +182,6 @@ function AppLayout() {
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     </Routes>
   )
-
-  if (isMarketingPage) {
-    return routes
-  }
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
