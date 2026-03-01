@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { api } from '../api/client'
 import { CheckCircleIcon } from '../components/icons/ChevronIcons'
@@ -15,6 +15,7 @@ type SelectedImportFile = {
 type UploadPhase = 'idle' | 'uploading' | 'complete'
 
 export default function Import() {
+  const directoryInputRef = useRef<HTMLInputElement | null>(null)
   const [rootName, setRootName] = useState<string | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<SelectedImportFile[]>([])
   const [folderLabel, setFolderLabel] = useState('No folder selected')
@@ -30,29 +31,55 @@ export default function Import() {
     setUploadedFiles(0)
     setTotalFiles(0)
 
+    if (!supportsDirectorySelection()) {
+      setError('This browser does not support folder import. Try Chrome or Edge, or use the desktop app.')
+      return
+    }
+
     if (!('showDirectoryPicker' in window)) {
-      setError('This browser does not support directory picking. Use a Chromium-based browser.')
+      directoryInputRef.current?.click()
       return
     }
 
     try {
       const showDirectoryPicker = window.showDirectoryPicker
       if (!showDirectoryPicker) {
-        setError('This browser does not support directory picking. Use a Chromium-based browser.')
+        directoryInputRef.current?.click()
         return
       }
 
       const directoryHandle = await showDirectoryPicker()
       const files = await collectEdfFiles(directoryHandle)
-      setRootName(directoryHandle.name)
-      setSelectedFiles(files)
-      setFolderLabel(files.length > 0 ? `${directoryHandle.name} (${files.length} EDF files)` : `${directoryHandle.name} (no EDF files found)`)
+      applySelectedFiles(directoryHandle.name, files)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return
       }
       setError(err instanceof Error ? err.message : 'Could not read selected folder')
     }
+  }
+
+  function handleDirectoryInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    if (files.length === 0) {
+      return
+    }
+
+    setError(null)
+    setUploadPhase('idle')
+    setUploadedFiles(0)
+    setTotalFiles(0)
+
+    const root = getInputRootName(files)
+    const selected = collectEdfFilesFromInput(files, root)
+    applySelectedFiles(root, selected)
+    event.target.value = ''
+  }
+
+  function applySelectedFiles(root: string, files: SelectedImportFile[]) {
+    setRootName(root)
+    setSelectedFiles(files)
+    setFolderLabel(files.length > 0 ? `${root} (${files.length} EDF files)` : `${root} (no EDF files found)`)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -100,12 +127,20 @@ export default function Import() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {'showDirectoryPicker' in window ? null : (
+          {supportsDirectorySelection() ? null : (
             <div className="mb-5 rounded-[16px] border border-[rgba(233,120,75,0.28)] bg-[rgba(233,120,75,0.08)] px-4 py-3 text-sm text-[var(--orange-700)]">
-              <span className="font-bold">Browser not supported.</span> Folder import requires a Chromium-based browser such as Chrome or Edge. Firefox and Safari are not supported.
+              <span className="font-bold">Browser not supported.</span> Folder import requires either the Chromium directory picker or a browser that supports directory uploads.
             </div>
           )}
           <form className="space-y-5" onSubmit={handleSubmit}>
+            <input
+              ref={directoryInputRef}
+              hidden
+              multiple
+              type="file"
+              onChange={handleDirectoryInputChange}
+              {...DIRECTORY_INPUT_ATTRIBUTES}
+            />
             <div className="space-y-3">
               <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
                 <p className="text-sm text-[var(--foreground)]">{folderLabel}</p>
@@ -187,6 +222,48 @@ async function collectEdfFiles(
 
   return entries.sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 }
+
+function collectEdfFilesFromInput(files: File[], rootName: string): SelectedImportFile[] {
+  return files
+    .filter((file) => file.name.toLowerCase().endsWith('.edf'))
+    .map((file) => ({
+      file,
+      relativePath: getRelativePathFromInput(file, rootName),
+    }))
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+}
+
+function getInputRootName(files: File[]) {
+  const firstWithPath = files.find((file) => getRelativePathFromInput(file).includes('/'))
+  if (firstWithPath) {
+    return getRelativePathFromInput(firstWithPath).split('/')[0]
+  }
+
+  return 'DATALOG'
+}
+
+function getRelativePathFromInput(file: File, rootName?: string) {
+  const rawPath = file.webkitRelativePath || file.name
+  if (!rootName) {
+    return rawPath
+  }
+
+  const prefix = `${rootName}/`
+  return rawPath.startsWith(prefix) ? rawPath.slice(prefix.length) : rawPath
+}
+
+function supportsDirectorySelection() {
+  return 'showDirectoryPicker' in window || supportsWebkitDirectoryInput()
+}
+
+function supportsWebkitDirectoryInput() {
+  return 'webkitdirectory' in document.createElement('input')
+}
+
+const DIRECTORY_INPUT_ATTRIBUTES = {
+  webkitdirectory: '',
+  directory: '',
+} as const
 
 declare global {
   interface Window {
