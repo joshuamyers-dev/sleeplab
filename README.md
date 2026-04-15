@@ -280,6 +280,28 @@ Default local URLs:
 - Frontend: `http://127.0.0.1:5173`
 - API: `http://127.0.0.1:8000`
 
+## Timezones
+
+Two IANA timezone settings control how session data is interpreted and displayed.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MACHINE_TZ` | `UTC` | The timezone your CPAP machine is set to. The importer uses this to correctly interpret the naive local timestamps embedded in EDF files before storing them as UTC in the database. |
+| `DISPLAY_TZ` | `UTC` | The timezone used to format all time labels in the UI — plot axes, event timeline, session start time. Set this to your local timezone for accurate display. |
+
+Both values must be valid [IANA timezone names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g. `America/New_York`, `Europe/London`, `Australia/Sydney`).
+
+Set them in your `.env` file or `docker-compose.yml`:
+
+```env
+MACHINE_TZ=America/New_York
+DISPLAY_TZ=America/New_York
+```
+
+If your machine is set to the same timezone as your display, both values will be identical. If you travel with your CPAP and don't update the machine clock, set `MACHINE_TZ` to the machine's home timezone and `DISPLAY_TZ` to wherever you want times displayed.
+
+> **Re-importing after changing `MACHINE_TZ`:** The importer attaches the timezone at import time. If you change `MACHINE_TZ` after sessions are already in the database, re-run the importer with `--from` to update affected sessions.
+
 ## Auth
 
 SleepLab uses bearer-token auth.

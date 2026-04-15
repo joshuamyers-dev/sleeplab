@@ -3,6 +3,7 @@ import {
   Legend, ResponsiveContainer
 } from 'recharts'
 import type { MetricsResponse } from '../api/client'
+import { getDisplayTz } from '../lib/displayTz'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 interface Props {
@@ -19,7 +20,7 @@ export default function MetricsChart({ metrics }: Props) {
   }))
 
   function fmtTs(ts: number) {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
   }
 
   return (

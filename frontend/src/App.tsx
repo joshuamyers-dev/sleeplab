@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import { BrowserRouter } from 'react-router-dom'
 
 import { api } from './api/client'
+import { setDisplayTz } from './lib/displayTz'
 import {
   ActivityIcon,
   CalendarIcon,
@@ -79,6 +80,11 @@ function AppLayout() {
   const [isSyncing, setIsSyncing] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const wasSyncingRef = useRef(false)
+
+  // Fetch display timezone from server config once on mount.
+  useEffect(() => {
+    api.getAppConfig().then((cfg) => setDisplayTz(cfg.display_tz)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
