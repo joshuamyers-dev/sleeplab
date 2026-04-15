@@ -258,6 +258,7 @@ psql -d cpap -f migrations/002_scope_sessions_per_user.sql
 psql -d cpap -f migrations/003_add_public_ids.sql
 psql -d cpap -f migrations/004_reset_uuid_ids.sql
 psql -d cpap -f migrations/005_add_user_profile_fields.sql
+psql -d cpap -f migrations/006_add_import_settings.sql
 ```
 
 ### 4. Run the app
@@ -322,6 +323,53 @@ Optional filters:
 python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --folder 20241215
 python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --from 20250101
 ```
+
+## Server-Path Import
+
+For self-hosted deployments, SleepLab can import from a DATALOG directory mounted directly on the server — useful for a NAS share, rsync'd SD card, or Home Assistant automation.
+
+### Setup
+
+1. Mount your CPAP data directory into the container under `/data/imports`:
+
+   ```yaml
+   # docker-compose.yml
+   services:
+     app:
+       volumes:
+         - /mnt/nas/cpap:/data/imports:ro
+       environment:
+         IMPORT_BASE_DIR: /data/imports
+   ```
+
+2. In **Settings → Server Import**, enter the path to your DATALOG folder (e.g. `/data/imports/DATALOG`), choose a poll frequency, and save.
+
+3. Click **Import → Import from Server Path → Import now** to run immediately, or set up a cron job / webhook to run on schedule.
+
+### Scheduled imports (cron)
+
+```cron
+# Run daily at 06:00 — adjust IMPORT_WEBHOOK_SECRET and URL as needed
+0 6 * * * curl -sf -X POST http://localhost:8000/import/trigger/all \
+  -H "Authorization: Bearer $IMPORT_WEBHOOK_SECRET"
+```
+
+Set `IMPORT_WEBHOOK_SECRET` in your environment or `.env` file to a random string (`openssl rand -hex 32`). The `/import/trigger/all` endpoint fires background imports for every user with auto-import enabled.
+
+### Webhook trigger
+
+Any HTTP client (Home Assistant, n8n, etc.) can trigger imports:
+
+```
+POST /import/trigger/all
+Authorization: Bearer <IMPORT_WEBHOOK_SECRET>
+```
+
+### Security
+
+- `datalog_path` is resolved and validated against `IMPORT_BASE_DIR`; paths outside that root are rejected.
+- The host volume is recommended as read-only (`:ro`).
+- `IMPORT_WEBHOOK_SECRET` must be set for the `/trigger/all` endpoint to accept requests.
 
 ## AI Summaries
 
