@@ -135,10 +135,15 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
 
     imported = 0
     for block_idx, block in enumerate(blocks):
-        # Build human-readable session_id
-        # Format: "YYYYMMDD_HHMMSS" using folder date + CSL HHMMSS
-        csl_ts = block['csl_ts']
-        session_id = f"{folder_date.strftime('%Y%m%d')}_{csl_ts[8:10]}{csl_ts[10:12]}{csl_ts[12:14]}"
+        # Build session_id from the PLD timestamp (actual recording start), not the
+        # CSL timestamp.  Multiple PLD blocks within one folder can share a single
+        # CSL file; using the CSL time would produce duplicate session_ids and cause
+        # the second (and any further) session from the same night to be skipped.
+        # PLD timestamps are unique per recording block so this correctly supports
+        # multiple sessions on the same date.
+        # Format: "YYYYMMDD_HHMMSS" using folder date + PLD start HHMMSS
+        pld_ts = block['pld_ts']
+        session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
 
         try:
             if session_exists(conn, user_id, session_id):

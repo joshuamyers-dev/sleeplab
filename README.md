@@ -309,6 +309,8 @@ In the UI:
 
 The upload/import endpoints are implemented in [`api/routers/upload.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/api/routers/upload.py), and the importer lives in [`importer/import_sessions.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/importer/import_sessions.py).
 
+Multiple therapy sessions on the same night (e.g. two separate mask-wearing periods) are each imported as distinct sessions identified by their PLD recording start time.
+
 You can also run the importer manually:
 
 ```bash
