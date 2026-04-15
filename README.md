@@ -258,6 +258,7 @@ psql -d cpap -f migrations/002_scope_sessions_per_user.sql
 psql -d cpap -f migrations/003_add_public_ids.sql
 psql -d cpap -f migrations/004_reset_uuid_ids.sql
 psql -d cpap -f migrations/005_add_user_profile_fields.sql
+psql -d cpap -f migrations/007_add_wearable_samples.sql
 ```
 
 ### 4. Run the app
@@ -322,6 +323,59 @@ Optional filters:
 python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --folder 20241215
 python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --from 20250101
 ```
+
+## Wearable Data
+
+SleepLab can display heart rate, SpO₂, and sleep stage data from external wearables alongside CPAP session data on the session detail page.
+
+### Supported devices
+
+Data can be ingested from any device that exports to JSON. Stage label normalisation is built-in for:
+
+| Device | Stage labels recognised |
+|---|---|
+| Withings | `deep_sleep`, `light_sleep`, `rem_sleep`, `awake` |
+| Oura Ring | `deep`, `light`, `rem`, `awake` |
+| Fitbit | `deep`, `light`, `rem`, `wake` |
+| Apple Watch / Health | `asleepDeep`, `asleepCore`, `asleepREM`, `awake`, `asleepUnspecified`, `inBed` |
+
+All labels are matched case-insensitively.
+
+### Sleep stage encoding
+
+| Value | Stage |
+|---|---|
+| 1 | Deep (N3 / SWS / slow-wave) |
+| 2 | Light (N1 / N2 / Core / unspecified) |
+| 3 | REM |
+| 4 | Awake |
+
+### Ingesting data
+
+```bash
+# Bulk upload samples via the API
+curl -X POST http://localhost:8000/wearable/samples \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "oura",
+    "samples": [
+      {"ts": "2025-01-15T22:00:00Z", "heart_rate": 62, "spo2": 97.5, "sleep_stage": "light"},
+      {"ts": "2025-01-15T22:30:00Z", "heart_rate": 58, "sleep_stage": "deep"}
+    ]
+  }'
+```
+
+Duplicate `(user, timestamp, source)` rows are upserted — safe to re-run exports.
+
+### Viewing data
+
+When wearable samples exist for a session date, two additional charts appear at the bottom of the session detail page:
+
+- **Heart Rate & SpO₂** — dual-axis line chart
+- **Sleep Stages** — step-style hypnogram (deep at bottom, awake at top)
+
+Charts are silently omitted when no wearable data is available for that date.
 
 ## AI Summaries
 

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse } from '../api/client'
+import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, WearableSample } from '../api/client'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
 import MetricsChart from '../components/MetricsChart'
+import SleepStageChart from '../components/SleepStageChart'
+import WearableVitalsChart from '../components/WearableVitalsChart'
 import SessionAICard from '../components/SessionAICard'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -35,6 +37,7 @@ export default function SessionDetail() {
   const [session, setSession] = useState<SessionDetailType | null>(null)
   const [events, setEvents] = useState<EventRecord[]>([])
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
+  const [wearable, setWearable] = useState<WearableSample[]>([])
   const [loading, setLoading] = useState(true)
   const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
 
@@ -49,6 +52,8 @@ export default function SessionDetail() {
       setEvents(e)
       setMetrics(m)
       setLoading(false)
+      // Fetch wearable data for this session's date (non-blocking — chart is optional)
+      api.getWearableSamples(s.folder_date).then(r => setWearable(r.samples)).catch(() => {})
     }).catch(() => navigate('/dashboard'))
   }, [navigate, sessionId])
 
@@ -225,6 +230,9 @@ export default function SessionDetail() {
       </Card>
 
       <MetricsChart metrics={metrics} />
+
+      <WearableVitalsChart samples={wearable} />
+      <SleepStageChart samples={wearable} />
     </div>
   )
 }
