@@ -141,6 +141,15 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface ImportSettings {
+  sleephq_client_id: string | null
+  sleephq_client_secret: string | null
+  sleephq_team_id: number | null
+  sleephq_machine_id: number | null
+  auto_import_sleephq: boolean
+  lookback_days: number
+}
+
 export interface SummaryStats {
   total_nights: number
   nights_with_data: number
@@ -266,6 +275,9 @@ export const api = {
   },
   finishImportUpload: (uploadId: string) => post<ImportResponse>(`/upload/datalog/${uploadId}/finish`),
   getImportStatus: () => get<ImportStatusResponse>('/upload/status'),
+  getImportSettings: () => get<ImportSettings>('/import/settings'),
+  saveImportSettings: (payload: Partial<ImportSettings>) => put<ImportSettings>('/import/settings', payload),
+  triggerSleepHQImport: () => post<{ status: string; message: string }>('/import/trigger'),
 }
 
 export const authTokenStore = {

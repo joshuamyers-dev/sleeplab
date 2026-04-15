@@ -23,6 +23,14 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
 
+  // SleepHQ import settings
+  const [sleephqClientId, setSleephqClientId] = useState('')
+  const [sleephqClientSecret, setSleephqClientSecret] = useState('')
+  const [sleephqTeamId, setSleephqTeamId] = useState('')
+  const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
+  const [sleephqError, setSleephqError] = useState<string | null>(null)
+  const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
+
   useEffect(() => {
     if (!user) {
       return
@@ -31,6 +39,16 @@ export default function SettingsPage() {
     setLastName(user.last_name)
     setEmail(user.email)
   }, [user])
+
+  useEffect(() => {
+    api.getImportSettings().then((settings) => {
+      setSleephqClientId(settings.sleephq_client_id ?? '')
+      setSleephqClientSecret(settings.sleephq_client_secret ?? '')
+      setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
+    }).catch(() => {
+      // No settings saved yet — leave fields empty
+    })
+  }, [])
 
   if (!isLoading && !user) {
     return <Navigate to="/login" replace />
@@ -81,6 +99,26 @@ export default function SettingsPage() {
       setPasswordError(err instanceof Error ? err.message : 'Could not change password')
     } finally {
       setIsPasswordSubmitting(false)
+    }
+  }
+
+  async function handleSleephqSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSleephqError(null)
+    setSleephqMessage(null)
+    setIsSleephqSubmitting(true)
+
+    try {
+      await api.saveImportSettings({
+        sleephq_client_id: sleephqClientId || null,
+        sleephq_client_secret: sleephqClientSecret || null,
+        sleephq_team_id: sleephqTeamId ? Number(sleephqTeamId) : null,
+      })
+      setSleephqMessage('Settings saved.')
+    } catch (err) {
+      setSleephqError(err instanceof Error ? err.message : 'Could not save settings')
+    } finally {
+      setIsSleephqSubmitting(false)
     }
   }
 
@@ -185,6 +223,58 @@ export default function SettingsPage() {
 
             <Button type="submit" disabled={isPasswordSubmitting}>
               {isPasswordSubmitting ? 'Updating password...' : 'Update password'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">SleepHQ Integration</CardTitle>
+          <CardDescription>
+            Connect your SleepHQ account to sync CPAP data automatically. You can find your OAuth credentials in your SleepHQ developer settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleSleephqSubmit}>
+            <div className="space-y-3">
+              <Label htmlFor="sleephqClientId">Client ID</Label>
+              <Input
+                id="sleephqClientId"
+                value={sleephqClientId}
+                onChange={(event) => setSleephqClientId(event.target.value)}
+                autoComplete="off"
+                placeholder="OAuth client ID from SleepHQ"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="sleephqClientSecret">Client secret</Label>
+              <Input
+                id="sleephqClientSecret"
+                type="password"
+                value={sleephqClientSecret}
+                onChange={(event) => setSleephqClientSecret(event.target.value)}
+                autoComplete="new-password"
+                placeholder="OAuth client secret from SleepHQ"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="sleephqTeamId">Team ID</Label>
+              <Input
+                id="sleephqTeamId"
+                value={sleephqTeamId}
+                onChange={(event) => setSleephqTeamId(event.target.value)}
+                inputMode="numeric"
+                placeholder="Your SleepHQ team ID (optional — auto-resolved if blank)"
+              />
+            </div>
+
+            {sleephqMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{sleephqMessage}</p> : null}
+            {sleephqError ? <p className="text-sm text-[var(--danger-text)]">{sleephqError}</p> : null}
+
+            <Button type="submit" disabled={isSleephqSubmitting}>
+              {isSleephqSubmitting ? 'Saving...' : 'Save SleepHQ settings'}
             </Button>
           </form>
         </CardContent>

@@ -313,15 +313,50 @@ You can also run the importer manually:
 
 ```bash
 cd importer
-python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid>
+python3 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid>
 ```
 
 Optional filters:
 
 ```bash
-python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --folder 20241215
-python3.12 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --from 20250101
+python3 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --folder 20241215
+python3 import_sessions.py --datalog /absolute/path/to/DATALOG --user-id <user-uuid> --from 20250101
 ```
+
+## SleepHQ Import
+
+Sessions can be pulled directly from [SleepHQ](https://sleephq.com) without an SD card.
+
+### Setup
+
+Add your SleepHQ OAuth credentials and team ID in **Settings → SleepHQ Integration**, or set them in `.env`:
+
+```env
+SLEEPHQ_CLIENT_ID=your-client-id
+SLEEPHQ_CLIENT_SECRET=your-client-secret
+SLEEPHQ_TEAM_ID=your-team-id   # optional — auto-resolved if omitted
+```
+
+OAuth credentials are available from your SleepHQ developer/account settings.
+
+### Sync from the UI
+
+Open **Import → Sync from SleepHQ** and click **Sync now**. The last 30 days of sessions are fetched and written to the database. Sessions imported this way use a `sleephq-{id}` session ID to avoid collisions with SD card imports.
+
+### CLI
+
+```bash
+cd importer
+python3 sleephq_import.py --user-id <user-uuid> --days 30
+
+# Explicit date range
+python3 sleephq_import.py --user-id <user-uuid> --from 2024-01-01 --to 2025-01-01
+
+# Dry run — fetch and map without writing to the database
+python3 sleephq_import.py --user-id <user-uuid> --days 30 --dry-run
+```
+
+The importer retries automatically on rate-limit (HTTP 429) responses and pauses between paginated requests, so long historical back-fills work without manual intervention.
 
 ## AI Summaries
 

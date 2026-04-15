@@ -6,3 +6,4 @@ python-jose==3.5.0
 passlib==1.7.4
 openai==1.109.1
 python-multipart==0.0.22
+sleephq-client @ git+https://github.com/frohoff/sleephq-client.git
