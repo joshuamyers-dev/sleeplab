@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import auth as auth_router
-from .routers import sessions, stats, upload, ai_summary, llm, import_settings as import_settings_router, equipment as equipment_router
+from .routers import sessions, stats, upload, ai_summary, llm, import_settings as import_settings_router, equipment as equipment_router, config
 from .env import load_env
 
 load_env()
@@ -44,6 +44,7 @@ app.include_router(ai_summary.router, prefix="/stats", tags=["stats"])
 app.include_router(llm.router, prefix="/llm", tags=["llm"])
 app.include_router(import_settings_router.router, prefix="/import", tags=["import"])
 app.include_router(equipment_router.router, prefix="/equipment", tags=["equipment"])
+app.include_router(config.router, prefix="/config", tags=["config"])
 
 
 @app.get("/health")

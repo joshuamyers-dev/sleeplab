@@ -26,6 +26,13 @@ services:
       API_URL: ${API_URL:-http://localhost:8000}
       API_HOST: 0.0.0.0
       API_PORT: 8000
+      # Timezone the CPAP machine is set to.  Used by the importer to correctly
+      # interpret naive local timestamps in EDF files before storing as UTC.
+      # Must be a valid IANA timezone name, e.g. America/New_York, Europe/London.
+      MACHINE_TZ: ${MACHINE_TZ:-UTC}
+      # Timezone used to format time labels on plots and session cards in the UI.
+      # Defaults to UTC; set to your local timezone for accurate display.
+      DISPLAY_TZ: ${DISPLAY_TZ:-UTC}
     ports:
       - "8080:8080"
       - "8000:8000"

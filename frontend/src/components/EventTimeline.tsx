@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { EventRecord } from '../api/client'
+import { getDisplayTz } from '../lib/displayTz'
 
 interface Props {
   events: EventRecord[]
@@ -18,7 +19,7 @@ const EVENT_COLORS: Record<string, string> = {
 
 function fmtTime(startIso: string, offsetSeconds: number): string {
   const d = new Date(new Date(startIso).getTime() + offsetSeconds * 1000)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
 export default function EventTimeline({ events, durationSeconds, startDatetime }: Props) {
