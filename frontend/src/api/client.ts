@@ -141,6 +141,16 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface LocalImportSettings {
+  datalog_path: string | null
+  auto_import_enabled: boolean
+  poll_frequency: 'hourly' | 'daily' | 'weekly'
+  lookback_days: number
+  last_import_at: string | null
+  last_import_status: 'ok' | 'error' | 'running' | null
+  last_import_message: string | null
+}
+
 export interface SummaryStats {
   total_nights: number
   nights_with_data: number
@@ -266,6 +276,10 @@ export const api = {
   },
   finishImportUpload: (uploadId: string) => post<ImportResponse>(`/upload/datalog/${uploadId}/finish`),
   getImportStatus: () => get<ImportStatusResponse>('/upload/status'),
+  getLocalImportSettings: () => get<LocalImportSettings>('/import/settings'),
+  saveLocalImportSettings: (payload: Partial<LocalImportSettings>) =>
+    put<LocalImportSettings>('/import/settings', payload),
+  triggerLocalImport: () => post<{ status: string; message: string }>('/import/trigger'),
 }
 
 export const authTokenStore = {

@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
 import { CheckCircleIcon } from '../components/icons/ChevronIcons'
@@ -117,8 +118,27 @@ export default function Import() {
 
   const uploadPercent = totalFiles > 0 ? Math.round((uploadedFiles / totalFiles) * 100) : 0
 
+  // Server-path import
+  const [isServerImporting, setIsServerImporting] = useState(false)
+  const [serverImportMessage, setServerImportMessage] = useState<string | null>(null)
+  const [serverImportError, setServerImportError] = useState<string | null>(null)
+
+  async function handleServerImport() {
+    setServerImportError(null)
+    setServerImportMessage(null)
+    setIsServerImporting(true)
+    try {
+      const result = await api.triggerLocalImport()
+      setServerImportMessage(result.message)
+    } catch (err) {
+      setServerImportError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setIsServerImporting(false)
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-6">
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.6),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl">Import Sleep Data</CardTitle>
@@ -189,6 +209,30 @@ export default function Import() {
               {isSubmitting ? 'Uploading...' : 'Start import'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Import from Server Path</CardTitle>
+          <CardDescription>
+            Trigger an immediate import from the DATALOG directory mounted on the server. Configure the
+            path and schedule in{' '}
+            <Link className="font-medium text-[var(--foreground)] underline underline-offset-2" to="/settings">
+              Settings
+            </Link>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {serverImportMessage ? (
+            <div className="flex items-start gap-3 rounded-[20px] border border-[rgba(106,161,54,0.24)] bg-[rgba(106,161,54,0.1)] p-4 text-[var(--olive-deep)]">
+              <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">{serverImportMessage}</p>
+            </div>
+          ) : null}
+          {serverImportError ? <p className="text-sm text-[var(--danger-text)]">{serverImportError}</p> : null}
+          <Button onClick={handleServerImport} disabled={isServerImporting}>
+            {isServerImporting ? 'Starting...' : 'Import now'}
+          </Button>
         </CardContent>
       </Card>
     </div>
