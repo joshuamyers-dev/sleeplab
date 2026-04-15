@@ -31,6 +31,10 @@ __pycache__/
 .venv/
 venv/
 
+# uv-generated files
+uv.lock
+.python-version
+
 # Local temp / upload artifacts
 tmp/
 *.tmp

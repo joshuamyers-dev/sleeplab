@@ -35,16 +35,89 @@ Programmatic usage:
 
 import argparse
 import os
+import random
 import sys
+import time
 from datetime import date, datetime, timedelta
 from typing import Optional
 
+import httpx
+
 from sleephq import AuthenticatedClient
-from sleephq.api.machines import get_v1_machines_machine_id_machine_dates
+from sleephq.auth import create_client as _sleephq_create_client
+from sleephq.api.machine_dates import get_v1_machines_machine_id_machine_dates
 from sleephq.api.teams import get_v1_teams
 from sleephq.api.machines import get_v1_teams_team_id_machines
 
 from db import get_conn, session_exists, upsert_session
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit / retry helpers
+# ---------------------------------------------------------------------------
+
+#: HTTP status codes that warrant a retry with backoff.
+_RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+#: Maximum number of attempts before giving up (1 original + N-1 retries).
+_MAX_ATTEMPTS = 8
+
+#: Base delay in seconds for exponential backoff.
+_BASE_DELAY = 2.0
+
+#: Hard cap on a single wait interval.
+_MAX_DELAY = 300.0  # 5 minutes
+
+#: Polite pause between successive paginated API requests.
+_PAGE_DELAY = 1.5  # seconds
+
+
+def _backoff_delay(attempt: int, retry_after_header: Optional[str] = None) -> float:
+    """
+    Return how many seconds to wait before the next attempt.
+
+    Prefers the ``Retry-After`` header value when present.  Otherwise uses
+    full-jitter exponential backoff:  random(0, min(base * 2^attempt, cap)).
+    """
+    if retry_after_header:
+        try:
+            return max(1.0, float(retry_after_header))
+        except (TypeError, ValueError):
+            pass
+    cap = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
+    return random.uniform(0, cap)
+
+
+def _api_call_with_retry(fn, *args, label: str = "API call", **kwargs):
+    """
+    Call ``fn(*args, **kwargs)`` and retry on transient / rate-limit errors.
+
+    ``fn`` must return an httpx-style response object with a ``status_code``
+    attribute and a ``headers`` mapping (i.e. the ``Response`` type returned
+    by sleephq-client ``sync_detailed`` functions).
+
+    Raises ``RuntimeError`` if all attempts are exhausted.
+    """
+    last_resp = None
+    for attempt in range(_MAX_ATTEMPTS):
+        last_resp = fn(*args, **kwargs)
+        if last_resp.status_code not in _RETRY_STATUSES:
+            return last_resp
+
+        retry_after = None
+        if hasattr(last_resp, "headers") and last_resp.headers:
+            retry_after = last_resp.headers.get("Retry-After")
+
+        wait = _backoff_delay(attempt, retry_after)
+        print(
+            f"  [{label}] HTTP {last_resp.status_code} — "
+            f"waiting {wait:.1f}s before retry {attempt + 1}/{_MAX_ATTEMPTS - 1}…",
+            file=sys.stderr,
+        )
+        time.sleep(wait)
+
+    # Return the last response; caller decides whether to raise or continue.
+    return last_resp
 
 
 # ---------------------------------------------------------------------------
@@ -55,10 +128,35 @@ def create_sleephq_client(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
 ) -> AuthenticatedClient:
-    """Authenticate with SleepHQ and return an authenticated client."""
+    """
+    Authenticate with SleepHQ via OAuth2 and return an authenticated client.
+
+    Retries up to ``_MAX_ATTEMPTS`` times on HTTP 429 (rate limit) with
+    exponential back-off, honouring the ``Retry-After`` header when present.
+    """
     cid = client_id or os.environ["SLEEPHQ_CLIENT_ID"]
     csecret = client_secret or os.environ["SLEEPHQ_CLIENT_SECRET"]
-    return AuthenticatedClient(client_id=cid, client_secret=csecret)
+
+    last_exc: Optional[Exception] = None
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            return _sleephq_create_client(client_id=cid, client_secret=csecret)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in _RETRY_STATUSES:
+                raise
+            retry_after = exc.response.headers.get("Retry-After")
+            wait = _backoff_delay(attempt, retry_after)
+            print(
+                f"  [auth] HTTP {exc.response.status_code} — "
+                f"waiting {wait:.1f}s before retry {attempt + 1}/{_MAX_ATTEMPTS - 1}…",
+                file=sys.stderr,
+            )
+            time.sleep(wait)
+            last_exc = exc
+
+    raise RuntimeError(
+        f"SleepHQ authentication failed after {_MAX_ATTEMPTS} attempts"
+    ) from last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -71,17 +169,17 @@ def resolve_team_id(client: AuthenticatedClient) -> int:
     if env_val:
         return int(env_val)
 
-    resp = get_v1_teams.sync_detailed(client=client)
+    resp = _api_call_with_retry(
+        get_v1_teams.sync_detailed, client=client, label="GET /teams"
+    )
     if resp.status_code != 200 or not resp.parsed:
         raise RuntimeError(f"Failed to list teams: HTTP {resp.status_code}")
 
-    teams = resp.parsed
-    if not teams:
+    items = getattr(resp.parsed, "data", None) or []
+    if not items:
         raise RuntimeError("No teams found on this SleepHQ account")
 
-    # Use first team; most users have exactly one
-    team = teams[0]
-    return _attr(team, "id", "team_id")
+    return int(items[0].id)
 
 
 def resolve_machine_id(client: AuthenticatedClient, team_id: int) -> int:
@@ -90,18 +188,20 @@ def resolve_machine_id(client: AuthenticatedClient, team_id: int) -> int:
     if env_val:
         return int(env_val)
 
-    resp = get_v1_teams_team_id_machines.sync_detailed(
-        team_id=team_id, client=client
+    resp = _api_call_with_retry(
+        get_v1_teams_team_id_machines.sync_detailed,
+        team_id=team_id,
+        client=client,
+        label=f"GET /teams/{team_id}/machines",
     )
     if resp.status_code != 200 or not resp.parsed:
         raise RuntimeError(f"Failed to list machines: HTTP {resp.status_code}")
 
-    machines = resp.parsed
-    if not machines:
+    items = getattr(resp.parsed, "data", None) or []
+    if not items:
         raise RuntimeError("No machines found for this team")
 
-    machine = machines[0]
-    return _attr(machine, "id", "machine_id")
+    return int(items[0].id)
 
 
 # ---------------------------------------------------------------------------
@@ -116,54 +216,101 @@ def fetch_machine_dates(
     days: int = 30,
 ) -> list:
     """
-    Fetch paginated machine_dates records from the SleepHQ API.
+    Fetch machine_dates records from the SleepHQ API, filtered to a date range.
 
-    If neither from_date nor to_date is given, fetches the last `days` days.
-    Returns a flat list of machine_date objects.
+    The API returns records sorted DESC (newest first) with no server-side date
+    filter.  We paginate through all pages, applying client-side date filtering,
+    and stop as soon as we reach a record older than ``from_date``.
+
+    Each page request is retried automatically on 429 / transient 5xx with
+    exponential back-off (see ``_api_call_with_retry``).  A short polite pause
+    (``_PAGE_DELAY``) is inserted between successive pages so we don't saturate
+    the API when importing long histories.
+
+    If neither from_date nor to_date is given, fetches the last ``days`` days.
+    Returns a flat list of machine_date items (JSON:API data items).
     """
+    from sleephq.types import Unset
+
     if from_date is None:
         to_date = to_date or date.today()
         from_date = to_date - timedelta(days=days)
 
     to_date = to_date or date.today()
 
-    all_records = []
+    span_days = (to_date - from_date).days
+    print(
+        f"  Fetching machine_dates for machine {machine_id}: "
+        f"{from_date} → {to_date} ({span_days} days)"
+    )
+
+    all_records: list = []
     page = 1
 
     while True:
-        resp = get_v1_machines_machine_id_machine_dates.sync_detailed(
+        if page > 1:
+            time.sleep(_PAGE_DELAY)
+
+        resp = _api_call_with_retry(
+            get_v1_machines_machine_id_machine_dates.sync_detailed,
             machine_id=machine_id,
             client=client,
-            start_date=from_date.isoformat(),
-            end_date=to_date.isoformat(),
             page=page,
+            label=f"GET machine_dates page {page}",
         )
 
         if resp.status_code != 200:
             raise RuntimeError(
-                f"machine_dates fetch failed: HTTP {resp.status_code}"
+                f"machine_dates fetch failed on page {page}: HTTP {resp.status_code}"
             )
 
         parsed = resp.parsed
         if parsed is None:
             break
 
-        # Normalise: response may be a list directly or wrapped in .data
-        records = _attr_safe(parsed, "data") or (parsed if isinstance(parsed, list) else [])
-        if not records:
+        records = getattr(parsed, "data", None)
+        if not records or isinstance(records, Unset):
             break
 
-        all_records.extend(records)
+        page_kept = 0
+        reached_start = False
 
-        # Pagination: stop when we receive fewer records than a full page
-        # or when meta.next_page is None
-        meta = _attr_safe(parsed, "meta")
-        if meta:
-            next_page = _attr_safe(meta, "next_page")
-            if not next_page:
+        for rec in records:
+            rec_attrs = getattr(rec, "attributes", None)
+            rec_date  = getattr(rec_attrs, "date", None) if rec_attrs else None
+            if isinstance(rec_date, Unset):
+                rec_date = None
+
+            if isinstance(rec_date, str):
+                try:
+                    rec_date = date.fromisoformat(rec_date)
+                except ValueError:
+                    rec_date = None
+
+            # No date on record — include it and keep going
+            if rec_date is None:
+                all_records.append(rec)
+                page_kept += 1
+                continue
+
+            # Sorted DESC: skip anything newer than our window
+            if rec_date > to_date:
+                continue
+
+            # Past the start of our window — no need to fetch further pages
+            if rec_date < from_date:
+                reached_start = True
                 break
-        elif len(records) < 25:
-            # No meta; fall back to heuristic
+
+            all_records.append(rec)
+            page_kept += 1
+
+        print(
+            f"    page {page}: {len(records)} records returned, "
+            f"{page_kept} in window, {len(all_records)} total so far"
+        )
+
+        if reached_start or len(records) < 100:
             break
 
         page += 1
@@ -195,17 +342,47 @@ def _attr_safe(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def _sub(summary_obj, *keys, default=None):
+    """
+    Read a value from a JSON:API summary sub-object (ahi_summary,
+    pressure_summary, etc.).  These are schema-less bags stored in
+    .additional_properties, so dict-style access is required.
+    """
+    if summary_obj is None:
+        return default
+    from sleephq.types import Unset
+    if isinstance(summary_obj, Unset):
+        return default
+    props = getattr(summary_obj, "additional_properties", {}) or {}
+    for key in keys:
+        val = props.get(key)
+        if val is not None:
+            return val
+    return default
+
+
 def map_machine_date_to_session(record, user_id: str) -> dict:
     """
-    Map a SleepHQ machine_date record to the dict expected by
-    db.upsert_session().  Field names are tried in priority order to
-    handle minor schema variations across sleephq-client versions.
+    Map a SleepHQ machine_date record (JSON:API format) to the dict
+    expected by db.upsert_session().
+
+    The record has:
+      record.id                  — string record ID
+      record.attributes.date     — date object
+      record.attributes.usage    — int (seconds of usage)
+      record.attributes.*_summary — dict-bag via .additional_properties
     """
-    record_id = _attr(record, "id", "record_id")
+    from sleephq.types import Unset
+
+    record_id = record.id if not isinstance(getattr(record, "id", None), Unset) else None
     session_id = f"sleephq-{record_id}"
 
-    # Date — ISO string ("2025-03-15") or a date object
-    raw_date = _attr(record, "date", "session_date", "calendar_date")
+    attrs = record.attributes if not isinstance(getattr(record, "attributes", None), Unset) else None
+
+    # ── Date ────────────────────────────────────────────────────────────────
+    raw_date = getattr(attrs, "date", None) if attrs else None
+    if isinstance(raw_date, Unset):
+        raw_date = None
     if isinstance(raw_date, str):
         folder_date = date.fromisoformat(raw_date)
     elif isinstance(raw_date, date):
@@ -213,76 +390,104 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
     else:
         folder_date = None
 
-    # Start datetime
-    raw_start = _attr(record, "start_time", "session_start", "starts_at")
-    if isinstance(raw_start, str):
-        start_datetime = datetime.fromisoformat(raw_start.replace("Z", "+00:00"))
-    elif isinstance(raw_start, datetime):
-        start_datetime = raw_start
-    else:
-        start_datetime = (
-            datetime(folder_date.year, folder_date.month, folder_date.day)
-            if folder_date
-            else None
-        )
+    # ── Start datetime ───────────────────────────────────────────────────────
+    # SleepHQ doesn't expose a start_time on machine_dates; use midnight of
+    # the session date as a reasonable default.
+    start_datetime = (
+        datetime(folder_date.year, folder_date.month, folder_date.day)
+        if folder_date
+        else None
+    )
 
-    # Duration — may be in seconds or minutes depending on API version
-    duration_raw = _attr(record, "duration", "session_duration", "total_duration")
+    # ── Duration ─────────────────────────────────────────────────────────────
+    # attributes.usage is confirmed to be in seconds (e.g. 27960 = ~7.8 h).
+    usage_raw = getattr(attrs, "usage", None) if attrs else None
     duration_seconds = None
-    if duration_raw is not None:
-        duration_seconds = int(duration_raw)
-        # Heuristic: durations > 86400 are probably in ms; < 600 probably in minutes
-        if duration_seconds > 86400:
-            duration_seconds //= 1000
-        elif duration_seconds < 600:
-            duration_seconds *= 60
-
-    # AHI
-    ahi = _attr(record, "ahi", "apnea_hypopnea_index")
-    try:
-        ahi = round(float(ahi), 2) if ahi is not None else None
-    except (TypeError, ValueError):
-        ahi = None
-
-    # Event counts
-    def _int(val):
+    if usage_raw is not None and not isinstance(usage_raw, Unset):
         try:
-            return int(val) if val is not None else None
+            duration_seconds = int(usage_raw)
         except (TypeError, ValueError):
-            return None
+            pass
 
-    ca  = _int(_attr(record, "central_apnea_count", "central_apneas",  "ca_count"))
-    oa  = _int(_attr(record, "obstructive_apnea_count", "obstructive_apneas", "oa_count"))
-    h   = _int(_attr(record, "hypopnea_count", "hypopneas"))
-    a   = _int(_attr(record, "apnea_count",    "apneas"))
-    ar  = _int(_attr(record, "arousal_count",  "arousals"))
-
-    total_ahi_events = _int(_attr(record, "total_ahi_events"))
-    if total_ahi_events is None:
-        counts = [ca, oa, h, a]
-        if any(c is not None for c in counts):
-            total_ahi_events = sum(c for c in counts if c is not None)
-
-    # Pressures / ventilation
     def _float(val, ndigits=4):
         try:
             return round(float(val), ndigits) if val is not None else None
         except (TypeError, ValueError):
             return None
 
-    avg_pressure = _float(_attr(record, "avg_pressure",  "average_pressure",   "median_pressure"))
-    p95_pressure = _float(_attr(record, "p95_pressure",  "pressure_95",        "p95"))
-    avg_leak     = _float(_attr(record, "avg_leak",      "average_leak",       "leak"))
-    avg_resp_rate = _float(_attr(record, "avg_resp_rate", "average_resp_rate", "resp_rate"))
-    avg_tidal_vol = _float(_attr(record, "avg_tidal_vol", "tidal_volume",      "tidal_vol"))
-    avg_min_vent  = _float(_attr(record, "avg_min_vent",  "minute_ventilation", "min_vent"))
-    avg_snore     = _float(_attr(record, "avg_snore",     "snore_index",        "snore"))
-    avg_flow_lim  = _float(_attr(record, "avg_flow_lim",  "flow_limitation",   "flow_lim"))
+    def _int(val):
+        try:
+            return int(round(float(val))) if val is not None else None
+        except (TypeError, ValueError):
+            return None
 
-    # Device serial
-    device_serial = _attr(record, "device_serial", "serial_number", "device_id")
-    if device_serial is not None:
-        device_serial = str(device_serial)
+    # ── AHI summary ──────────────────────────────────────────────────────────
+    # Keys confirmed from live API: total, hypopnea, all_apnea, clear_airway,
+    # obstructive_apnea, unidentified_apnea.
+    # Values are per-hour indices (not raw counts).  We derive counts by
+    # multiplying the index by session duration in hours.
+    ahi_s = getattr(attrs, "ahi_summary", None) if attrs else None
+
+    ahi = _float(_sub(ahi_s, "total"), 2)
+
+    duration_hours = (duration_seconds / 3600.0) if duration_seconds else None
+
+    def _index_to_count(index_val):
+        """Convert a per-hour event index to an integer count."""
+        if index_val is None or duration_hours is None:
+            return None
+        return _int(float(index_val) * duration_hours)
+
+    ca = _index_to_count(_sub(ahi_s, "clear_airway"))
+    oa = _index_to_count(_sub(ahi_s, "obstructive_apnea"))
+    h  = _index_to_count(_sub(ahi_s, "hypopnea"))
+    # all_apnea covers obstructive + unidentified; store as the generic apnea count
+    a  = _index_to_count(_sub(ahi_s, "all_apnea"))
+    ar = None  # not present in machine_dates
+
+    total_ahi_events = _index_to_count(_sub(ahi_s, "total"))
+    # If we got a total index but no individual counts, total is still useful
+    if total_ahi_events is None and ahi is not None and duration_hours is not None:
+        total_ahi_events = _int(ahi * duration_hours)
+
+    # ── Pressure summary ─────────────────────────────────────────────────────
+    # Confirmed keys: av (mean), med (median), upper (95th percentile), max, min
+    pres_s = getattr(attrs, "pressure_summary", None) if attrs else None
+    avg_pressure = _float(_sub(pres_s, "av"))
+    p95_pressure = _float(_sub(pres_s, "upper"))
+
+    # ── Leak rate summary ────────────────────────────────────────────────────
+    # Confirmed keys: av, med, upper, max, min, score
+    leak_s = getattr(attrs, "leak_rate_summary", None) if attrs else None
+    avg_leak = _float(_sub(leak_s, "av"))
+
+    # ── Respiratory rate summary ─────────────────────────────────────────────
+    # Confirmed keys: av, med, upper, max, min
+    rr_s = getattr(attrs, "resp_rate_summary", None) if attrs else None
+    avg_resp_rate = _float(_sub(rr_s, "av"))
+
+    # ── Flow limitation summary ──────────────────────────────────────────────
+    # Confirmed keys: av, med, upper, max, min
+    fl_s = getattr(attrs, "flow_limit_summary", None) if attrs else None
+    avg_flow_lim = _float(_sub(fl_s, "av"))
+
+    # ── SpO2 / pulse summary ─────────────────────────────────────────────────
+    # Returns empty dict for most machines; has_spo2 = True only if non-empty
+    spo2_s = getattr(attrs, "spo2_summary", None) if attrs else None
+    has_spo2 = bool(
+        spo2_s is not None
+        and not isinstance(spo2_s, Unset)
+        and getattr(spo2_s, "additional_properties", {})
+    )
+
+    # Fields not present in machine_dates (no per-session waveform summaries)
+    avg_tidal_vol = None
+    avg_min_vent  = None
+    avg_snore     = None
+
+    # ── Device serial ────────────────────────────────────────────────────────
+    # Not present on machine_dates; would need to join against the machine record
+    device_serial = None
 
     return {
         "session_id":              session_id,
@@ -307,7 +512,7 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
         "avg_min_vent":            avg_min_vent,
         "avg_snore":               avg_snore,
         "avg_flow_lim":            avg_flow_lim,
-        "has_spo2":                False,
+        "has_spo2":                has_spo2,
         "user_id":                 user_id,
     }
 
