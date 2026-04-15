@@ -141,6 +141,32 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface WearableSample {
+  ts: string
+  heart_rate: number | null
+  spo2: number | null
+  /** 1=Deep  2=Light  3=REM  4=Awake */
+  sleep_stage: 1 | 2 | 3 | 4 | null
+  raw_stage: string | null
+  source: string | null
+}
+
+export interface WearableResponse {
+  samples: WearableSample[]
+}
+
+export interface WearableSampleIn {
+  ts: string
+  heart_rate?: number | null
+  spo2?: number | null
+  sleep_stage?: string | null
+}
+
+export interface WearableBulkIn {
+  source: string
+  samples: WearableSampleIn[]
+}
+
 export interface SummaryStats {
   total_nights: number
   nights_with_data: number
@@ -266,6 +292,8 @@ export const api = {
   },
   finishImportUpload: (uploadId: string) => post<ImportResponse>(`/upload/datalog/${uploadId}/finish`),
   getImportStatus: () => get<ImportStatusResponse>('/upload/status'),
+  getWearableSamples: (date: string) => get<WearableResponse>('/wearable/samples', { date }),
+  postWearableSamples: (payload: WearableBulkIn) => post<void>('/wearable/samples', payload),
 }
 
 export const authTokenStore = {
