@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { getDisplayTz } from '../lib/displayTz'
 import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse } from '../api/client'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
 import EventTimeline from '../components/EventTimeline'
@@ -11,11 +12,11 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: getDisplayTz() })
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
 

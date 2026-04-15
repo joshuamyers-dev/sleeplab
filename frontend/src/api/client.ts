@@ -141,6 +141,11 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface AppConfig {
+  display_tz: string
+  machine_tz: string
+}
+
 export interface SummaryStats {
   total_nights: number
   nights_with_data: number
@@ -266,6 +271,7 @@ export const api = {
   },
   finishImportUpload: (uploadId: string) => post<ImportResponse>(`/upload/datalog/${uploadId}/finish`),
   getImportStatus: () => get<ImportStatusResponse>('/upload/status'),
+  getAppConfig: () => get<AppConfig>('/config'),
 }
 
 export const authTokenStore = {
