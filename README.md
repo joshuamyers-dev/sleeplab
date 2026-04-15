@@ -329,11 +329,11 @@ AI-generated session and trend summaries are powered by any OpenAI-compatible LL
 
 ### Provider detection
 
-| `LLM_PROVIDER` | Backend | Key env vars |
+| `LLM_PROVIDER` | Backend | Required env vars |
 |---|---|---|
-| `openai` (or auto-detected) | OpenAI cloud | `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o`) |
-| `ollama` (default when no key) | Local Ollama | `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`), `OLLAMA_MODEL` (default `llama3.1:8b`) |
-| `litellm` | LiteLLM proxy | `LITELLM_BASE_URL` (default `http://localhost:4000/v1`), `LITELLM_MODEL` |
+| `openai` / auto-detected | OpenAI cloud | `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o`) |
+| `ollama` / default when no key | Local Ollama | `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`), `OLLAMA_MODEL` (default `llama3.1:8b`) |
+| `litellm` | LiteLLM proxy | `LITELLM_BASE_URL` (default `http://localhost:4000/v1`), `LITELLM_MODEL` (default `gpt-4o-mini`) |
 | `custom` | Any OpenAI-compatible endpoint | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` |
 
 ### Health check
