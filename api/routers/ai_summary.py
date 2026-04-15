@@ -1,16 +1,15 @@
 import json
-import os
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from openai import OpenAI
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..database import get_db
+from ..llm_client import get_llm_client, get_model, is_configured
 
 router = APIRouter()
 
@@ -45,9 +44,8 @@ def get_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return AISummaryResponse(error="OpenAI API key not configured")
+    if not is_configured():
+        return AISummaryResponse(error="LLM backend not configured")
 
     start_date = date.today() - timedelta(days=days - 1)
     row = db.execute(
@@ -165,15 +163,15 @@ def get_ai_summary(
     )
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model="gpt-4o",
-            input=[
+        client = get_llm_client()
+        response = client.chat.completions.create(
+            model=get_model(),
+            messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
-        payload = _parse_ai_payload((response.output_text or "").strip())
+        payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
         return AISummaryResponse(
             insights=payload.get("insights"),
             going_well=_ensure_list(payload.get("going_well")),
@@ -256,9 +254,8 @@ def get_session_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return SessionAISummaryResponse(error="OpenAI API key not configured")
+    if not is_configured():
+        return SessionAISummaryResponse(error="LLM backend not configured")
 
     row = db.execute(
         text(
@@ -298,15 +295,15 @@ def get_session_ai_summary(
     )
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model="gpt-4o",
-            input=[
+        client = get_llm_client()
+        response = client.chat.completions.create(
+            model=get_model(),
+            messages=[
                 {"role": "system", "content": SESSION_AI_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
-        payload = _parse_ai_payload((response.output_text or "").strip())
+        payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
         return SessionAISummaryResponse(
             headline=payload.get("headline"),
             observations=_ensure_list(payload.get("observations")),
@@ -345,9 +342,8 @@ def get_trend_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return TrendAISummaryResponse(error="OpenAI API key not configured")
+    if not is_configured():
+        return TrendAISummaryResponse(error="LLM backend not configured")
 
     rows = db.execute(
         text(
@@ -387,15 +383,15 @@ def get_trend_ai_summary(
     )
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model="gpt-4o",
-            input=[
+        client = get_llm_client()
+        response = client.chat.completions.create(
+            model=get_model(),
+            messages=[
                 {"role": "system", "content": TREND_AI_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
-        payload = _parse_ai_payload((response.output_text or "").strip())
+        payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
         return TrendAISummaryResponse(
             headline=payload.get("headline"),
             anomalies=_ensure_list(payload.get("anomalies")),
