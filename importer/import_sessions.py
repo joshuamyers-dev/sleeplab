@@ -135,10 +135,8 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
 
     imported = 0
     for block_idx, block in enumerate(blocks):
-        # Build human-readable session_id
-        # Format: "YYYYMMDD_HHMMSS" using folder date + CSL HHMMSS
-        csl_ts = block['csl_ts']
-        session_id = f"{folder_date.strftime('%Y%m%d')}_{csl_ts[8:10]}{csl_ts[10:12]}{csl_ts[12:14]}"
+        pld_ts = block['pld_ts']
+        session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
 
         try:
             if session_exists(conn, user_id, session_id):
@@ -173,7 +171,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'session_id':         session_id,
                 'folder_date':        folder_date,
                 'block_index':        block_idx,
-                'start_datetime':     csl_start,
+                'start_datetime':     pld_start,
                 'pld_start_datetime': pld_start,
                 'duration_seconds':   duration_s,
                 'device_serial':      pld_header.device_serial or None,
