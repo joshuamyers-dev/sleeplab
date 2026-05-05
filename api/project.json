@@ -10,12 +10,5 @@
         "cwd": "/Users/joshuanissenbaum/Programming/cpap-dashboard"
       }
     },
-    "mcp-http": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "python3.13 api/mcp_server_http.py",
-        "cwd": "/Users/joshuanissenbaum/Programming/cpap-dashboard"
-      }
-    }
   }
 }
