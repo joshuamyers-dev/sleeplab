@@ -140,6 +140,58 @@ def get_session_metrics(
     )
 
 
+@router.get("/{session_id}/breath", response_model=MetricsResponse)
+def get_session_breath(
+    session_id: str,
+    offset_minutes: int = Query(0, ge=0, description="Start offset from session start in minutes"),
+    window_minutes: int = Query(10, ge=1, le=60, description="Window length in minutes (max 60)"),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Full 2-second resolution metrics for a time window within a session.
+    Use offset_minutes + window_minutes to navigate through the night breath-by-breath.
+    """
+    internal_session_id = _require_session(session_id, current_user["id"], db)
+    rows = db.execute(
+        text("""
+            SELECT ts, mask_pressure, pressure, epr_pressure, leak,
+                   resp_rate, tidal_vol, min_vent, snore, flow_lim
+            FROM session_metrics
+            WHERE session_id = :sid
+              AND ts >= (
+                  SELECT MIN(ts) + (:offset_min * INTERVAL '1 minute')
+                  FROM session_metrics WHERE session_id = :sid
+              )
+              AND ts < (
+                  SELECT MIN(ts) + ((:offset_min + :window_min) * INTERVAL '1 minute')
+                  FROM session_metrics WHERE session_id = :sid
+              )
+            ORDER BY ts
+        """),
+        {"sid": internal_session_id, "offset_min": offset_minutes, "window_min": window_minutes}
+    ).mappings().all()
+
+    if not rows:
+        return MetricsResponse(
+            timestamps=[], mask_pressure=[], pressure=[], epr_pressure=[],
+            leak=[], resp_rate=[], tidal_vol=[], min_vent=[], snore=[], flow_lim=[]
+        )
+
+    return MetricsResponse(
+        timestamps=[r["ts"].isoformat() for r in rows],
+        mask_pressure=[_f(r["mask_pressure"]) for r in rows],
+        pressure=[_f(r["pressure"]) for r in rows],
+        epr_pressure=[_f(r["epr_pressure"]) for r in rows],
+        leak=[_f(r["leak"]) for r in rows],
+        resp_rate=[_f(r["resp_rate"]) for r in rows],
+        tidal_vol=[_f(r["tidal_vol"]) for r in rows],
+        min_vent=[_f(r["min_vent"]) for r in rows],
+        snore=[_f(r["snore"]) for r in rows],
+        flow_lim=[_f(r["flow_lim"]) for r in rows],
+    )
+
+
 @router.get("/{session_id}/spo2", response_model=SpO2Response)
 def get_session_spo2(
     session_id: str,
