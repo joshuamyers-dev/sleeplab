@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { CheckCircleIcon } from '../components/icons/ChevronIcons'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Link } from 'react-router-dom'
 
 const IMPORT_SYNC_STORAGE_KEY = 'cpap-import-sync-active'
 
@@ -22,6 +23,11 @@ export default function Import() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle')
+
+  // SleepHQ sync state
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState(0)
   const [totalFiles, setTotalFiles] = useState(0)
 
@@ -117,8 +123,22 @@ export default function Import() {
 
   const uploadPercent = totalFiles > 0 ? Math.round((uploadedFiles / totalFiles) * 100) : 0
 
+  async function handleSleepHQSync() {
+    setSyncError(null)
+    setSyncMessage(null)
+    setIsSyncing(true)
+    try {
+      const result = await api.triggerSleepHQImport()
+      setSyncMessage(result.message || 'Sync started. New sessions will appear shortly.')
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'Sync failed')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-6">
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.6),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl">Import Sleep Data</CardTitle>
@@ -189,6 +209,30 @@ export default function Import() {
               {isSubmitting ? 'Uploading...' : 'Start import'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Sync from SleepHQ</CardTitle>
+          <CardDescription>
+            Pull the last 30 days of CPAP sessions directly from your SleepHQ account. Configure your credentials in{' '}
+            <Link className="font-medium text-[var(--foreground)] underline underline-offset-2" to="/settings">
+              Settings
+            </Link>
+            {' '}first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {syncMessage ? (
+            <div className="flex items-start gap-3 rounded-[20px] border border-[rgba(106,161,54,0.24)] bg-[rgba(106,161,54,0.1)] p-4 text-[var(--olive-deep)]">
+              <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">{syncMessage}</p>
+            </div>
+          ) : null}
+          {syncError ? <p className="text-sm text-[var(--danger-text)]">{syncError}</p> : null}
+          <Button onClick={handleSleepHQSync} disabled={isSyncing}>
+            {isSyncing ? 'Syncing...' : 'Sync now'}
+          </Button>
         </CardContent>
       </Card>
     </div>
