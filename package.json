@@ -9,7 +9,7 @@
     "build": "nx build frontend"
   },
   "devDependencies": {
-    "nx": "^17.3.2"
+    "nx": "^22.7.1"
   },
   "workspaces": [
     "frontend"
