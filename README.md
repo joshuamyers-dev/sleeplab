@@ -213,7 +213,7 @@ Migrations run automatically through [`server.py`](/Users/joshuanissenbaum/Deskt
 - If Docker Compose says the image is missing, run `docker login` and `docker compose pull`.
 - If the frontend loads but API requests fail, verify `API_URL` and `CORS_ALLOWED_ORIGINS`.
 - If the API container exits early, inspect `docker compose logs app` for DB or migration errors.
-- If AI summaries are unavailable, confirm `OPENAI_API_KEY` is set.
+- If AI summaries are unavailable, check `GET /llm/health` for provider status and confirm the relevant env vars are set (see **AI Summaries** below).
 - If you are deploying to a Linux server, use the published multi-arch image tag rather than an old locally built arm-only image.
 
 ## Quick Start
@@ -360,9 +360,43 @@ The importer retries automatically on rate-limit (HTTP 429) responses and pauses
 
 ## AI Summaries
 
-Some summary endpoints depend on `OPENAI_API_KEY`.
+AI-generated session and trend summaries are powered by any OpenAI-compatible LLM backend. The provider is selected automatically based on environment variables — existing deployments with `OPENAI_API_KEY` continue to work with no changes.
 
-Without it, core dashboard features still work, but AI summary endpoints will not return generated output.
+### Provider detection
+
+| `LLM_PROVIDER` | Backend | Required env vars |
+|---|---|---|
+| `openai` / auto-detected | OpenAI cloud | `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o`) |
+| `ollama` / default when no key | Local Ollama | `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`), `OLLAMA_MODEL` (default `llama3.1:8b`) |
+| `litellm` | LiteLLM proxy | `LITELLM_BASE_URL` (default `http://localhost:4000/v1`), `LITELLM_MODEL` (default `gpt-4o-mini`) |
+| `custom` | Any OpenAI-compatible endpoint | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` |
+
+### Health check
+
+```
+GET /llm/health
+```
+
+Returns the active provider, base URL, model, and whether the backend is reachable.
+
+### Self-hosted with Ollama
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    environment:
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      OLLAMA_MODEL: llama3.1:8b
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+```
+
+Without any LLM configuration, core dashboard features still work but AI summary endpoints return an error message instead of generated output.
 
 ## Project Layout
 
