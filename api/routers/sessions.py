@@ -59,6 +59,7 @@ def list_sessions(
                 END AS ahi
             FROM sessions
             {where}
+            {"AND" if where else "WHERE"} duration_seconds >= 600
             GROUP BY folder_date
         )
         SELECT id, session_id, folder_date, block_index, start_datetime, duration_seconds,
@@ -118,6 +119,7 @@ def get_session(
                 (array_agg(s.device_serial ORDER BY s.duration_seconds DESC))[1] AS device_serial
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
+            WHERE s.duration_seconds >= 600
             GROUP BY s.folder_date
         """),
         {"id": session_id, "uid": current_user["id"]},
