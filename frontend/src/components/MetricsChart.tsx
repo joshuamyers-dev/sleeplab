@@ -63,7 +63,7 @@ export default function MetricsChart({ metrics }: Props) {
             <YAxis
               yAxisId="pressure"
               tick={{ fill: '#94a3b8', fontSize: 11 }}
-              domain={[4, 20]}
+              domain={[Math.max(0, Math.min(...data.filter(d => d.pressure !== null).map(d => d.pressure as number)) - 2), 20]}
               label={{ value: 'cmH₂O', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 }}
             />
             <YAxis
