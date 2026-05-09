@@ -64,7 +64,20 @@ export default function MetricsChart({ metrics }: Props) {
             <YAxis
               yAxisId="pressure"
               tick={{ fill: '#94a3b8', fontSize: 11 }}
-              domain={[Math.max(0, Math.min(...data.filter(d => d.pressure !== null).map(d => d.pressure as number)) - 2), 20]}
+              domain={(() => {
+                const vals = data.filter(d => d.pressure !== null).map(d => d.pressure as number)
+                const lo = vals.length > 0 ? Math.floor(Math.min(...vals)) - 2 : 2
+                const hi = vals.length > 0 ? Math.ceil(Math.max(...vals)) + 2 : 20
+                return [Math.max(0, lo), hi]
+              })()}
+              ticks={(() => {
+                const vals = data.filter(d => d.pressure !== null).map(d => d.pressure as number)
+                const lo = vals.length > 0 ? Math.floor(Math.min(...vals)) - 2 : 2
+                const hi = vals.length > 0 ? Math.ceil(Math.max(...vals)) + 2 : 20
+                const result = []
+                for (let i = Math.max(0, lo); i <= hi; i += 2) result.push(i)
+                return result
+              })()}
               label={{ value: 'cmH₂O', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 }}
             />
             <YAxis
