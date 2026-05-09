@@ -56,7 +56,7 @@ export default function SessionDetail() {
     if (!session) return
     api.getSessions({ per_page: 600 }).then(all => {
       const sorted = all
-        .filter(s => s.block_index === 0)
+        
         .sort((a, b) => a.folder_date.localeCompare(b.folder_date))
       const idx = sorted.findIndex(s => s.id === sessionId)
       setPrevNext({

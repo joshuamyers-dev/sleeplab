@@ -34,13 +34,39 @@ def list_sessions(
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
     sql = text(f"""
-        SELECT id::text AS id, session_id, folder_date, block_index, start_datetime, duration_seconds,
+        WITH night AS (
+            SELECT
+                folder_date,
+                (array_agg(id::text ORDER BY duration_seconds DESC))[1] AS id,
+                (array_agg(session_id ORDER BY duration_seconds DESC))[1] AS session_id,
+                MIN(start_datetime) AS start_datetime,
+                0 AS block_index,
+                SUM(duration_seconds) AS duration_seconds,
+                SUM(total_ahi_events) AS total_ahi_events,
+                SUM(central_apnea_count) AS central_apnea_count,
+                SUM(obstructive_apnea_count) AS obstructive_apnea_count,
+                SUM(hypopnea_count) AS hypopnea_count,
+                SUM(apnea_count) AS apnea_count,
+                SUM(arousal_count) AS arousal_count,
+                AVG(avg_pressure) AS avg_pressure,
+                MAX(p95_pressure) AS p95_pressure,
+                AVG(avg_leak) AS avg_leak,
+                BOOL_OR(has_spo2) AS has_spo2,
+                CASE
+                    WHEN SUM(duration_seconds) > 0
+                    THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
+                    ELSE 0
+                END AS ahi
+            FROM sessions
+            {where}
+            GROUP BY folder_date
+        )
+        SELECT id, session_id, folder_date, block_index, start_datetime, duration_seconds,
                ahi, central_apnea_count, obstructive_apnea_count, hypopnea_count,
                apnea_count, arousal_count, total_ahi_events,
                avg_pressure, p95_pressure, avg_leak, has_spo2
-        FROM sessions
-        {where}
-        ORDER BY folder_date DESC, block_index ASC
+        FROM night
+        ORDER BY folder_date DESC
         LIMIT :limit OFFSET :offset
     """)
     rows = db.execute(sql, params).mappings().all()
@@ -53,14 +79,47 @@ def get_session(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Full session detail."""
+    """Full session detail — aggregated across all blocks for the night."""
     row = db.execute(
-        text("SELECT id::text AS id, session_id, folder_date, block_index, start_datetime, "
-             "duration_seconds, ahi, central_apnea_count, obstructive_apnea_count, hypopnea_count, "
-             "apnea_count, arousal_count, total_ahi_events, avg_pressure, p95_pressure, avg_leak, has_spo2, "
-             "pld_start_datetime, device_serial, avg_resp_rate, avg_tidal_vol, avg_min_vent, avg_snore, "
-             "avg_flow_lim, avg_spo2, min_spo2 "
-             "FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
+        text("""
+            WITH night AS (
+                SELECT folder_date, user_id
+                FROM sessions
+                WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)
+            )
+            SELECT
+                (array_agg(s.id::text ORDER BY s.duration_seconds DESC))[1] AS id,
+                (array_agg(s.session_id ORDER BY s.duration_seconds DESC))[1] AS session_id,
+                s.folder_date,
+                0 AS block_index,
+                MIN(s.start_datetime) AS start_datetime,
+                MIN(s.start_datetime) AS pld_start_datetime,
+                SUM(s.duration_seconds) AS duration_seconds,
+                SUM(s.total_ahi_events) AS total_ahi_events,
+                SUM(s.central_apnea_count) AS central_apnea_count,
+                SUM(s.obstructive_apnea_count) AS obstructive_apnea_count,
+                SUM(s.hypopnea_count) AS hypopnea_count,
+                SUM(s.apnea_count) AS apnea_count,
+                SUM(s.arousal_count) AS arousal_count,
+                AVG(s.avg_pressure) AS avg_pressure,
+                MAX(s.p95_pressure) AS p95_pressure,
+                AVG(s.avg_leak) AS avg_leak,
+                BOOL_OR(s.has_spo2) AS has_spo2,
+                CASE WHEN SUM(s.duration_seconds) > 0
+                     THEN ROUND((SUM(s.total_ahi_events) / (SUM(s.duration_seconds) / 3600.0))::numeric, 2)
+                     ELSE 0 END AS ahi,
+                AVG(s.avg_resp_rate) AS avg_resp_rate,
+                AVG(s.avg_tidal_vol) AS avg_tidal_vol,
+                AVG(s.avg_min_vent) AS avg_min_vent,
+                AVG(s.avg_snore) AS avg_snore,
+                AVG(s.avg_flow_lim) AS avg_flow_lim,
+                AVG(s.avg_spo2) AS avg_spo2,
+                MIN(s.min_spo2) AS min_spo2,
+                (array_agg(s.device_serial ORDER BY s.duration_seconds DESC))[1] AS device_serial
+            FROM sessions s
+            JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
+            GROUP BY s.folder_date
+        """),
         {"id": session_id, "uid": current_user["id"]},
     ).mappings().first()
     if not row:
@@ -78,12 +137,14 @@ def get_session_events(
     internal_session_id = _require_session(session_id, current_user["id"], db)
     rows = db.execute(
         text("""
-            SELECT id, event_type, onset_seconds, duration_seconds, event_datetime
-            FROM session_events
-            WHERE session_id = :sid
-            ORDER BY onset_seconds
+            SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
+            FROM session_events se
+            JOIN sessions s ON se.session_id = s.id
+            WHERE s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+              AND s.user_id = CAST(:uid AS uuid)
+            ORDER BY se.event_datetime
         """),
-        {"sid": internal_session_id}
+        {"sid": internal_session_id, "uid": current_user["id"]}
     ).mappings().all()
     return [EventRecord.model_validate(dict(r)) for r in rows]
 
@@ -108,8 +169,10 @@ def get_session_metrics(
                 SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                        resp_rate, tidal_vol, min_vent, snore, flow_lim,
                        ROW_NUMBER() OVER (ORDER BY ts) AS rn
-                FROM session_metrics
-                WHERE session_id = :sid
+                FROM session_metrics sm
+                JOIN sessions s ON sm.session_id = s.id
+                WHERE s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+                  AND s.user_id = CAST(:uid AS uuid)
             )
             SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                    resp_rate, tidal_vol, min_vent, snore, flow_lim
@@ -117,7 +180,7 @@ def get_session_metrics(
             WHERE rn % :ds = 1
             ORDER BY ts
         """),
-        {"sid": internal_session_id, "ds": downsample}
+        {"sid": internal_session_id, "ds": downsample, "uid": current_user["id"]}
     ).mappings().all()
 
     if not rows:
