@@ -10,13 +10,34 @@ interface Props {
 }
 
 export default function MetricsChart({ metrics }: Props) {
-  const data = metrics.timestamps.map((ts, i) => ({
+  const GAP_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
+  const rawData = metrics.timestamps.map((ts, i) => ({
     ts: new Date(ts).getTime(),
     pressure: metrics.pressure[i],
     leak: metrics.leak[i],
     resp_rate: metrics.resp_rate[i],
     flow_lim: metrics.flow_lim[i],
   }))
+  const pressureVals = rawData.map(d => d.pressure).filter((p): p is number => p !== null && p > 0)
+  const MIN_PRESSURE = pressureVals.length > 0 ? Math.min(...pressureVals) : 4.0
+  const data: typeof rawData = []
+  let inGap = false
+  for (let i = 0; i < rawData.length; i++) {
+    const isGap = i > 0 && rawData[i].ts - rawData[i - 1].ts > GAP_THRESHOLD_MS
+    if (isGap) {
+      data.push({ ts: rawData[i - 1].ts + 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any })
+      inGap = true
+    }
+    // Skip leading ramp-up points at minimum pressure after a gap
+    if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) <= MIN_PRESSURE) {
+      continue
+    }
+    if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) > MIN_PRESSURE) {
+      data.push({ ts: rawData[i].ts - 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any })
+      inGap = false
+    }
+    data.push(rawData[i])
+  }
 
   function fmtTs(ts: number) {
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -43,7 +64,20 @@ export default function MetricsChart({ metrics }: Props) {
             <YAxis
               yAxisId="pressure"
               tick={{ fill: '#94a3b8', fontSize: 11 }}
-              domain={[4, 20]}
+              domain={(() => {
+                const vals = data.filter(d => d.pressure !== null).map(d => d.pressure as number)
+                const lo = vals.length > 0 ? Math.floor(Math.min(...vals)) - 2 : 2
+                const hi = vals.length > 0 ? Math.ceil(Math.max(...vals)) + 2 : 20
+                return [Math.max(0, lo), hi]
+              })()}
+              ticks={(() => {
+                const vals = data.filter(d => d.pressure !== null).map(d => d.pressure as number)
+                const lo = vals.length > 0 ? Math.floor(Math.min(...vals)) - 2 : 2
+                const hi = vals.length > 0 ? Math.ceil(Math.max(...vals)) + 2 : 20
+                const result = []
+                for (let i = Math.max(0, lo); i <= hi; i += 2) result.push(i)
+                return result
+              })()}
               label={{ value: 'cmH₂O', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 }}
             />
             <YAxis
