@@ -302,3 +302,16 @@ def _require_session(session_id: str, user_id: str, db: Session) -> str:
 def _f(val) -> Optional[float]:
     """Convert Decimal to float for JSON serialization."""
     return float(val) if val is not None else None
+
+
+@router.delete("/all", status_code=204)
+def delete_all_sessions(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete all session data for the current user."""
+    db.execute(
+        text("DELETE FROM sessions WHERE user_id = CAST(:uid AS uuid)"),
+        {"uid": current_user["id"]},
+    )
+    db.commit()

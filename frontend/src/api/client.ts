@@ -258,6 +258,7 @@ export const api = {
   me: () => get<AuthUser>('/auth/me'),
   updateProfile: (payload: UpdateProfileRequest) => put<AuthUser>('/auth/profile', payload),
   changePassword: (payload: ChangePasswordRequest) => put<{ status: string }>('/auth/password', payload),
+  deleteAllSessions: () => request<void>('/sessions/all', { method: 'DELETE' }),
   startImportUpload: (rootName: string, fromDate?: string) =>
     post<StartImportResponse>('/upload/datalog/start', {
       root_name: rootName,

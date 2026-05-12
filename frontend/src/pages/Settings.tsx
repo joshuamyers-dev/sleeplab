@@ -23,6 +23,30 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false)
 
+  // Danger zone
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function handleDeleteAllSessions() {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true)
+      return
+    }
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      await api.deleteAllSessions()
+      setDeleteMessage('All session data deleted.')
+      setDeleteConfirm(false)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete sessions')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // SleepHQ import settings
   const [sleephqClientId, setSleephqClientId] = useState('')
   const [sleephqClientSecret, setSleephqClientSecret] = useState('')
@@ -277,6 +301,31 @@ export default function SettingsPage() {
               {isSleephqSubmitting ? 'Saving...' : 'Save SleepHQ settings'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+      <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl text-[var(--danger-text)]">Danger Zone</CardTitle>
+          <CardDescription>Permanently delete all imported session data. Your account will remain intact.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {deleteMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{deleteMessage}</p> : null}
+          {deleteError ? <p className="text-sm text-[var(--danger-text)]">{deleteError}</p> : null}
+          {deleteConfirm ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--danger-text)] font-medium">Are you sure? This cannot be undone.</p>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setDeleteConfirm(false)}>Cancel</Button>
+                <Button onClick={handleDeleteAllSessions} disabled={isDeleting} className="bg-[var(--danger-text)] text-white hover:opacity-90">
+                  {isDeleting ? 'Deleting...' : 'Yes, delete everything'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button onClick={handleDeleteAllSessions} variant="outline" className="border-[var(--danger-text)] text-[var(--danger-text)] hover:bg-[var(--danger-soft)]">
+              Delete all session data
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

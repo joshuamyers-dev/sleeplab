@@ -5,7 +5,7 @@ import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse }
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
-import MetricsChart from '../components/MetricsChart'
+import MetricsChart from '../components/MetricsChartSplit'
 import SessionAICard from '../components/SessionAICard'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
