@@ -1,1 +1,7 @@
-{}
+{
+  "memory": {
+    "test_plan": ".claude/.sessionnotes/pr_test_plan.md — master test plan for PRs #20-#29 targeting joshuamyers-dev/sleeplab main. Covers automated and manual tests for each PR. Merge order: 20, 21, 22, 24, 25, 26, 27, 28, 29.",
+    "test_infra_pr": "PR #31 (joshuamyers-dev/sleeplab) — feat/test-infrastructure branch. Adds pytest, vitest, GitHub Actions CI. Base branch for all per-PR tests.",
+    "merge_strategy": "PR #31 (test infra) should merge first to main. Then each of PRs #20-#29 can be rebased/merged and add module-specific tests."
+  }
+}
