@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [sleephqSecretSaved, setSleephqSecretSaved] = useState(false)
   const [sleephqSecretDirty, setSleephqSecretDirty] = useState(false)
   const [sleephqTeamId, setSleephqTeamId] = useState('')
+  const [sleephqMachineId, setSleephqMachineId] = useState('')
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
@@ -71,6 +72,7 @@ export default function SettingsPage() {
       setSleephqClientId(settings.sleephq_client_id ?? '')
       setSleephqSecretSaved(settings.has_client_secret)
       setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
+      setSleephqMachineId(settings.sleephq_machine_id != null ? String(settings.sleephq_machine_id) : '')
     }).catch(() => {
       // No settings saved yet — leave fields empty
     })
@@ -139,6 +141,7 @@ export default function SettingsPage() {
         sleephq_client_id: sleephqClientId || null,
         sleephq_client_secret: sleephqSecretDirty ? (sleephqClientSecret || null) : null,
         sleephq_team_id: sleephqTeamId ? Number(sleephqTeamId) : null,
+        sleephq_machine_id: sleephqMachineId ? Number(sleephqMachineId) : null,
       })
       setSleephqMessage('SleepHQ settings saved.')
       setSleephqSecretDirty(false)
@@ -298,15 +301,27 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className="space-y-3">
-              <Label htmlFor="sleephqTeamId">Team ID</Label>
-              <Input
-                id="sleephqTeamId"
-                value={sleephqTeamId}
-                onChange={(event) => setSleephqTeamId(event.target.value)}
-                inputMode="numeric"
-                placeholder="Optional — auto-resolved if blank"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <Label htmlFor="sleephqTeamId">Team ID</Label>
+                <Input
+                  id="sleephqTeamId"
+                  value={sleephqTeamId}
+                  onChange={(event) => setSleephqTeamId(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="Optional — auto-resolved if blank"
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="sleephqMachineId">Machine ID</Label>
+                <Input
+                  id="sleephqMachineId"
+                  value={sleephqMachineId}
+                  onChange={(event) => setSleephqMachineId(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="Optional — auto-resolved if blank"
+                />
+              </div>
             </div>
 
             {sleephqMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{sleephqMessage}</p> : null}
