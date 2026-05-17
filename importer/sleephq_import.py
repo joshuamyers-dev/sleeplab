@@ -489,6 +489,24 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
     # Not present on machine_dates; would need to join against the machine record
     device_serial = None
 
+    # ── Machine settings ─────────────────────────────────────────────────────
+    # Schema-less bag; keys confirmed from live API inspection.
+    ms = getattr(attrs, "machine_settings", None) if attrs else None
+    ms_props = getattr(ms, "additional_properties", {}) or {} if ms and not isinstance(ms, Unset) else {}
+
+    therapy_mode   = ms_props.get("mode") or None
+    mask_type      = ms_props.get("mask") or None
+    humidity_level = _int(ms_props.get("humidity_level"))
+
+    temperature_c = None
+    raw_temp = ms_props.get("temperature")
+    if raw_temp:
+        # Format is "27 ºC" — strip non-numeric suffix
+        try:
+            temperature_c = round(float(str(raw_temp).split()[0]), 1)
+        except (ValueError, IndexError):
+            pass
+
     return {
         "session_id":              session_id,
         "folder_date":             folder_date,
@@ -513,6 +531,10 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
         "avg_snore":               avg_snore,
         "avg_flow_lim":            avg_flow_lim,
         "has_spo2":                has_spo2,
+        "therapy_mode":            therapy_mode,
+        "mask_type":               mask_type,
+        "humidity_level":          humidity_level,
+        "temperature_c":           temperature_c,
         "user_id":                 user_id,
     }
 

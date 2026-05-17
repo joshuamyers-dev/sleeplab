@@ -176,6 +176,10 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'duration_seconds':   duration_s,
                 'device_serial':      pld_header.device_serial or None,
                 'has_spo2':           spo2_data is not None,
+                'therapy_mode':       None,
+                'mask_type':          None,
+                'humidity_level':     None,
+                'temperature_c':      None,
                 'user_id':            user_id,
                 **summary,
             }
