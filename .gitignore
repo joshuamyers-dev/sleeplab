@@ -38,3 +38,9 @@ uv.lock
 # Local temp / upload artifacts
 tmp/
 *.tmp
+
+# Claude / OpenCode
+.claude/
+.opencode/
+opencode.json
+opencode.jsonc
