@@ -18,7 +18,8 @@ SLEEPHQ_IMPORTER = Path(__file__).resolve().parent.parent.parent / "importer" / 
 
 class ImportSettingsResponse(BaseModel):
     sleephq_client_id: Optional[str] = None
-    sleephq_client_secret: Optional[str] = None  # always None in responses
+    sleephq_client_secret: Optional[str] = None  # always None — use has_client_secret to check if one is saved
+    has_client_secret: bool = False
     sleephq_team_id: Optional[int] = None
     sleephq_machine_id: Optional[int] = None
     auto_import_sleephq: bool = False
@@ -50,6 +51,7 @@ def get_import_settings(
     return ImportSettingsResponse(
         sleephq_client_id=row["sleephq_client_id"],
         sleephq_client_secret=None,  # never expose
+        has_client_secret=bool(row["sleephq_client_secret"]),
         sleephq_team_id=row["sleephq_team_id"],
         sleephq_machine_id=row["sleephq_machine_id"],
         auto_import_sleephq=row["auto_import_sleephq"],

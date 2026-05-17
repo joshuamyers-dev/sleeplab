@@ -50,6 +50,8 @@ export default function SettingsPage() {
   // SleepHQ import settings
   const [sleephqClientId, setSleephqClientId] = useState('')
   const [sleephqClientSecret, setSleephqClientSecret] = useState('')
+  const [sleephqSecretSaved, setSleephqSecretSaved] = useState(false)
+  const [sleephqSecretDirty, setSleephqSecretDirty] = useState(false)
   const [sleephqTeamId, setSleephqTeamId] = useState('')
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export default function SettingsPage() {
   useEffect(() => {
     api.getImportSettings().then((settings) => {
       setSleephqClientId(settings.sleephq_client_id ?? '')
-      setSleephqClientSecret(settings.sleephq_client_secret ?? '')
+      setSleephqSecretSaved(settings.has_client_secret)
       setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
     }).catch(() => {
       // No settings saved yet — leave fields empty
@@ -135,10 +137,12 @@ export default function SettingsPage() {
     try {
       await api.saveImportSettings({
         sleephq_client_id: sleephqClientId || null,
-        sleephq_client_secret: sleephqClientSecret || null,
+        sleephq_client_secret: sleephqSecretDirty ? (sleephqClientSecret || null) : null,
         sleephq_team_id: sleephqTeamId ? Number(sleephqTeamId) : null,
       })
-      setSleephqMessage('Settings saved.')
+      setSleephqMessage('SleepHQ settings saved.')
+      setSleephqSecretDirty(false)
+      if (sleephqSecretDirty && sleephqClientSecret) setSleephqSecretSaved(true)
     } catch (err) {
       setSleephqError(err instanceof Error ? err.message : 'Could not save settings')
     } finally {
@@ -272,15 +276,26 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="sleephqClientSecret">Client secret</Label>
+              <Label htmlFor="sleephqClientSecret">
+                Client secret
+                {sleephqSecretSaved && !sleephqSecretDirty && (
+                  <span className="ml-2 text-xs font-normal text-[var(--olive-deep)]">saved</span>
+                )}
+              </Label>
               <Input
                 id="sleephqClientSecret"
                 type="password"
                 value={sleephqClientSecret}
-                onChange={(event) => setSleephqClientSecret(event.target.value)}
+                onChange={(event) => {
+                  setSleephqClientSecret(event.target.value)
+                  setSleephqSecretDirty(true)
+                }}
                 autoComplete="new-password"
-                placeholder="OAuth client secret from SleepHQ"
+                placeholder={sleephqSecretSaved && !sleephqSecretDirty ? '••••••••••••••••' : 'OAuth client secret from SleepHQ'}
               />
+              {sleephqSecretSaved && !sleephqSecretDirty && (
+                <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep your existing secret.</p>
+              )}
             </div>
 
             <div className="space-y-3">
