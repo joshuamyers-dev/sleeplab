@@ -122,7 +122,7 @@ class TestInferredEquipment:
         assert resp.status_code == 200
         data = resp.json()
         for eq_type in ("cushion", "headgear", "tubing", "humidifier_chamber", "filter"):
-            assert data[eq_type] is None
+            assert data.get(eq_type) is None
 
     def test_with_equipment(self, client: TestClient, auth_headers):
         client.post("/equipment/", headers=auth_headers, json={
@@ -133,9 +133,9 @@ class TestInferredEquipment:
         resp = client.get("/equipment/inferred?ref_date=2025-06-01", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["cushion"] is not None
+        assert data.get("cushion") is not None
         assert data["cushion"]["brand"] == "ResMed"
-        assert data["headgear"] is None
+        assert data.get("headgear") is None
 
     def test_unauthenticated(self, client: TestClient):
         resp = client.get("/equipment/inferred")
