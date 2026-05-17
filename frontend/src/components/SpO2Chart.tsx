@@ -60,7 +60,7 @@ export default function SpO2Chart({ data }: Props) {
                 contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
                 labelStyle={{ color: '#f8fafc' }}
                 labelFormatter={(v) => fmtTs(Number(v))}
-                formatter={(val: number | undefined) => [
+                formatter={(val) => [
                   val != null ? `${val}%` : 'N/A',
                   'SpO₂',
                 ]}
@@ -88,7 +88,7 @@ export default function SpO2Chart({ data }: Props) {
                 contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
                 labelStyle={{ color: '#f8fafc' }}
                 labelFormatter={(v) => fmtTs(Number(v))}
-                formatter={(val: number | undefined) => [
+                formatter={(val) => [
                   val != null ? `${val} bpm` : 'N/A',
                   'Pulse',
                 ]}
