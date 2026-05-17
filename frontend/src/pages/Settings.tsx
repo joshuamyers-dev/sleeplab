@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 
 import { api } from '../api/client'
+import EquipmentCatalog from '../components/EquipmentCatalog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -333,6 +334,8 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+      <EquipmentCatalog />
+
       <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl text-[var(--danger-text)]">Danger Zone</CardTitle>
