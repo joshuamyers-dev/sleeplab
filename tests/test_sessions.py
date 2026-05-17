@@ -45,6 +45,19 @@ class TestListSessions:
 
 
 class TestGetSession:
+    def test_get_detail(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"])
+        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == sid
+        assert data["session_id"] == sid
+        assert data["duration_seconds"] == 28800
+        assert "therapy_mode" in data
+        assert "mask_type" in data
+        assert "humidity_level" in data
+        assert "temperature_c" in data
+
     def test_get_nonexistent(self, client: TestClient, auth_headers):
         fake_id = "00000000-0000-0000-0000-000000000000"
         resp = client.get(f"/sessions/{fake_id}", headers=auth_headers)
