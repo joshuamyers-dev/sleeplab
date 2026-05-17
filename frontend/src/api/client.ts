@@ -111,6 +111,52 @@ export interface SessionDetail extends SessionSummary {
   avg_flow_lim: number | null
   avg_spo2: number | null
   min_spo2: number | null
+  therapy_mode: string | null
+  mask_type: string | null
+  humidity_level: number | null
+  temperature_c: number | null
+}
+
+export type EquipmentType = 'mask' | 'tubing' | 'humidifier_chamber' | 'filter'
+
+export interface Equipment {
+  id: string
+  equipment_type: EquipmentType
+  start_date: string
+  replacement_days: number | null
+  mask_category: string | null
+  brand: string | null
+  model: string | null
+  notes: string | null
+  days_in_use: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EquipmentCreate {
+  equipment_type: EquipmentType
+  start_date: string
+  replacement_days?: number | null
+  mask_category?: string | null
+  brand?: string | null
+  model?: string | null
+  notes?: string | null
+}
+
+export interface EquipmentUpdate {
+  start_date?: string
+  replacement_days?: number | null
+  mask_category?: string | null
+  brand?: string | null
+  model?: string | null
+  notes?: string | null
+}
+
+export interface InferredEquipment {
+  mask: Equipment | null
+  tubing: Equipment | null
+  humidifier_chamber: Equipment | null
+  filter: Equipment | null
 }
 
 export interface EventRecord {
@@ -260,6 +306,11 @@ export const api = {
   getMetrics: (id: string, downsample = 15) =>
     get<MetricsResponse>(`/sessions/${id}/metrics`, { downsample }),
   getSessionSpo2: (id: string) => get<SpO2Response>(`/sessions/${id}/spo2`),
+  listEquipment: () => get<Equipment[]>('/equipment/'),
+  createEquipment: (payload: EquipmentCreate) => post<Equipment>('/equipment/', payload),
+  updateEquipment: (id: string, payload: EquipmentUpdate) => put<Equipment>(`/equipment/${id}`, payload),
+  deleteEquipment: (id: string) => request<void>(`/equipment/${id}`, { method: 'DELETE' }),
+  getInferredEquipment: (refDate: string) => get<InferredEquipment>('/equipment/inferred', { ref_date: refDate }),
   register: (payload: RegisterRequest) => post<AuthResponse>('/auth/register', payload),
   login: (payload: LoginRequest) => post<AuthResponse>('/auth/login', payload),
   logout: () => post<{ status: string }>('/auth/logout'),

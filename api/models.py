@@ -1,5 +1,5 @@
 from pydantic import BaseModel, computed_field
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 from datetime import datetime, date
 
 
@@ -40,6 +40,10 @@ class SessionDetail(SessionSummary):
     avg_flow_lim: Optional[float]
     avg_spo2: Optional[float]
     min_spo2: Optional[float]
+    therapy_mode: Optional[str]
+    mask_type: Optional[str]
+    humidity_level: Optional[int]
+    temperature_c: Optional[float]
 
 
 class EventRecord(BaseModel):
@@ -69,6 +73,51 @@ class SpO2Response(BaseModel):
     timestamps: List[str]
     spo2: List[Optional[int]]
     pulse: List[Optional[int]]
+
+
+EquipmentType = Literal["mask", "tubing", "humidifier_chamber", "filter"]
+
+
+class EquipmentResponse(BaseModel):
+    id: str
+    equipment_type: str
+    start_date: date
+    replacement_days: Optional[int]
+    mask_category: Optional[str]
+    brand: Optional[str]
+    model: Optional[str]
+    notes: Optional[str]
+    days_in_use: Optional[int]  # computed relative to a reference date when present
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EquipmentCreate(BaseModel):
+    equipment_type: EquipmentType
+    start_date: date
+    replacement_days: Optional[int] = None
+    mask_category: Optional[str] = None
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class EquipmentUpdate(BaseModel):
+    start_date: Optional[date] = None
+    replacement_days: Optional[int] = None
+    mask_category: Optional[str] = None
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class InferredEquipment(BaseModel):
+    mask: Optional[EquipmentResponse] = None
+    tubing: Optional[EquipmentResponse] = None
+    humidifier_chamber: Optional[EquipmentResponse] = None
+    filter: Optional[EquipmentResponse] = None
 
 
 class DailyStat(BaseModel):
