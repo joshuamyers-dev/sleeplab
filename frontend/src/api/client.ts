@@ -150,6 +150,7 @@ export interface DailyStat {
 export interface ImportSettings {
   sleephq_client_id: string | null
   sleephq_client_secret: string | null
+  has_client_secret: boolean
   sleephq_team_id: number | null
   sleephq_machine_id: number | null
   auto_import_sleephq: boolean
