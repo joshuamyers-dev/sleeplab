@@ -46,7 +46,7 @@ export default function AHITrendChart({ trend }: Props) {
             <Tooltip
               contentStyle={{ background: 'rgba(255,251,245,0.96)', border: '1px solid rgba(125,105,93,0.2)', borderRadius: 18, color: '#3c2b22' }}
               labelStyle={{ color: '#3c2b22' }}
-              formatter={(val: number | undefined) => [(val ?? 0).toFixed(1), 'AHI']}
+              formatter={(val) => [((val as number) ?? 0).toFixed(1), 'AHI']}
             />
             <ReferenceLine y={5} stroke="#6AA136" strokeDasharray="4 4" label={{ value: 'Normal', fill: '#6AA136', fontSize: 10 }} />
             <ReferenceLine y={15} stroke="#E9784B" strokeDasharray="4 4" label={{ value: 'Moderate', fill: '#E9784B', fontSize: 10 }} />

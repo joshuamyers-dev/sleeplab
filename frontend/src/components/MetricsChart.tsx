@@ -91,15 +91,15 @@ export default function MetricsChart({ metrics }: Props) {
               contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
               labelStyle={{ color: '#f8fafc' }}
               labelFormatter={(v) => fmtTs(Number(v))}
-              formatter={(val: number | undefined, name: string | undefined) => {
+              formatter={(val, name) => {
                 const labels: Record<string, string> = {
                   pressure: 'Pressure (cmH₂O)',
                   leak: 'Leak (L/s)',
                   resp_rate: 'Resp Rate (bpm)',
                   flow_lim: 'Flow Lim',
                 }
-                const key = name ?? ''
-                return [(val ?? 0).toFixed(2), labels[key] ?? key]
+                const key = (name as string) ?? ''
+                return [((val as number) ?? 0).toFixed(2), labels[key] ?? key]
               }}
             />
             <Legend

@@ -19,7 +19,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx curl tini \
+    && apt-get install -y --no-install-recommends nginx curl tini git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/requirements.txt /tmp/requirements.txt
