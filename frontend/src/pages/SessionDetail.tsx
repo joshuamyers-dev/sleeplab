@@ -239,13 +239,14 @@ export default function SessionDetail() {
       )}
 
       {/* Inferred equipment */}
-      {equipment && (equipment.mask || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
+      {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
         <Card>
           <CardContent className="px-5 pb-5 pt-5">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {([
-                { key: 'mask', label: 'Mask' },
+                { key: 'cushion', label: 'Cushion' },
+                { key: 'headgear', label: 'Headgear' },
                 { key: 'tubing', label: 'Tubing' },
                 { key: 'humidifier_chamber', label: 'Humidifier' },
                 { key: 'filter', label: 'Filter' },

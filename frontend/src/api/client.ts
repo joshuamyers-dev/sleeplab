@@ -117,7 +117,7 @@ export interface SessionDetail extends SessionSummary {
   temperature_c: number | null
 }
 
-export type EquipmentType = 'mask' | 'tubing' | 'humidifier_chamber' | 'filter'
+export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter'
 
 export interface Equipment {
   id: string
@@ -153,7 +153,8 @@ export interface EquipmentUpdate {
 }
 
 export interface InferredEquipment {
-  mask: Equipment | null
+  cushion: Equipment | null
+  headgear: Equipment | null
   tubing: Equipment | null
   humidifier_chamber: Equipment | null
   filter: Equipment | null

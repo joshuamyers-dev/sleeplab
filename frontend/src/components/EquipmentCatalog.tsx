@@ -7,7 +7,8 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 
 const TYPE_LABELS: Record<EquipmentType, string> = {
-  mask: 'Mask',
+  cushion: 'Cushion / Pillow',
+  headgear: 'Headgear',
   tubing: 'Tubing',
   humidifier_chamber: 'Humidifier Chamber',
   filter: 'Filter',
@@ -15,11 +16,19 @@ const TYPE_LABELS: Record<EquipmentType, string> = {
 
 const MASK_CATEGORIES = ['Nasal', 'Nasal Pillows', 'Full Face', 'Hybrid']
 
+// US insurance replacement intervals by type.
+// Cushion default is 15d (nasal); updates to 30d when Full Face / Hybrid is selected.
 const DEFAULT_REPLACEMENT_DAYS: Record<EquipmentType, number> = {
-  mask: 30,
+  cushion: 15,
+  headgear: 180,
   tubing: 90,
   humidifier_chamber: 180,
-  filter: 90,
+  filter: 30,
+}
+
+function cushionDaysForCategory(category: string | null): number {
+  if (category === 'Full Face' || category === 'Hybrid') return 30
+  return 15
 }
 
 function replacementStatus(item: Equipment): { label: string; className: string } | null {
@@ -32,9 +41,9 @@ function replacementStatus(item: Equipment): { label: string; className: string 
 }
 
 const EMPTY_FORM: EquipmentCreate = {
-  equipment_type: 'mask',
+  equipment_type: 'cushion',
   start_date: new Date().toISOString().slice(0, 10),
-  replacement_days: DEFAULT_REPLACEMENT_DAYS['mask'],
+  replacement_days: DEFAULT_REPLACEMENT_DAYS['cushion'],
   mask_category: null,
   brand: null,
   model: null,
@@ -82,15 +91,23 @@ export default function EquipmentCatalog() {
   }
 
   function setField<K extends keyof EquipmentCreate>(key: K, value: EquipmentCreate[K]) {
-    setForm(f => ({ ...f, [key]: value }))
     if (key === 'equipment_type') {
       const t = value as EquipmentType
       setForm(f => ({
         ...f,
         equipment_type: t,
         replacement_days: DEFAULT_REPLACEMENT_DAYS[t],
-        mask_category: t !== 'mask' ? null : f.mask_category,
+        mask_category: t !== 'cushion' ? null : f.mask_category,
       }))
+    } else if (key === 'mask_category') {
+      const cat = value as string | null
+      setForm(f => ({
+        ...f,
+        mask_category: cat,
+        replacement_days: f.equipment_type === 'cushion' ? cushionDaysForCategory(cat) : f.replacement_days,
+      }))
+    } else {
+      setForm(f => ({ ...f, [key]: value }))
     }
   }
 
@@ -134,7 +151,7 @@ export default function EquipmentCatalog() {
   }
 
   const grouped = Object.fromEntries(
-    (['mask', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => [
+    (['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => [
       t,
       items.filter(i => i.equipment_type === t),
     ])
@@ -151,7 +168,7 @@ export default function EquipmentCatalog() {
       <CardContent className="space-y-5">
 
         {/* Item list grouped by type */}
-        {(['mask', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(type => (
+        {(['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(type => (
           grouped[type].length > 0 && (
             <div key={type}>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-2">
@@ -206,7 +223,7 @@ export default function EquipmentCatalog() {
               <div className="space-y-2">
                 <Label>Type</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(['mask', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => (
+                  {(['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => (
                     <button
                       key={t}
                       type="button"
@@ -224,7 +241,7 @@ export default function EquipmentCatalog() {
               </div>
             )}
 
-            {form.equipment_type === 'mask' && (
+            {form.equipment_type === 'cushion' && (
               <>
                 <div className="space-y-2">
                   <Label>Mask type</Label>

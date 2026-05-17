@@ -75,7 +75,7 @@ class SpO2Response(BaseModel):
     pulse: List[Optional[int]]
 
 
-EquipmentType = Literal["mask", "tubing", "humidifier_chamber", "filter"]
+EquipmentType = Literal["cushion", "headgear", "tubing", "humidifier_chamber", "filter"]
 
 
 class EquipmentResponse(BaseModel):

@@ -10,7 +10,7 @@ from ..models import EquipmentCreate, EquipmentResponse, EquipmentUpdate, Inferr
 
 router = APIRouter()
 
-EQUIPMENT_TYPES = {"mask", "tubing", "humidifier_chamber", "filter"}
+EQUIPMENT_TYPES = {"cushion", "headgear", "tubing", "humidifier_chamber", "filter"}
 
 
 def _row_to_response(row: dict, ref_date: date | None = None) -> EquipmentResponse:
@@ -144,7 +144,7 @@ def get_inferred_equipment(
     if ref_date is None:
         ref_date = date.today()
 
-    result: dict = {"mask": None, "tubing": None, "humidifier_chamber": None, "filter": None}
+    result: dict = {"cushion": None, "headgear": None, "tubing": None, "humidifier_chamber": None, "filter": None}
 
     for eq_type in result:
         row = db.execute(
