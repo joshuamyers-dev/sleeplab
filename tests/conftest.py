@@ -1,13 +1,12 @@
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from api.auth import hash_password, create_access_token
+from api.auth import create_access_token, hash_password
 from api.database import get_db
 from api.main import app
 

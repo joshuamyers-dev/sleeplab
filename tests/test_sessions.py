@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -22,8 +22,8 @@ def _seed_session(db, user_id: str, folder_date: date | None = None):
         {
             "sid": session_id,
             "fd": folder_date,
-            "start": datetime(2025, 1, 15, 22, 0, 0, tzinfo=timezone.utc),
-            "end": datetime(2025, 1, 16, 6, 0, 0, tzinfo=timezone.utc),
+            "start": datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC),
+            "end": datetime(2025, 1, 16, 6, 0, 0, tzinfo=UTC),
             "uid": user_id,
         },
     )
