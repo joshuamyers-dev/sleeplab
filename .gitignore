@@ -40,7 +40,8 @@ tmp/
 *.tmp
 
 # Claude / OpenCode
-.claude/
+.claude/.sessionnotes/
+.claude/settings.local.json
 .opencode/
 opencode.json
 opencode.jsonc
