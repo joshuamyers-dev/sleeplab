@@ -134,6 +134,12 @@ export interface MetricsResponse {
   flow_lim: (number | null)[]
 }
 
+export interface SpO2Response {
+  timestamps: string[]
+  spo2: (number | null)[]
+  pulse: (number | null)[]
+}
+
 export interface DailyStat {
   folder_date: string
   ahi: number | null
@@ -252,6 +258,7 @@ export const api = {
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
   getMetrics: (id: string, downsample = 15) =>
     get<MetricsResponse>(`/sessions/${id}/metrics`, { downsample }),
+  getSessionSpo2: (id: string) => get<SpO2Response>(`/sessions/${id}/spo2`),
   register: (payload: RegisterRequest) => post<AuthResponse>('/auth/register', payload),
   login: (payload: LoginRequest) => post<AuthResponse>('/auth/login', payload),
   logout: () => post<{ status: string }>('/auth/logout'),
