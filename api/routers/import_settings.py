@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -162,10 +163,21 @@ def trigger_sleephq_import(
         {"uid": current_user["id"]},
     ).mappings().first()
 
-    if row is None or not row["sleephq_client_id"] or not row["sleephq_client_secret"]:
+    # Per-user DB credentials take precedence; fall back to operator-level env vars
+    client_id = (row["sleephq_client_id"] if row else None) or os.environ.get("SLEEPHQ_CLIENT_ID")
+    client_secret = (row["sleephq_client_secret"] if row else None) or os.environ.get("SLEEPHQ_CLIENT_SECRET")
+    team_id = (row["sleephq_team_id"] if row else None) or (
+        int(v) if (v := os.environ.get("SLEEPHQ_TEAM_ID")) else None
+    )
+    machine_id = (row["sleephq_machine_id"] if row else None) or (
+        int(v) if (v := os.environ.get("SLEEPHQ_MACHINE_ID")) else None
+    )
+    lookback = (row["lookback_days"] if row else None) or 30
+
+    if not client_id or not client_secret:
         raise HTTPException(
             status_code=400,
-            detail="No SleepHQ credentials saved. Configure them in Settings first.",
+            detail="No SleepHQ credentials configured. Set them in Settings or via SLEEPHQ_CLIENT_ID/SECRET env vars.",
         )
 
     job = IMPORT_JOBS.get(current_user["id"])
@@ -176,11 +188,11 @@ def trigger_sleephq_import(
     background_tasks.add_task(
         _run_sleephq_import_task,
         current_user["id"],
-        row["sleephq_client_id"],
-        row["sleephq_client_secret"],
-        row["sleephq_team_id"],
-        row["sleephq_machine_id"],
-        row["lookback_days"],
+        client_id,
+        client_secret,
+        team_id,
+        machine_id,
+        lookback,
     )
 
     return {"status": "started", "message": "SleepHQ import started."}
