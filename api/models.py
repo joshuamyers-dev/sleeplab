@@ -15,7 +15,7 @@ class SessionSummary(BaseModel):
     obstructive_apnea_count: int
     hypopnea_count: int
     apnea_count: int
-    arousal_count: int
+    arousal_count: Optional[int]
     total_ahi_events: int
     avg_pressure: Optional[float]
     p95_pressure: Optional[float]
