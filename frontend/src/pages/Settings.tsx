@@ -57,6 +57,9 @@ export default function SettingsPage() {
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
+  const [isImportRunning, setIsImportRunning] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -127,6 +130,20 @@ export default function SettingsPage() {
       setPasswordError(err instanceof Error ? err.message : 'Could not change password')
     } finally {
       setIsPasswordSubmitting(false)
+    }
+  }
+
+  async function handleRunImport() {
+    setImportError(null)
+    setImportMessage(null)
+    setIsImportRunning(true)
+    try {
+      const result = await api.triggerSleepHQImport()
+      setImportMessage(result.message)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Could not start import')
+    } finally {
+      setIsImportRunning(false)
     }
   }
 
@@ -331,6 +348,21 @@ export default function SettingsPage() {
               {isSleephqSubmitting ? 'Saving...' : 'Save SleepHQ settings'}
             </Button>
           </form>
+
+          <div className="mt-6 border-t border-[var(--border)] pt-5 space-y-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Run a historical import from SleepHQ. Requires saved credentials above.
+            </p>
+            {importMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{importMessage}</p> : null}
+            {importError ? <p className="text-sm text-[var(--danger-text)]">{importError}</p> : null}
+            <Button
+              variant="outline"
+              onClick={handleRunImport}
+              disabled={isImportRunning || !sleephqSecretSaved}
+            >
+              {isImportRunning ? 'Starting import...' : 'Run SleepHQ import'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
       <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">

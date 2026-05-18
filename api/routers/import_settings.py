@@ -107,11 +107,11 @@ def save_import_settings(
             set_clauses.append("sleephq_client_secret = :client_secret")
             fields["client_secret"] = body.sleephq_client_secret
 
-        if body.sleephq_team_id is not None:
+        if "sleephq_team_id" in body.model_fields_set:
             set_clauses.append("sleephq_team_id = :team_id")
             fields["team_id"] = body.sleephq_team_id
 
-        if body.sleephq_machine_id is not None:
+        if "sleephq_machine_id" in body.model_fields_set:
             set_clauses.append("sleephq_machine_id = :machine_id")
             fields["machine_id"] = body.sleephq_machine_id
 
