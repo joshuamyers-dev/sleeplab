@@ -21,3 +21,22 @@
 ## Dependencies
 - `requirements.txt` uses pinned versions for PyPI packages
 - Git-sourced deps use PEP 440 direct-reference syntax: `pkg @ git+https://...`
+
+## Testing
+
+Run the full suite before committing, pushing, or opening PRs:
+
+**Backend:**
+```bash
+ruff check tests/          # lint
+uv run pytest -v --tb=short  # tests (DB tests skip without Postgres)
+```
+
+**Frontend:**
+```bash
+cd frontend
+npx tsc --noEmit     # type check
+npx vitest run       # unit tests
+```
+
+The CI workflow (`.github/workflows/ci.yml`) runs these automatically on every PR to `main`.

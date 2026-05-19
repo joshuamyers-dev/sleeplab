@@ -10,6 +10,13 @@
 .env.*
 !.env.example
 
+# Claude / OpenCode
+.claude/.sessionnotes/
+.claude/settings.local.json
+.opencode/
+opencode.json
+opencode.jsonc
+
 # Node / Nx
 node_modules/
 .nx/
@@ -31,8 +38,7 @@ __pycache__/
 .venv/
 venv/
 
-# uv-generated files
-uv.lock
+# Python version file (uv)
 .python-version
 
 # Local temp / upload artifacts
