@@ -35,7 +35,7 @@ def _machine_tz() -> ZoneInfo:
     name = os.environ.get("MACHINE_TZ", "UTC")
     try:
         return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, KeyError):
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
         print(f"  WARNING: unknown MACHINE_TZ={name!r}, falling back to UTC", flush=True)
         return ZoneInfo("UTC")
 
