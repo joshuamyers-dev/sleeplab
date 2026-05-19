@@ -148,6 +148,10 @@ export interface ImportSettings {
   sleephq_machine_id: number | null
   auto_import_sleephq: boolean
   lookback_days: number
+  local_datalog_path: string | null
+  local_import_frequency: string
+  last_local_import_at: string | null
+  last_local_import_status: string | null
 }
 
 export interface SummaryStats {
@@ -279,6 +283,7 @@ export const api = {
   getImportSettings: () => get<ImportSettings>('/import/settings'),
   saveImportSettings: (payload: Partial<ImportSettings>) => put<ImportSettings>('/import/settings', payload),
   triggerSleepHQImport: () => post<{ status: string; message: string }>('/import/trigger'),
+  triggerLocalImport: () => post<{ status: string; message: string }>('/import/trigger-local'),
 }
 
 export const authTokenStore = {

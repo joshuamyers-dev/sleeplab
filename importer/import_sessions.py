@@ -13,6 +13,7 @@ import argparse
 import statistics
 from pathlib import Path
 from datetime import date, datetime, timedelta
+from typing import Optional
 
 from edf_parser import parse_pld, parse_eve, parse_sa2, read_header
 from db import (
@@ -195,6 +196,54 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             print(f"    ERROR block {block_idx} ({session_id}): {e}")
 
     return imported
+
+
+def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] = None) -> dict:
+    """
+    Programmatic entry point for server-triggered local imports.
+
+    datalog_path must be an absolute path within /data/ (enforced by the caller).
+    Returns stats dict: {"imported": N, "folders": N, "errors": N}
+    """
+    from pathlib import Path as _Path
+
+    datalog = _Path(datalog_path)
+    if not datalog.exists():
+        raise FileNotFoundError(f"DATALOG path not found: {datalog_path}")
+
+    folders = sorted([
+        f for f in datalog.iterdir()
+        if f.is_dir() and f.name.isdigit() and len(f.name) == 8
+    ])
+    if from_date:
+        folders = [f for f in folders if f.name >= from_date]
+
+    conn = get_conn()
+    stats = {"imported": 0, "folders": 0, "errors": 0}
+    try:
+        for folder in folders:
+            try:
+                folder_date = date(
+                    int(folder.name[:4]), int(folder.name[4:6]), int(folder.name[6:8])
+                )
+            except ValueError:
+                continue
+            try:
+                n = import_folder(folder, folder_date, conn, user_id)
+                if n > 0:
+                    stats["imported"] += n
+                    stats["folders"] += 1
+            except Exception as e:
+                print(f"  ERROR folder {folder.name}: {e}")
+                stats["errors"] += 1
+    finally:
+        conn.close()
+
+    print(
+        f"Local import done. "
+        f"imported={stats['imported']} folders={stats['folders']} errors={stats['errors']}"
+    )
+    return stats
 
 
 def parse_args():

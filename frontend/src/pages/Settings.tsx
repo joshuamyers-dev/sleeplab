@@ -55,6 +55,15 @@ export default function SettingsPage() {
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
 
+  // Local DATALOG import settings
+  const [localPath, setLocalPath] = useState('')
+  const [localFrequency, setLocalFrequency] = useState('daily')
+  const [lastImportAt, setLastImportAt] = useState<string | null>(null)
+  const [lastImportStatus, setLastImportStatus] = useState<string | null>(null)
+  const [localMessage, setLocalMessage] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [isLocalSubmitting, setIsLocalSubmitting] = useState(false)
+
   useEffect(() => {
     if (!user) {
       return
@@ -69,6 +78,10 @@ export default function SettingsPage() {
       setSleephqClientId(settings.sleephq_client_id ?? '')
       setSleephqClientSecret(settings.sleephq_client_secret ?? '')
       setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
+      setLocalPath(settings.local_datalog_path ?? '')
+      setLocalFrequency(settings.local_import_frequency ?? 'daily')
+      setLastImportAt(settings.last_local_import_at)
+      setLastImportStatus(settings.last_local_import_status)
     }).catch(() => {
       // No settings saved yet — leave fields empty
     })
@@ -123,6 +136,24 @@ export default function SettingsPage() {
       setPasswordError(err instanceof Error ? err.message : 'Could not change password')
     } finally {
       setIsPasswordSubmitting(false)
+    }
+  }
+
+  async function handleLocalSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setLocalError(null)
+    setLocalMessage(null)
+    setIsLocalSubmitting(true)
+    try {
+      await api.saveImportSettings({
+        local_datalog_path: localPath || null,
+        local_import_frequency: localFrequency,
+      })
+      setLocalMessage('Settings saved.')
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Could not save settings')
+    } finally {
+      setIsLocalSubmitting(false)
     }
   }
 
@@ -303,6 +334,64 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Local DATALOG Import</CardTitle>
+          <CardDescription>
+            Import sessions automatically from a directory mounted into the container at <code>/data</code>. Set the path to your DATALOG folder, then trigger imports manually here or via the <code>POST /import/trigger/all</code> webhook from an external scheduler (cron, Home Assistant, n8n).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleLocalSubmit}>
+            <div className="space-y-3">
+              <Label htmlFor="localPath">Server path</Label>
+              <Input
+                id="localPath"
+                value={localPath}
+                onChange={(event) => setLocalPath(event.target.value)}
+                autoComplete="off"
+                placeholder="/data/DATALOG"
+              />
+              <p className="text-xs text-[var(--muted-foreground)]">Must be inside <code>/data</code> — the container mount point for your host directory.</p>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="localFrequency">Poll frequency</Label>
+              <select
+                id="localFrequency"
+                value={localFrequency}
+                onChange={(event) => setLocalFrequency(event.target.value)}
+                className="flex h-9 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+              <p className="text-xs text-[var(--muted-foreground)]">Used as a hint for external schedulers — SleepLab does not poll automatically.</p>
+            </div>
+
+            {lastImportAt && (
+              <div className="rounded-lg border border-[var(--border)] px-4 py-3 text-sm space-y-1">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Last import</p>
+                <p className="text-[var(--foreground)]">{new Date(lastImportAt).toLocaleString()}</p>
+                {lastImportStatus && (
+                  <p className={lastImportStatus.startsWith('ok') ? 'text-[var(--olive-deep)]' : 'text-[var(--danger-text)]'}>
+                    {lastImportStatus}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {localMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{localMessage}</p> : null}
+            {localError ? <p className="text-sm text-[var(--danger-text)]">{localError}</p> : null}
+
+            <Button type="submit" disabled={isLocalSubmitting}>
+              {isLocalSubmitting ? 'Saving...' : 'Save DATALOG settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl text-[var(--danger-text)]">Danger Zone</CardTitle>

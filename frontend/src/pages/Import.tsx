@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { api } from '../api/client'
 import { CheckCircleIcon } from '../components/icons/ChevronIcons'
@@ -30,6 +30,22 @@ export default function Import() {
   const [syncError, setSyncError] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState(0)
   const [totalFiles, setTotalFiles] = useState(0)
+
+  // Local server import state
+  const [localPath, setLocalPath] = useState<string | null>(null)
+  const [localLastAt, setLocalLastAt] = useState<string | null>(null)
+  const [localLastStatus, setLocalLastStatus] = useState<string | null>(null)
+  const [isLocalImporting, setIsLocalImporting] = useState(false)
+  const [localMessage, setLocalMessage] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.getImportSettings().then((s) => {
+      setLocalPath(s.local_datalog_path)
+      setLocalLastAt(s.last_local_import_at)
+      setLocalLastStatus(s.last_local_import_status)
+    }).catch(() => {})
+  }, [])
 
   async function handleSelectFolder() {
     setError(null)
@@ -122,6 +138,20 @@ export default function Import() {
   }
 
   const uploadPercent = totalFiles > 0 ? Math.round((uploadedFiles / totalFiles) * 100) : 0
+
+  async function handleLocalImport() {
+    setLocalError(null)
+    setLocalMessage(null)
+    setIsLocalImporting(true)
+    try {
+      const result = await api.triggerLocalImport()
+      setLocalMessage(result.message || 'Import started. New sessions will appear shortly.')
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setIsLocalImporting(false)
+    }
+  }
 
   async function handleSleepHQSync() {
     setSyncError(null)
@@ -235,6 +265,47 @@ export default function Import() {
           </Button>
         </CardContent>
       </Card>
+      {localPath ? (
+        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+          <CardHeader>
+            <CardTitle className="text-2xl">Local Server Import</CardTitle>
+            <CardDescription>
+              Trigger an import from the server path configured in{' '}
+              <Link className="font-medium text-[var(--foreground)] underline underline-offset-2" to="/settings">
+                Settings
+              </Link>
+              .
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-[var(--border)] px-4 py-3 text-sm space-y-1">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Server path</p>
+              <p className="font-mono text-[var(--foreground)]">{localPath}</p>
+            </div>
+            {localLastAt && (
+              <div className="rounded-lg border border-[var(--border)] px-4 py-3 text-sm space-y-1">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Last import</p>
+                <p className="text-[var(--foreground)]">{new Date(localLastAt).toLocaleString()}</p>
+                {localLastStatus && (
+                  <p className={localLastStatus.startsWith('ok') ? 'text-[var(--olive-deep)]' : 'text-[var(--danger-text)]'}>
+                    {localLastStatus}
+                  </p>
+                )}
+              </div>
+            )}
+            {localMessage ? (
+              <div className="flex items-start gap-3 rounded-[20px] border border-[rgba(106,161,54,0.24)] bg-[rgba(106,161,54,0.1)] p-4 text-[var(--olive-deep)]">
+                <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <p className="text-sm font-medium">{localMessage}</p>
+              </div>
+            ) : null}
+            {localError ? <p className="text-sm text-[var(--danger-text)]">{localError}</p> : null}
+            <Button onClick={handleLocalImport} disabled={isLocalImporting}>
+              {isLocalImporting ? 'Importing...' : 'Import now'}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }
