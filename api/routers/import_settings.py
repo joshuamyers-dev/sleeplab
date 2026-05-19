@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,6 +13,7 @@ from ..database import get_db
 from .upload import IMPORT_JOBS, _mark_import_running, _mark_import_finished
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 SLEEPHQ_IMPORTER = Path(__file__).resolve().parent.parent.parent / "importer" / "sleephq_import.py"
 
@@ -147,6 +149,8 @@ def _run_sleephq_import_task(
             team_id=team_id,
             machine_id=machine_id,
         )
+    except Exception:
+        logger.exception("SleepHQ import failed for user %s", user_id)
     finally:
         _mark_import_finished(user_id)
 
