@@ -1,3 +1,4 @@
+import os
 from datetime import date as date_type
 from unittest.mock import MagicMock, patch
 from unittest.mock import patch as _patch
@@ -335,6 +336,32 @@ def test_stages_to_hours_accumulates_correctly():
     assert hours[2] == pytest.approx(2.0)
     assert hours[3] == pytest.approx(1.0)
     assert hours[4] == pytest.approx(0.5)  # 30 min default
+
+
+def test_wearable_disabled_returns_empty(client, auth_headers):
+    with patch.dict(os.environ, {"WEARABLE_ENABLED": "false"}):
+        resp = client.get("/wearable/data?date=2025-01-15", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["hr"] == []
+    assert data["spo2"] == []
+    assert data["stages"] == []
+
+
+def test_env_default_provider_used_when_no_db_row():
+    from api.routers.wearable import _get_adapter_for_user
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.first.return_value = None  # no DB row
+
+    with patch.dict(os.environ, {
+        "WEARABLE_DEFAULT_PROVIDER": "open-wearables",
+        "WEARABLE_DEFAULT_BASE_URL": "http://localhost:4000",
+        "WEARABLE_DEFAULT_API_KEY": "test-key",
+    }):
+        adapter = _get_adapter_for_user("some-user-id", mock_db)
+
+    assert adapter is not None
 
 
 def test_stages_to_hours_skips_malformed_timestamps():

@@ -30,6 +30,11 @@ services:
       # Set this if you want to trigger imports for all users from an external scheduler
       # (e.g. cron, Home Assistant, n8n). Leave empty to disable the webhook.
       IMPORT_WEBHOOK_SECRET: ${IMPORT_WEBHOOK_SECRET:-}
+      # Wearable data integration
+      WEARABLE_ENABLED: ${WEARABLE_ENABLED:-true}
+      WEARABLE_DEFAULT_PROVIDER: ${WEARABLE_DEFAULT_PROVIDER:-}
+      WEARABLE_DEFAULT_BASE_URL: ${WEARABLE_DEFAULT_BASE_URL:-}
+      WEARABLE_DEFAULT_API_KEY: ${WEARABLE_DEFAULT_API_KEY:-}
     # Optional: bind-mount a host DATALOG directory into the container at /data.
     # Users can then set their server path to /data (or a subdirectory) in Settings.
     # Example — add to your .env: LOCAL_DATALOG_PATH=/mnt/nas/CPAP/DATALOG

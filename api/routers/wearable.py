@@ -5,6 +5,7 @@ GET /wearable/summary?date_from=&date_to= — daily aggregates for a date range
 """
 
 import logging
+import os
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from statistics import mean
@@ -22,6 +23,10 @@ from ..wearable.registry import get_adapter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _wearable_enabled() -> bool:
+    return os.environ.get("WEARABLE_ENABLED", "true").lower() not in ("false", "0", "no")
 
 
 class SampleOut(BaseModel):
@@ -70,15 +75,15 @@ def _get_adapter_for_user(user_id: str, db: Session):
         {"uid": user_id},
     ).mappings().first()
 
-    if not row or not row["wearable_provider"]:
+    provider = (row and row["wearable_provider"]) or os.environ.get("WEARABLE_DEFAULT_PROVIDER", "")
+    base_url = (row and row["wearable_base_url"]) or os.environ.get("WEARABLE_DEFAULT_BASE_URL", "")
+    api_key  = (row and row["wearable_api_key"])  or os.environ.get("WEARABLE_DEFAULT_API_KEY", "")
+
+    if not provider:
         return None
 
     try:
-        return get_adapter(
-            row["wearable_provider"],
-            row["wearable_base_url"] or "",
-            row["wearable_api_key"] or "",
-        )
+        return get_adapter(provider, base_url, api_key)
     except ValueError:
         return None
 
@@ -125,6 +130,9 @@ def get_wearable_data(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not _wearable_enabled():
+        return WearableDataResponse(hr=[], spo2=[], stages=[])
+
     adapter = _get_adapter_for_user(current_user["id"], db)
     if adapter is None:
         return WearableDataResponse(hr=[], spo2=[], stages=[])
@@ -159,6 +167,9 @@ def get_wearable_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not _wearable_enabled():
+        return []
+
     adapter = _get_adapter_for_user(current_user["id"], db)
     if adapter is None:
         return []
