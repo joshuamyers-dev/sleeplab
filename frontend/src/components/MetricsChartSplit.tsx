@@ -106,8 +106,8 @@ export default function MetricsChartSplit({ metrics }: Props) {
                   contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
                   labelStyle={{ color: '#f8fafc' }}
                   labelFormatter={(v) => fmtTs(Number(v))}
-                  formatter={(val: number | undefined) => [
-                    val != null ? `${val.toFixed(2)} ${panel.unit}` : 'N/A',
+                  formatter={(val) => [
+                    val != null ? `${(val as number).toFixed(2)} ${panel.unit}` : 'N/A',
                     panel.title
                   ]}
                 />

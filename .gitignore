@@ -44,3 +44,10 @@ venv/
 # Local temp / upload artifacts
 tmp/
 *.tmp
+
+# Claude / OpenCode
+.claude/.sessionnotes/
+.claude/settings.local.json
+.opencode/
+opencode.json
+opencode.jsonc
