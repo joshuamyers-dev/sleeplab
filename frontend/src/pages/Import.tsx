@@ -24,7 +24,7 @@ export default function Import() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle')
 
-  // SleepHQ sync state
+  // SleepHQ import state
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -213,13 +213,13 @@ export default function Import() {
       </Card>
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
-          <CardTitle className="text-2xl">Sync from SleepHQ</CardTitle>
+          <CardTitle className="text-2xl">Import from SleepHQ</CardTitle>
           <CardDescription>
-            Pull the last 30 days of CPAP sessions directly from your SleepHQ account. Configure your credentials in{' '}
+            Run a one-time import of recent CPAP sessions from your SleepHQ account. Configure your credentials in{' '}
             <Link className="font-medium text-[var(--foreground)] underline underline-offset-2" to="/settings">
               Settings
             </Link>
-            {' '}first.
+            {' '}first, then re-run this whenever you want to pull in newer sessions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -231,7 +231,7 @@ export default function Import() {
           ) : null}
           {syncError ? <p className="text-sm text-[var(--danger-text)]">{syncError}</p> : null}
           <Button onClick={handleSleepHQSync} disabled={isSyncing}>
-            {isSyncing ? 'Syncing...' : 'Sync now'}
+            {isSyncing ? 'Importing...' : 'Import now'}
           </Button>
         </CardContent>
       </Card>

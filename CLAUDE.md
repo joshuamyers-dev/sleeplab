@@ -8,7 +8,7 @@
 
 ## Git
 - Feature work goes on named branches (`feature/<topic>`) with one PR per feature
-- `git config` identity is set globally (`camden.bock@maine.edu` / Camden Bock) — commits work fine
+- Ensure your `git config user.name` and `git config user.email` are set before committing
 
 ## Private files
 - `.newfeatures` — local implementation notes, never commit or push
