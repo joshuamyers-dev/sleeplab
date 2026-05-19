@@ -101,3 +101,29 @@ def test_open_wearables_401_raises():
         import pytest
         with pytest.raises(httpx.HTTPStatusError):
             adapter.fetch("user-123", date_type(2025, 1, 15))
+
+
+from api.wearable.mirobody import MirobodyAdapter, _MIROBODY_STAGE_MAP
+
+
+def test_mirobody_stage_map_normalises_correctly():
+    assert _MIROBODY_STAGE_MAP["wake"] == 1
+    assert _MIROBODY_STAGE_MAP["light"] == 2
+    assert _MIROBODY_STAGE_MAP["deep"] == 3
+    assert _MIROBODY_STAGE_MAP["rem"] == 4
+
+
+def test_mirobody_connect_error_returns_empty():
+    import httpx
+    adapter = MirobodyAdapter(base_url="http://mirobody.test", api_key="key")
+
+    with patch("api.wearable.mirobody.httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.side_effect = httpx.ConnectError("refused")
+        mock_client_cls.return_value = mock_client
+
+        payload = adapter.fetch("user-456", date_type(2025, 1, 15))
+
+    assert payload.is_empty()
