@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
-import type { SummaryStats, SessionSummary } from '../api/client'
+import type { SummaryStats, SessionSummary, WearableDailySummary } from '../api/client'
 import noDataIllustration from '../assets/no-data.webp'
 import AISummaryCard from '../components/AISummaryCard'
 import CalendarHeatmap from '../components/CalendarHeatmap'
 import AHITrendChart from '../components/AHITrendChart'
+import WearableSleepSummaryChart from '../components/WearableSleepSummaryChart'
 import { ChevronRightIcon } from '../components/icons/ChevronIcons'
 import InfoPopover from '../components/InfoPopover'
 import { Button } from '../components/ui/button'
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [wearableSummary, setWearableSummary] = useState<WearableDailySummary[]>([])
 
   useEffect(() => {
     async function loadDashboard() {
@@ -56,6 +58,14 @@ export default function Dashboard() {
         setSummary(nextSummary)
         setSessions(nextSessions)
         setError(null)
+        // Fetch wearable summary using the same date range as the AHI trend.
+        if (nextSummary.ahi_trend.length > 0) {
+          const dateFrom = nextSummary.ahi_trend[0].folder_date
+          const dateTo = nextSummary.ahi_trend[nextSummary.ahi_trend.length - 1].folder_date
+          api.getWearableSummary(dateFrom, dateTo)
+            .then(setWearableSummary)
+            .catch(() => {})
+        }
       } catch (err) {
         setError(String(err))
       } finally {
@@ -207,6 +217,7 @@ export default function Dashboard() {
       </Card>
 
       <AHITrendChart trend={summary.ahi_trend} />
+        <WearableSleepSummaryChart data={wearableSummary} />
     </div>
   )
 }
