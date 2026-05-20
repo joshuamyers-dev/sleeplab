@@ -6,9 +6,9 @@ To add a new wearable provider:
 3. Add the provider name to the selector in ``frontend/src/pages/Settings.tsx``.
 """
 
+from .base import WearableAdapter
 from .mirobody import MirobodyAdapter
 from .open_wearables import OpenWearablesAdapter
-from .base import WearableAdapter
 
 ADAPTERS: dict[str, type[WearableAdapter]] = {
     "open-wearables": OpenWearablesAdapter,
