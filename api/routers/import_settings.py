@@ -1,7 +1,9 @@
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -35,6 +37,11 @@ class ImportSettingsResponse(BaseModel):
     wearable_provider: str | None = None
     wearable_base_url: str | None = None
     wearable_api_key: str | None = None  # always None in responses
+
+
+class WebhookPayload(BaseModel):
+    event: str
+    status: Literal["success", "error"]
 
 
 class ImportSettingsUpdate(BaseModel):
@@ -362,3 +369,70 @@ def trigger_all_local_imports(
         triggered += 1
 
     return {"triggered": triggered}
+
+
+@router.post("/webhook/{user_id}")
+def webhook_per_user(
+    user_id: uuid.UUID,
+    body: WebhookPayload,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    x_import_secret: str | None = Header(default=None),
+):
+    """Per-user webhook fired by CPAP_data_uploader after each SMB sync session.
+
+    Authenticates with the same IMPORT_WEBHOOK_SECRET as /trigger/all.
+    When status='error' the import is skipped but the status row is updated
+    so the user can see the upstream failure in Settings.
+    """
+    secret = os.environ.get("IMPORT_WEBHOOK_SECRET", "")
+    if not secret or x_import_secret != secret:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Import-Secret header.")
+
+    row = db.execute(
+        text("SELECT user_id, local_datalog_path FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
+        {"uid": str(user_id)},
+    ).mappings().first()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="User not found or no import settings configured.")
+
+    if body.status == "error":
+        # Upstream uploader reported a failed sync — no new data to import.
+        # Record the failure so the user can see it in Settings.
+        try:
+            db.execute(
+                text("""
+                    UPDATE user_import_settings
+                    SET last_local_import_at = NOW(),
+                        last_local_import_status = 'upstream error: CPAP uploader reported a failed sync'
+                    WHERE user_id = CAST(:uid AS uuid)
+                """),
+                {"uid": str(user_id)},
+            )
+            db.commit()
+        except Exception:
+            logger.exception("Failed to write upstream-error status for user %s", user_id)
+        return {"status": "skipped", "message": "Upstream sync failed; import not triggered."}
+
+    if not row.get("local_datalog_path"):
+        raise HTTPException(
+            status_code=400,
+            detail="No local DATALOG path configured for this user.",
+        )
+
+    path = _validate_local_path(row["local_datalog_path"])
+    if not path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Path not found on server: {path}. Check the /data mount.",
+        )
+
+    uid_str = str(user_id)
+    job = IMPORT_JOBS.get(uid_str)
+    if job and job.running:
+        return {"status": "already_running", "message": "An import is already in progress."}
+
+    _mark_import_running(uid_str)
+    background_tasks.add_task(_run_local_import_task, uid_str, str(path))
+    return {"status": "started", "message": "Local DATALOG import started."}
