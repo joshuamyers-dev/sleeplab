@@ -1,5 +1,7 @@
 # SleepLab — Third-Party Notices
 
+**Version:** 1.0.0
+
 ## SleepyHead / OSCAR / open-cpap-parser
 
 This project depends on **open-cpap-parser** as a key functional module for

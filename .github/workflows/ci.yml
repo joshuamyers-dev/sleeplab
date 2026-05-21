@@ -4,8 +4,57 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    tags:
+      - "v*"
 
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version alignment
+        run: |
+          TAG_VERSION=""
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+
+          PYPROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          NOTICE_VERSION=$(sed -n 's/^\*\*Version:\*\* \(.*\)/\1/p' NOTICE.md)
+
+          echo "pyproject.toml: $PYPROJECT_VERSION"
+          echo "package.json:  $PACKAGE_VERSION"
+          echo "NOTICE.md:     $NOTICE_VERSION"
+          if [[ -n "$TAG_VERSION" ]]; then
+            echo "git tag:       v$TAG_VERSION"
+          fi
+
+          ERRORS=0
+
+          if [[ "$PYPROJECT_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "::error::Version mismatch: pyproject.toml ($PYPROJECT_VERSION) != package.json ($PACKAGE_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [[ "$PYPROJECT_VERSION" != "$NOTICE_VERSION" ]]; then
+            echo "::error::Version mismatch: pyproject.toml ($PYPROJECT_VERSION) != NOTICE.md ($NOTICE_VERSION)"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [[ -n "$TAG_VERSION" && "$PYPROJECT_VERSION" != "$TAG_VERSION" ]]; then
+            echo "::error::Version mismatch: pyproject.toml ($PYPROJECT_VERSION) != git tag v$TAG_VERSION"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          if [[ $ERRORS -gt 0 ]]; then
+            exit 1
+          fi
+          echo "All versions aligned!"
+
+  backend:
   backend:
     runs-on: ubuntu-latest
 
