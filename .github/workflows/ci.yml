@@ -55,7 +55,6 @@ jobs:
           echo "All versions aligned!"
 
   backend:
-  backend:
     runs-on: ubuntu-latest
 
     services:
