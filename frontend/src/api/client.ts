@@ -194,6 +194,11 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface AppConfig {
+  display_tz: string
+  machine_tz: string
+}
+
 export interface ImportSettings {
   sleephq_client_id: string | null
   sleephq_client_secret: string | null
@@ -340,6 +345,7 @@ export const api = {
   getImportSettings: () => get<ImportSettings>('/import/settings'),
   saveImportSettings: (payload: Partial<ImportSettings>) => put<ImportSettings>('/import/settings', payload),
   triggerSleepHQImport: () => post<{ status: string; message: string }>('/import/trigger'),
+  getAppConfig: () => get<AppConfig>('/config'),
 }
 
 export const authTokenStore = {
