@@ -45,12 +45,12 @@ which this project inherits accordingly.
 | [uvicorn](https://github.com/encode/uvicorn) | BSD-3-Clause |
 | [sqlalchemy](https://github.com/sqlalchemy/sqlalchemy) | MIT |
 | [psycopg2-binary](https://github.com/psycopg/psycopg2) | LGPL-3.0-or-later with exceptions |
-| [python-jose](https://github.com/mpdavis/python-jose) | MIT |
+| [PyJWT](https://github.com/jpadilla/pyjwt) | MIT |
 | [passlib](https://github.com/glic3rinu/passlib) | BSD-3-Clause |
 | [openai](https://github.com/openai/openai-python) | Apache-2.0 |
 | [python-multipart](https://github.com/andrew-d/python-multipart) | Apache-2.0 |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause |
-| [ecdsa](https://github.com/tlsfuzn/python-ecdsa) | MIT |
+| [open-cpap-parser](https://gitlab.com/open-cpap/open-cpap-parser) | GPL-3.0-or-later |
 | [sleephq-client](https://github.com/frohoff/sleephq-client) | MIT |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT |
 
