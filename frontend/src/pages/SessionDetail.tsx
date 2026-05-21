@@ -43,6 +43,8 @@ export default function SessionDetail() {
 
   useEffect(() => {
     setLoading(true)
+    setSpo2(null)
+    setEquipment(null)
     Promise.all([
       api.getSession(sessionId),
       api.getEvents(sessionId),
@@ -53,9 +55,9 @@ export default function SessionDetail() {
       setMetrics(m)
       setLoading(false)
       if (s.has_spo2) {
-        api.getSessionSpo2(sessionId).then(setSpo2).catch(() => {})
+        api.getSessionSpo2(sessionId).then(setSpo2).catch(() => setSpo2(null))
       }
-      api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => {})
+      api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => setEquipment(null))
     }).catch(() => navigate('/dashboard'))
   }, [navigate, sessionId])
 

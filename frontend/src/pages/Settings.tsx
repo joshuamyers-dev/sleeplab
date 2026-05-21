@@ -58,6 +58,9 @@ export default function SettingsPage() {
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
+  const [isImportRunning, setIsImportRunning] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -131,6 +134,20 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleRunImport() {
+    setImportError(null)
+    setImportMessage(null)
+    setIsImportRunning(true)
+    try {
+      const result = await api.triggerSleepHQImport()
+      setImportMessage(result.message)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Could not start import')
+    } finally {
+      setIsImportRunning(false)
+    }
+  }
+
   async function handleSleephqSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSleephqError(null)
@@ -145,8 +162,11 @@ export default function SettingsPage() {
         sleephq_machine_id: sleephqMachineId ? Number(sleephqMachineId) : null,
       })
       setSleephqMessage('SleepHQ settings saved.')
+      if (sleephqSecretDirty && sleephqClientSecret) {
+        setSleephqSecretSaved(true)
+        setSleephqClientSecret('')
+      }
       setSleephqSecretDirty(false)
-      if (sleephqSecretDirty && sleephqClientSecret) setSleephqSecretSaved(true)
     } catch (err) {
       setSleephqError(err instanceof Error ? err.message : 'Could not save settings')
     } finally {
@@ -332,6 +352,21 @@ export default function SettingsPage() {
               {isSleephqSubmitting ? 'Saving...' : 'Save SleepHQ settings'}
             </Button>
           </form>
+
+          <div className="mt-6 border-t border-[var(--border)] pt-5 space-y-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Run a historical import from SleepHQ. Requires saved credentials above.
+            </p>
+            {importMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{importMessage}</p> : null}
+            {importError ? <p className="text-sm text-[var(--danger-text)]">{importError}</p> : null}
+            <Button
+              variant="outline"
+              onClick={handleRunImport}
+              disabled={isImportRunning || !sleephqSecretSaved}
+            >
+              {isImportRunning ? 'Starting import...' : 'Run SleepHQ import'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
       <EquipmentCatalog />
