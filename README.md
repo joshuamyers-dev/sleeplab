@@ -487,12 +487,16 @@ cd frontend && npm run lint
 
 ## Acknowledgements
 
-This project is based on the free and open-source software **SleepyHead**,
-developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018.
+This project depends on **open-cpap-parser** as a key functional module for
+multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
+parsing code lives in open-cpap-parser — SleepLab itself does not implement
+any direct derivative of SleepyHead or OSCAR.
 
-Parts of the binary-format parsing logic are ported from
-**[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code)** (Open Source CPAP
-Analysis Reporter), which is itself a derivative of SleepyHead.
+open-cpap-parser is a derivative of the free and open-source software
+**SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
+and of **[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code)** (Open Source CPAP
+Analysis Reporter), which is itself a derivative of SleepyHead. The binary-format
+parsing logic in open-cpap-parser's Rust extension module is ported from OSCAR.
 
 Per Mark Watkins' redistribution request, any derivative of this work
 must mention clearly in its advertising material, software installer, and
@@ -508,10 +512,10 @@ GNU General Public License v3.0 (GPL-3.0)
 This project is licensed under the GNU General Public License v3.0.
 See [LICENSE.md](LICENSE.md) for the full license text.
 
-This project is based on the free and open-source software **SleepyHead**,
-developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018.
-Parts of the binary-format parsing logic are ported from
-[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code), itself a SleepyHead
-derivative. Both SleepyHead and OSCAR are distributed under the GPL-3.0,
-which this project inherits. All other components are permissively
-licensed (MIT, BSD-3-Clause, Apache-2.0) and are compatible with GPL-3.0.
+This project incorporates **open-cpap-parser** as a key functional module,
+which is a derivative of **[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code)**
+and the free and open-source software **SleepyHead**, developed and copyright by
+Mark Watkins (Jedimark) (C) 2011-2018. Both SleepyHead and OSCAR are distributed
+under the GPL-3.0, which this project inherits. All other components are
+permissively licensed (MIT, BSD-3-Clause, Apache-2.0) and are compatible with
+GPL-3.0.

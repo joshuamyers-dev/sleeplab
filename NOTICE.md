@@ -1,14 +1,19 @@
 # SleepLab — Third-Party Notices
 
-## SleepyHead / OSCAR
+## SleepyHead / OSCAR / open-cpap-parser
 
-This product is based on the free and open-source software **SleepyHead**,
-developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018.
+This project depends on **open-cpap-parser** as a key functional module for
+multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
+parsing code lives in open-cpap-parser — SleepLab itself does not implement
+any direct derivative of SleepyHead or OSCAR.
 
-Parts of the binary-format parsing logic are ported from the **OSCAR** project
-(https://gitlab.com/CrimsonNape/OSCAR-code), which is itself a derivative of
-SleepyHead. Both SleepyHead and OSCAR are distributed under the GNU General
-Public License v3.0 (GPL-3.0). This project inherits that license accordingly.
+open-cpap-parser is a derivative of both the free and open-source software
+**SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
+and the **OSCAR** project (https://gitlab.com/CrimsonNape/OSCAR-code), which is
+itself a derivative of SleepyHead. The binary-format parsing logic in
+open-cpap-parser's Rust extension module is ported from OSCAR. Both SleepyHead
+and OSCAR are distributed under the GNU General Public License v3.0 (GPL-3.0),
+which this project inherits accordingly.
 
 ### Redistribution Notice (added by Mark Watkins)
 
