@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 
 import { api } from '../api/client'
+import EquipmentCatalog from '../components/EquipmentCatalog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -280,7 +281,7 @@ export default function SettingsPage() {
       </Card>
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
-          <CardTitle className="text-2xl">SleepHQ Integration</CardTitle>
+          <CardTitle className="text-2xl">SleepHQ API Import (Unofficial)</CardTitle>
           <CardDescription>
             Import your CPAP history from SleepHQ. This is a one-time historical import — it pulls your existing records into SleepLab and does not stay connected or sync automatically. You can re-run it at any time to pull in newer sessions. OAuth credentials can be found in your SleepHQ developer settings.
           </CardDescription>
@@ -368,6 +369,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      <EquipmentCatalog />
+
       <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl text-[var(--danger-text)]">Danger Zone</CardTitle>

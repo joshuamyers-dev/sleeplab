@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response } from '../api/client'
+import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment } from '../api/client'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
@@ -37,12 +37,14 @@ export default function SessionDetail() {
   const [events, setEvents] = useState<EventRecord[]>([])
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
   const [spo2, setSpo2] = useState<SpO2Response | null>(null)
+  const [equipment, setEquipment] = useState<InferredEquipment | null>(null)
   const [loading, setLoading] = useState(true)
   const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
 
   useEffect(() => {
     setLoading(true)
     setSpo2(null)
+    setEquipment(null)
     Promise.all([
       api.getSession(sessionId),
       api.getEvents(sessionId),
@@ -55,6 +57,7 @@ export default function SessionDetail() {
       if (s.has_spo2) {
         api.getSessionSpo2(sessionId).then(setSpo2).catch(() => setSpo2(null))
       }
+      api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => setEquipment(null))
     }).catch(() => navigate('/dashboard'))
   }, [navigate, sessionId])
 
@@ -213,6 +216,66 @@ export default function SessionDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Machine settings — only if any field is present */}
+      {(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null) && (
+        <Card>
+          <CardContent className="px-5 pb-5 pt-5">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Device settings</p>
+            <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+              {session.therapy_mode && (
+                <span><span className="text-[var(--muted-foreground)]">Mode </span>{session.therapy_mode.toUpperCase()}</span>
+              )}
+              {session.mask_type && (
+                <span><span className="text-[var(--muted-foreground)]">Mask </span>{session.mask_type}</span>
+              )}
+              {session.humidity_level != null && (
+                <span><span className="text-[var(--muted-foreground)]">Humidity </span>{session.humidity_level}</span>
+              )}
+              {session.temperature_c != null && (
+                <span><span className="text-[var(--muted-foreground)]">Temp </span>{session.temperature_c}°C</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Inferred equipment */}
+      {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
+        <Card>
+          <CardContent className="px-5 pb-5 pt-5">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {([
+                { key: 'cushion', label: 'Cushion' },
+                { key: 'headgear', label: 'Headgear' },
+                { key: 'tubing', label: 'Tubing' },
+                { key: 'humidifier_chamber', label: 'Humidifier' },
+                { key: 'filter', label: 'Filter' },
+              ] as { key: keyof InferredEquipment; label: string }[]).map(({ key, label }) => {
+                const item = equipment[key]
+                if (!item) return null
+                const name = [item.brand, item.model].filter(Boolean).join(' ') || label
+                const category = item.mask_category ? ` · ${item.mask_category}` : ''
+                const age = item.days_in_use != null ? `${item.days_in_use}d` : null
+                const overdue = item.replacement_days != null && item.days_in_use != null
+                  && item.days_in_use > item.replacement_days
+                return (
+                  <div key={key} className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2.5">
+                    <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
+                    <p className="text-sm font-medium">{name}{category}</p>
+                    {age && (
+                      <p className={`text-xs mt-0.5 ${overdue ? 'text-[var(--danger-text)]' : 'text-[var(--muted-foreground)]'}`}>
+                        {age} old{overdue ? ' · overdue for replacement' : ''}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <SessionAICard sessionId={sessionId} />
 

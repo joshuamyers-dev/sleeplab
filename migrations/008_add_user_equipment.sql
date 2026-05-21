@@ -4,7 +4,7 @@ CREATE TABLE user_equipment (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     equipment_type   TEXT NOT NULL
-                         CHECK (equipment_type IN ('mask', 'tubing', 'humidifier_chamber', 'filter')),
+                         CHECK (equipment_type IN ('cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter')),
     start_date       DATE NOT NULL,
     replacement_days INTEGER,
 
