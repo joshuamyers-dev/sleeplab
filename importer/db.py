@@ -45,6 +45,20 @@ def upsert_session(conn, data: dict) -> int:
     """
     Insert or update a session row. Returns the session's integer id.
     data must contain all columns defined in the sessions table.
+
+    TODO(open-cpap-parser): add three new columns from migration 013:
+        manufacturer      TEXT           — data["manufacturer"]
+        data_source       TEXT NOT NULL  — data["data_source"]
+        parser_validated  BOOLEAN        — data["parser_validated"]
+
+    These must be added to the INSERT column list, the VALUES clause,
+    and the ON CONFLICT DO UPDATE SET block below.  Native ResMed callers
+    should pass:
+        "manufacturer": None,
+        "data_source": "resmed_native",
+        "parser_validated": True,
+    open-cpap-parser callers pass values from open_cpap_import.py.
+    See: sleeplab#38, importer/open_cpap_import.py
     """
     sql = """
     INSERT INTO sessions (
