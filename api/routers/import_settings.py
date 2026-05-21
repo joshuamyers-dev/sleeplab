@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -26,6 +27,7 @@ class ImportSettingsResponse(BaseModel):
     sleephq_machine_id: Optional[int] = None
     auto_import_sleephq: bool = False
     lookback_days: int = 30
+    sleephq_enabled: bool = False
 
 
 class ImportSettingsUpdate(BaseModel):
@@ -47,8 +49,10 @@ def get_import_settings(
         {"uid": current_user["id"]},
     ).mappings().first()
 
+    enabled = os.environ.get("SLEEPHQ_ENABLED", "false").lower() == "true"
+
     if row is None:
-        return ImportSettingsResponse()
+        return ImportSettingsResponse(sleephq_enabled=enabled)
 
     return ImportSettingsResponse(
         sleephq_client_id=row["sleephq_client_id"],
@@ -58,6 +62,7 @@ def get_import_settings(
         sleephq_machine_id=row["sleephq_machine_id"],
         auto_import_sleephq=row["auto_import_sleephq"],
         lookback_days=row["lookback_days"],
+        sleephq_enabled=enabled,
     )
 
 
@@ -167,6 +172,12 @@ def trigger_sleephq_import(
         text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
         {"uid": current_user["id"]},
     ).mappings().first()
+
+    if os.environ.get("SLEEPHQ_ENABLED", "false").lower() != "true":
+        raise HTTPException(
+            status_code=503,
+            detail="SleepHQ integration is not enabled on this server. Set SLEEPHQ_ENABLED=true to enable it.",
+        )
 
     if row is None or not row["sleephq_client_id"] or not row["sleephq_client_secret"]:
         raise HTTPException(

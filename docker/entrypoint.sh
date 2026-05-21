@@ -8,6 +8,11 @@ export API_HOST="${API_HOST:-0.0.0.0}"
 export API_PORT="${API_PORT:-8000}"
 export API_URL="${API_URL:-http://127.0.0.1:${API_PORT}}"
 
+if [ "${SLEEPHQ_ENABLED:-false}" = "true" ]; then
+  pip install --quiet --no-cache-dir \
+    "sleephq-client @ git+https://github.com/frohoff/sleephq-client.git"
+fi
+
 python /app/docker/wait_for_db.py
 
 python - <<'PY' > /usr/share/nginx/html/config.js

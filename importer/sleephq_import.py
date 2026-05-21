@@ -43,11 +43,15 @@ from typing import Optional
 
 import httpx
 
-from sleephq import AuthenticatedClient
-from sleephq.auth import create_client as _sleephq_create_client
-from sleephq.api.machine_dates import get_v1_machines_machine_id_machine_dates
-from sleephq.api.teams import get_v1_teams
-from sleephq.api.machines import get_v1_teams_team_id_machines
+try:
+    from sleephq import AuthenticatedClient
+    from sleephq.auth import create_client as _sleephq_create_client
+    from sleephq.api.machine_dates import get_v1_machines_machine_id_machine_dates
+    from sleephq.api.teams import get_v1_teams
+    from sleephq.api.machines import get_v1_teams_team_id_machines
+    _SLEEPHQ_AVAILABLE = True
+except ImportError:
+    _SLEEPHQ_AVAILABLE = False
 
 from db import get_conn, session_exists, upsert_session
 
@@ -124,6 +128,14 @@ def _api_call_with_retry(fn, *args, label: str = "API call", **kwargs):
 # Client / authentication
 # ---------------------------------------------------------------------------
 
+def _require_sleephq():
+    if not _SLEEPHQ_AVAILABLE:
+        raise RuntimeError(
+            "sleephq-client is not installed. "
+            "Set SLEEPHQ_ENABLED=true in your environment to enable SleepHQ support."
+        )
+
+
 def create_sleephq_client(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
@@ -134,6 +146,7 @@ def create_sleephq_client(
     Retries up to ``_MAX_ATTEMPTS`` times on HTTP 429 (rate limit) with
     exponential back-off, honouring the ``Retry-After`` header when present.
     """
+    _require_sleephq()
     cid = client_id or os.environ["SLEEPHQ_CLIENT_ID"]
     csecret = client_secret or os.environ["SLEEPHQ_CLIENT_SECRET"]
 
@@ -623,6 +636,7 @@ def run_sleephq_import(
     should inject them via client_id / client_secret rather than
     mutating os.environ directly.
     """
+    _require_sleephq()
     # Temporarily override env vars if explicit creds provided
     _orig = {}
     if client_id:

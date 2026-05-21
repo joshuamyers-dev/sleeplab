@@ -58,6 +58,7 @@ export default function SettingsPage() {
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
+  const [sleephqEnabled, setSleephqEnabled] = useState(false)
   const [isImportRunning, setIsImportRunning] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -73,6 +74,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.getImportSettings().then((settings) => {
+      setSleephqEnabled(settings.sleephq_enabled ?? false)
       setSleephqClientId(settings.sleephq_client_id ?? '')
       setSleephqSecretSaved(settings.has_client_secret)
       setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
@@ -279,7 +281,7 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
-      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+      {sleephqEnabled && <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
           <CardTitle className="text-2xl">SleepHQ API Import (Unofficial)</CardTitle>
           <CardDescription>
@@ -368,7 +370,7 @@ export default function SettingsPage() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
       <EquipmentCatalog />
 
       <Card className="border-[var(--danger-text)] bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">

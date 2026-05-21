@@ -202,6 +202,7 @@ export interface ImportSettings {
   sleephq_machine_id: number | null
   auto_import_sleephq: boolean
   lookback_days: number
+  sleephq_enabled: boolean
 }
 
 export interface SummaryStats {
