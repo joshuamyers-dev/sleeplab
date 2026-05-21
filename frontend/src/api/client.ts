@@ -332,6 +332,7 @@ export const api = {
   getSessions: (params?: { per_page?: number; date_from?: string; date_to?: string }) =>
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
+  getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
   getMetrics: (id: string, downsample = 15) =>
     get<MetricsResponse>(`/sessions/${id}/metrics`, { downsample }),
