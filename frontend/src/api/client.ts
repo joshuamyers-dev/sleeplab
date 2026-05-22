@@ -10,6 +10,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export interface VersionResponse {
+  version: string
+  latest_version: string | null
+  update_available: boolean
+  release_url: string | null
+}
+
 export interface AuthUser {
   user_id: string
   email: string
@@ -325,6 +332,7 @@ function postForm<T>(path: string, formData: FormData) {
 }
 
 export const api = {
+  getVersion: () => get<VersionResponse>('/version'),
   getSummary: () => get<SummaryStats>('/stats/summary'),
   getAISummary: (days = 30) => get<AISummaryResponse>('/stats/ai-summary', { days }),
   getSessionAISummary: (sessionId: string) => get<SessionAISummaryResponse>(`/stats/sessions/${sessionId}/ai-summary`),

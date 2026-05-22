@@ -77,6 +77,9 @@ function AppLayout() {
   const location = useLocation()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeMode>('light')
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
+  const [releaseUrl, setReleaseUrl] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const wasSyncingRef = useRef(false)
@@ -84,6 +87,31 @@ function AppLayout() {
   // Fetch display timezone from server config once on mount.
   useEffect(() => {
     api.getAppConfig().then((cfg) => setDisplayTz(cfg.display_tz)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAppVersion() {
+      try {
+        const versionInfo = await api.getVersion()
+        if (!cancelled) {
+          setAppVersion(versionInfo.version)
+          setLatestVersion(versionInfo.update_available ? versionInfo.latest_version : null)
+          setReleaseUrl(versionInfo.release_url)
+        }
+      } catch {
+        if (!cancelled) {
+          setAppVersion(null)
+        }
+      }
+    }
+
+    void loadAppVersion()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -342,6 +370,22 @@ function AppLayout() {
         <main>
           {routes}
         </main>
+
+        <footer className="mt-8 pb-4 text-center text-xs font-medium text-[var(--muted-foreground)]">
+          SleepLab v{appVersion ?? 'development'}
+          {latestVersion ? (
+            <>
+              {' -> '}
+              {releaseUrl ? (
+                <a className="font-bold text-[var(--accent)] hover:text-[var(--accent-hover)]" href={releaseUrl} target="_blank" rel="noreferrer">
+                  v{latestVersion} available
+                </a>
+              ) : (
+                <span className="font-bold text-[var(--accent)]">v{latestVersion} available</span>
+              )}
+            </>
+          ) : null}
+        </footer>
       </div>
     </div>
   )
