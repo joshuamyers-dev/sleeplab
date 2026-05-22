@@ -13,6 +13,7 @@
 # Claude / OpenCode
 .claude/.sessionnotes/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .opencode/
 opencode.json
 opencode.jsonc
@@ -47,10 +48,3 @@ venv/
 # Local temp / upload artifacts
 tmp/
 *.tmp
-
-# Claude / OpenCode
-.claude/.sessionnotes/
-.claude/settings.local.json
-.opencode/
-opencode.json
-opencode.jsonc
