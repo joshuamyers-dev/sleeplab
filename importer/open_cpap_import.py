@@ -68,17 +68,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from open_cpap_parser import UniversalCPAPParser  # noqa: F401
-from open_cpap_parser import CPAPDirectory  # noqa: F401
-from open_cpap_parser.adapters.base import UnsupportedDirectoryError  # noqa: F401
-from open_cpap_parser.adapters.sleeplab_output import map_directory_to_sleeplab  # noqa: F401
-from open_cpap_parser.core import create_parser  # noqa: F401
+from cpap_parser import UniversalCPAPParser  # noqa: F401
+from cpap_parser import map_directory_to_sleeplab  # noqa: F401
+from cpap_parser.adapters.base import UnsupportedDirectoryError  # noqa: F401
 
 from db import (  # noqa: F401
     get_conn,
     replace_session_events,
-    replace_session_metrics,
-    replace_session_spo2,
+    replace_session_metrics_cpap,
+    replace_session_spo2_cpap,
     session_exists,
     upsert_session,
 )
@@ -100,14 +98,13 @@ def detect_open_cpap_layout(directory: Path) -> bool:
     Raises:
         NotADirectoryError: If *directory* does not exist.
     """
-    # TODO(open-cpap-parser): implement
-    #   parser = create_parser()
-    #   try:
-    #       parser.parse(directory)
-    #       return True
-    #   except UnsupportedDirectoryError:
-    #       return False
-    raise NotImplementedError
+    if not directory.exists() or not directory.is_dir():
+        raise NotADirectoryError(f"Not a directory: {directory}")
+    try:
+        UniversalCPAPParser().parse(str(directory))
+        return True
+    except UnsupportedDirectoryError:
+        return False
 
 
 def run_open_cpap_import(
@@ -164,8 +161,89 @@ def run_open_cpap_import(
             Callers (``import_sessions.run_local_import()``) should catch
             this and fall through to the native ResMed EDF path.
     """
-    # TODO(open-cpap-parser): implement
-    raise NotImplementedError
+    import os
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    def _localize(naive_dt):
+        name = os.environ.get("MACHINE_TZ", "UTC")
+        try:
+            tz = ZoneInfo(name)
+        except (ZoneInfoNotFoundError, KeyError, ValueError):
+            tz = ZoneInfo("UTC")
+        return naive_dt.replace(tzinfo=tz)
+
+    path = Path(datalog_path)
+    if not path.exists():
+        raise FileNotFoundError(f"DATALOG path not found: {datalog_path}")
+
+    directory = UniversalCPAPParser().parse(str(path))
+    result = map_directory_to_sleeplab(directory, user_id)
+
+    manufacturer = getattr(getattr(directory, "machine", None), "series", None)
+
+    # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
+    events_by_start: dict = {}
+    for item in result.get("events", []):
+        event_type, onset, duration, session_start = item
+        events_by_start.setdefault(session_start, []).append((onset, duration, event_type))
+
+    conn = get_conn()
+    stats = {"imported": 0, "folders": 0, "errors": 0}
+    try:
+        for session_dict in result.get("sessions", []):
+            meta = session_dict.pop("meta", {})
+
+            if from_date and str(session_dict.get("folder_date", "")) < from_date:
+                continue
+
+            sid = session_dict.get("session_id")
+            if session_exists(conn, user_id, sid):
+                continue
+
+            # Rename SpO2 keys to match schema columns
+            session_dict["avg_spo2"] = session_dict.pop("spo2_avg", None)
+            session_dict["min_spo2"] = session_dict.pop("spo2_min", None)
+
+            # Localize naive datetimes from parser
+            if session_dict.get("start_datetime") and session_dict["start_datetime"].tzinfo is None:
+                session_dict["start_datetime"] = _localize(session_dict["start_datetime"])
+            if session_dict.get("pld_start_datetime") and session_dict["pld_start_datetime"].tzinfo is None:
+                session_dict["pld_start_datetime"] = _localize(session_dict["pld_start_datetime"])
+
+            # Provenance fields
+            session_dict["manufacturer"] = manufacturer
+            session_dict["data_source"] = "open_cpap_parser"
+            session_dict["parser_validated"] = (
+                MANUFACTURER_VALIDATED.get(manufacturer, False)
+                if meta.get("validation_status") != "validated"
+                else True
+            )
+
+            try:
+                db_id = upsert_session(conn, session_dict)
+
+                csl_start = session_dict["start_datetime"]
+                session_events = events_by_start.get(csl_start, [])
+                replace_session_events(conn, db_id, session_events, csl_start)
+
+                metrics = result.get("metrics", [])
+                if metrics:
+                    replace_session_metrics_cpap(conn, db_id, metrics)
+
+                spo2_rows = result.get("spo2", [])
+                if spo2_rows:
+                    replace_session_spo2_cpap(conn, db_id, spo2_rows)
+
+                conn.commit()
+                stats["imported"] += 1
+                stats["folders"] += 1
+            except Exception as e:
+                conn.rollback()
+                print(f"  ERROR {sid}: {e}", flush=True)
+                stats["errors"] += 1
+    finally:
+        conn.close()
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -180,10 +258,7 @@ def run_open_cpap_import(
 #
 # Update this dict as manufacturers are validated.  See sleeplab#38.
 #
-# TODO(open-cpap-parser): populate with confirmed series strings once
-#   pressure_mode values are documented in open-cpap-parser.
-#
 MANUFACTURER_VALIDATED: dict[str, bool] = {
-    # "ResMed": True,
-    # "Lowenstein": False,
+    "Lowenstein": True,    # validated against OSCAR v1.7.x
+    "ResMed": False,       # implemented, awaiting validation
 }
