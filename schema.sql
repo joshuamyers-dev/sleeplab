@@ -38,7 +38,10 @@ CREATE TABLE sessions (
     avg_spo2                NUMERIC(5,1),
     min_spo2                NUMERIC(5,1),
     created_at              TIMESTAMPTZ DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ DEFAULT NOW()
+    updated_at              TIMESTAMPTZ DEFAULT NOW(),
+    manufacturer            TEXT,
+    data_source             TEXT NOT NULL DEFAULT 'resmed_native',
+    parser_validated        BOOLEAN NOT NULL DEFAULT true
 );
 CREATE INDEX idx_sessions_folder_date ON sessions (folder_date);
 CREATE INDEX idx_sessions_start_datetime ON sessions (start_datetime);
