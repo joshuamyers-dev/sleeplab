@@ -11,36 +11,23 @@ Run:
     python import_sessions.py --folder 20241215   # single folder
     python import_sessions.py --from 20250101     # from date onward
 
-open-cpap-parser integration (TODO)
-------------------------------------
-``run_local_import()`` will gain a detection step at the top:
+open-cpap-parser integration
+-----------------------------
+``run_local_import()`` first probes with ``detect_open_cpap_layout()``.
+If the directory is a recognised CPAP SD card, it delegates to
+``run_open_cpap_import()`` instead of the native ResMed EDF path.
 
-    from open_cpap_import import detect_open_cpap_layout, run_open_cpap_import
-    from open_cpap_parser.adapters.base import UnsupportedDirectoryError
-
-    try:
-        if detect_open_cpap_layout(Path(datalog_path)):
-            return run_open_cpap_import(user_id, datalog_path, from_date)
-    except UnsupportedDirectoryError:
-        pass  # fall through to native ResMed EDF path
-
-``run_open_cpap_import`` mirrors this function's return shape
-``{"imported": N, "folders": N, "errors": N}`` so callers in
-``api/routers/import_settings.py`` are drop-in compatible.
-
-See: importer/open_cpap_import.py, sleeplab#38, open-cpap/open-cpap-parser#14
+See: importer/open_cpap_import.py, sleeplab#38
 """
 
-import os
-import sys
 import argparse
+import os
 import statistics
+import sys
+from datetime import date, datetime
 from pathlib import Path
-from datetime import date, datetime, timedelta
-from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from edf_parser import parse_pld, parse_eve, parse_sa2, read_header
 from db import (
     get_conn,
     replace_session_events,
@@ -49,11 +36,8 @@ from db import (
     session_exists,
     upsert_session,
 )
-
-# TODO(open-cpap-parser): uncomment once open_cpap_import is implemented
-# from open_cpap_import import detect_open_cpap_layout, run_open_cpap_import
-# from open_cpap_parser.adapters.base import UnsupportedDirectoryError
-
+from edf_parser import parse_eve, parse_pld, parse_sa2, read_header
+from open_cpap_import import detect_open_cpap_layout, run_open_cpap_import
 
 AHI_EVENT_TYPES = {'Central Apnea', 'Obstructive Apnea', 'Hypopnea', 'Apnea'}
 
@@ -248,7 +232,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
     return imported
 
 
-def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] = None) -> dict:
+def run_local_import(user_id: str, datalog_path: str, from_date: str | None = None) -> dict:
     """
     Programmatic entry point for server-triggered local imports.
 
@@ -268,17 +252,11 @@ def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] =
     if from_date:
         folders = [f for f in folders if f.name >= from_date]
 
-    # TODO(open-cpap-parser): detect layout before entering the folder loop.
-    # If open-cpap-parser recognises the root, delegate entirely:
-    #
-    #   try:
-    #       if detect_open_cpap_layout(datalog):
-    #           return run_open_cpap_import(user_id, datalog_path, from_date)
-    #   except UnsupportedDirectoryError:
-    #       pass  # fall through to native ResMed EDF path
-    #
+    # Delegate to open-cpap-parser if the directory is a recognised layout.
     # open-cpap-parser parses the whole SD card in one call, returning all
     # dates at once — the per-folder loop below is only for the native path.
+    if detect_open_cpap_layout(datalog):
+        return run_open_cpap_import(user_id, datalog_path, from_date)
 
     conn = get_conn()
     stats = {"imported": 0, "folders": 0, "errors": 0}

@@ -13,8 +13,8 @@ dependencies = [
     "openai==1.109.1",
     "python-multipart==0.0.27",
     "httpx>=0.27.0",
-    "ecdsa>=0.19.3",
-    "cpap-parser @ git+https://gitlab.com/open-cpap/cpap-parser.git",
+    "ecdsa>=0.19.2",
+    "cpap-parser",
 ]
 
 [dependency-groups]
@@ -40,3 +40,6 @@ ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.uv.sources]
+cpap-parser = { url = "https://gitlab.com/open-cpap/cpap-parser/-/archive/main/cpap-parser-main.tar.gz" }
