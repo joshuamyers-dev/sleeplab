@@ -3,11 +3,11 @@ PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timedelta
 
 
 def _load_dotenv() -> None:
@@ -46,17 +46,12 @@ def upsert_session(conn, data: dict) -> int:
     Insert or update a session row. Returns the session's integer id.
     data must contain all columns defined in the sessions table.
 
-    TODO(open-cpap-parser): add three new columns from migration 013:
-        manufacturer      TEXT           — data["manufacturer"]
-        data_source       TEXT NOT NULL  — data["data_source"]
-        parser_validated  BOOLEAN        — data["parser_validated"]
-
-    These must be added to the INSERT column list, the VALUES clause,
-    and the ON CONFLICT DO UPDATE SET block below.  Native ResMed callers
-    should pass:
+    Native ResMed callers should pass:
         "manufacturer": None,
         "data_source": "resmed_native",
         "parser_validated": True,
+        "avg_spo2": ...,
+        "min_spo2": ...,
     open-cpap-parser callers pass values from open_cpap_import.py.
     See: sleeplab#38, importer/open_cpap_import.py
     """
@@ -68,7 +63,9 @@ def upsert_session(conn, data: dict) -> int:
         apnea_count, arousal_count, total_ahi_events,
         avg_pressure, p95_pressure, avg_leak, avg_resp_rate, avg_tidal_vol,
         avg_min_vent, avg_snore, avg_flow_lim, has_spo2,
+        avg_spo2, min_spo2,
         therapy_mode, mask_type, humidity_level, temperature_c,
+        manufacturer, data_source, parser_validated,
         user_id, updated_at
     ) VALUES (
         %(session_id)s, %(folder_date)s, %(block_index)s, %(start_datetime)s, %(pld_start_datetime)s,
@@ -77,7 +74,9 @@ def upsert_session(conn, data: dict) -> int:
         %(apnea_count)s, %(arousal_count)s, %(total_ahi_events)s,
         %(avg_pressure)s, %(p95_pressure)s, %(avg_leak)s, %(avg_resp_rate)s, %(avg_tidal_vol)s,
         %(avg_min_vent)s, %(avg_snore)s, %(avg_flow_lim)s, %(has_spo2)s,
+        %(avg_spo2)s, %(min_spo2)s,
         %(therapy_mode)s, %(mask_type)s, %(humidity_level)s, %(temperature_c)s,
+        %(manufacturer)s, %(data_source)s, %(parser_validated)s,
         %(user_id)s, NOW()
     )
     ON CONFLICT (user_id, session_id) DO UPDATE SET
@@ -103,10 +102,15 @@ def upsert_session(conn, data: dict) -> int:
         avg_snore               = EXCLUDED.avg_snore,
         avg_flow_lim            = EXCLUDED.avg_flow_lim,
         has_spo2                = EXCLUDED.has_spo2,
+        avg_spo2                = EXCLUDED.avg_spo2,
+        min_spo2                = EXCLUDED.min_spo2,
         therapy_mode            = EXCLUDED.therapy_mode,
         mask_type               = EXCLUDED.mask_type,
         humidity_level          = EXCLUDED.humidity_level,
         temperature_c           = EXCLUDED.temperature_c,
+        manufacturer            = EXCLUDED.manufacturer,
+        data_source             = EXCLUDED.data_source,
+        parser_validated        = EXCLUDED.parser_validated,
         -- user_id intentionally excluded: re-import must not change ownership
         updated_at              = NOW()
     RETURNING id
@@ -174,6 +178,34 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
 
 
+def replace_session_metrics_cpap(conn, session_db_id: int, rows: list[dict]):
+    """Delete existing metrics and bulk-insert cpap-parser flat-row format.
+
+    Each row is a dict with key 'ts' (Unix epoch float) plus optional
+    numeric fields matching session_metrics columns.
+    """
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
+    if not rows:
+        return
+    data = [
+        (
+            session_db_id,
+            datetime.fromtimestamp(r["ts"], tz=datetime.UTC),
+            r.get("mask_pressure"), r.get("pressure"), r.get("epr_pressure"),
+            r.get("leak"), r.get("resp_rate"), r.get("tidal_vol"),
+            r.get("min_vent"), r.get("snore"), r.get("flow_lim"),
+        )
+        for r in rows
+    ]
+    sql = """INSERT INTO session_metrics
+        (session_id, ts, mask_pressure, pressure, epr_pressure, leak,
+         resp_rate, tidal_vol, min_vent, snore, flow_lim)
+        VALUES %s"""
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(cur, sql, data, page_size=5000)
+
+
 def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     """Delete existing SpO2 rows and insert new ones."""
     with conn.cursor() as cur:
@@ -197,3 +229,26 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
+
+
+def replace_session_spo2_cpap(conn, session_db_id: int, rows: list[dict]):
+    """Delete existing SpO2 rows and insert cpap-parser flat-row format.
+
+    Each row is a dict with 'ts' (Unix epoch float), optional 'spo2' and 'pulse'.
+    """
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
+    if not rows:
+        return
+    data = [
+        (
+            session_db_id,
+            datetime.fromtimestamp(r["ts"], tz=datetime.UTC),
+            r.get("spo2"),
+            r.get("pulse"),
+        )
+        for r in rows
+    ]
+    sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(cur, sql, data, page_size=5000)
