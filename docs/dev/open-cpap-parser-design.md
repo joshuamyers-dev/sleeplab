@@ -2,14 +2,14 @@
 
 **Date:** 2026-05-21
 **Issues:** joshuamyers-dev/sleeplab#38, joshuamyers-dev/sleeplab#19
-**Upstream:** open-cpap/open-cpap-parser#14 (schema additions in progress)
+**Upstream:** cpap-parser#14 (schema additions in progress)
 **Branch:** feat/open-cpap-parser (based on feat/licensing — GPLv3 prerequisite)
 
 ---
 
 ## Context
 
-SleepLab currently parses only ResMed AirSense SD-card EDF files via `importer/edf_parser.py`. Issue #19 requested Lowenstein Prisma support; issue #38 generalises this to all manufacturers via [open-cpap-parser](https://gitlab.com/open-cpap/open-cpap-parser) — a Rust/Python library covering 8 CPAP device families, GPLv3-licensed (OSCAR-derived). GPLv3 adoption is handled in the prerequisite PR #42; this branch builds on that.
+SleepLab currently parses only ResMed AirSense SD-card EDF files via `importer/edf_parser.py`. Issue #19 requested Lowenstein Prisma support; issue #38 generalises this to all manufacturers via [open-cpap-parser](https://github.com/open-cpap/cpap-parser) — a Rust/Python library covering 8 CPAP device families, GPLv3-licensed (OSCAR-derived). GPLv3 adoption is handled in the prerequisite PR #42; this branch builds on that.
 
 open-cpap-parser already ships a first-party SleepLab adapter (`open_cpap_parser.adapters.sleeplab_output`) that maps `CPAPDirectory` output to the dict shape expected by `importer/db.py::upsert_session()`. Most of the field-mapping work lives in the library, not in this repo.
 

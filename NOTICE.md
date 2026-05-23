@@ -50,7 +50,7 @@ which this project inherits accordingly.
 | [openai](https://github.com/openai/openai-python) | Apache-2.0 |
 | [python-multipart](https://github.com/andrew-d/python-multipart) | Apache-2.0 |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause |
-| [open-cpap-parser](https://gitlab.com/open-cpap/open-cpap-parser) | GPL-3.0-or-later |
+| [open-cpap-parser](https://github.com/open-cpap/cpap-parser) | GPL-3.0-or-later |
 | [sleephq-client](https://github.com/frohoff/sleephq-client) | MIT |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT |
 

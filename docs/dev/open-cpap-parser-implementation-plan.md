@@ -2,7 +2,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-05-21-open-cpap-parser-design.md`
 **Issues:** joshuamyers-dev/sleeplab#38, joshuamyers-dev/sleeplab#19
-**Upstream blocker:** open-cpap/open-cpap-parser#14 (start_time, SpO2 summary fields, arousal_count)
+**Upstream blocker:** cpap-parser#14 (start_time, SpO2 summary fields, arousal_count)
 **Prerequisites:** PR #42 (GPLv3 adoption) and PR #43 (PyJWT dep fix) merged into main first.
 
 ---

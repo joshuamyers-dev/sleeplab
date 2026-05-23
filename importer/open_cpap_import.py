@@ -2,7 +2,7 @@
 Multi-manufacturer CPAP importer backed by open-cpap-parser.
 
 This module is the SleepLab-side integration point for open-cpap-parser
-(https://gitlab.com/open-cpap/open-cpap-parser). It handles:
+(https://github.com/open-cpap/cpap-parser). It handles:
 
   1. Manufacturer detection via ``UniversalCPAPParser``.
   2. Delegating field mapping to the first-party SleepLab adapter that
@@ -60,7 +60,7 @@ available (open-cpap-parser#14), the correct ID is
 ``"open-cpap-YYYYMMDD_HHMMSS"`` — matching the ResMed native format and
 supporting multi-block nights via upsert keyed on ``(user_id, session_id)``.
 
-See: joshuamyers-dev/sleeplab#38, open-cpap/open-cpap-parser#14
+See: joshuamyers-dev/sleeplab#38, cpap-parser#14
 """
 
 from __future__ import annotations
