@@ -2,18 +2,18 @@
 
 **Version:** 1.0.0
 
-## SleepyHead / OSCAR / open-cpap-parser
+## SleepyHead / OSCAR / cpap-parser
 
-This project depends on **open-cpap-parser** as a key functional module for
+This project depends on **cpap-parser** as a key functional module for
 multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
-parsing code lives in open-cpap-parser — SleepLab itself does not implement
+parsing code lives in cpap-parser — SleepLab itself does not implement
 any direct derivative of SleepyHead or OSCAR.
 
-open-cpap-parser is a derivative of both the free and open-source software
+cpap-parser is a derivative of both the free and open-source software
 **SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
 and the **OSCAR** project (https://gitlab.com/CrimsonNape/OSCAR-code), which is
 itself a derivative of SleepyHead. The binary-format parsing logic in
-open-cpap-parser's Rust extension module is ported from OSCAR. Both SleepyHead
+cpap-parser's Rust extension module is ported from OSCAR. Both SleepyHead
 and OSCAR are distributed under the GNU General Public License v3.0 (GPL-3.0),
 which this project inherits accordingly.
 
@@ -50,7 +50,7 @@ which this project inherits accordingly.
 | [openai](https://github.com/openai/openai-python) | Apache-2.0 |
 | [python-multipart](https://github.com/andrew-d/python-multipart) | Apache-2.0 |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause |
-| [open-cpap-parser](https://github.com/open-cpap/cpap-parser) | GPL-3.0-or-later |
+| [cpap-parser](https://gitlab.com/open-cpap/cpap-parser) | GPL-3.0-only |
 | [sleephq-client](https://github.com/frohoff/sleephq-client) | MIT |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT |
 
