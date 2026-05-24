@@ -28,3 +28,23 @@ SET    data_source      = 'resmed_native',
        parser_validated = true
 WHERE  data_source IS NULL
    OR  data_source = 'resmed_native';
+
+-- Extend user_equipment with machine support
+ALTER TABLE user_equipment
+    DROP CONSTRAINT user_equipment_equipment_type_check,
+    ADD CONSTRAINT user_equipment_equipment_type_check
+        CHECK (equipment_type IN ('cushion','headgear','tubing','humidifier_chamber','filter','machine')),
+    ADD COLUMN IF NOT EXISTS device_serial    TEXT,
+    ADD COLUMN IF NOT EXISTS parser_validated BOOLEAN;
+
+-- Make start_date optional for machine records (machines don't expire)
+ALTER TABLE user_equipment ALTER COLUMN start_date DROP NOT NULL;
+
+-- Prevent duplicate machine records per user/serial
+CREATE UNIQUE INDEX IF NOT EXISTS user_equipment_machine_serial_uidx
+    ON user_equipment(user_id, device_serial)
+    WHERE equipment_type = 'machine' AND device_serial IS NOT NULL;
+
+-- Link sessions to their machine equipment record
+ALTER TABLE sessions
+    ADD COLUMN IF NOT EXISTS machine_equipment_id UUID REFERENCES user_equipment(id) ON DELETE SET NULL;
