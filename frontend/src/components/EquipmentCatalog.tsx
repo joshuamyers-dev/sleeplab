@@ -12,19 +12,22 @@ const TYPE_LABELS: Record<EquipmentType, string> = {
   tubing: 'Tubing',
   humidifier_chamber: 'Humidifier Chamber',
   filter: 'Filter',
+  machine: 'CPAP Machine',
 }
 
 const MASK_CATEGORIES = ['Nasal', 'Nasal Pillows', 'Full Face', 'Hybrid']
 
 // US insurance replacement intervals by type.
 // Cushion default is 15d (nasal); updates to 30d when Full Face / Hybrid is selected.
-const DEFAULT_REPLACEMENT_DAYS: Record<EquipmentType, number> = {
+const DEFAULT_REPLACEMENT_DAYS: Partial<Record<EquipmentType, number>> = {
   cushion: 15,
   headgear: 180,
   tubing: 90,
   humidifier_chamber: 180,
   filter: 30,
 }
+
+const CONSUMABLE_TYPES: EquipmentType[] = ['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter']
 
 function cushionDaysForCategory(category: string | null): number {
   if (category === 'Full Face' || category === 'Hybrid') return 30
@@ -43,7 +46,7 @@ function replacementStatus(item: Equipment): { label: string; className: string 
 const EMPTY_FORM: EquipmentCreate = {
   equipment_type: 'cushion',
   start_date: new Date().toISOString().slice(0, 10),
-  replacement_days: DEFAULT_REPLACEMENT_DAYS['cushion'],
+  replacement_days: DEFAULT_REPLACEMENT_DAYS['cushion'] ?? null,
   mask_category: null,
   brand: null,
   model: null,
@@ -96,7 +99,7 @@ export default function EquipmentCatalog() {
       setForm(f => ({
         ...f,
         equipment_type: t,
-        replacement_days: DEFAULT_REPLACEMENT_DAYS[t],
+        replacement_days: DEFAULT_REPLACEMENT_DAYS[t] ?? null,
         mask_category: t !== 'cushion' ? null : f.mask_category,
       }))
     } else if (key === 'mask_category') {
@@ -117,7 +120,7 @@ export default function EquipmentCatalog() {
     try {
       if (editingId) {
         const updated = await api.updateEquipment(editingId, {
-          start_date: form.start_date,
+          start_date: form.start_date ?? undefined,
           replacement_days: form.replacement_days,
           mask_category: form.mask_category,
           brand: form.brand,
@@ -151,7 +154,7 @@ export default function EquipmentCatalog() {
   }
 
   const grouped = Object.fromEntries(
-    (['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => [
+    (['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter', 'machine'] as EquipmentType[]).map(t => [
       t,
       items.filter(i => i.equipment_type === t),
     ])
@@ -167,8 +170,37 @@ export default function EquipmentCatalog() {
       </CardHeader>
       <CardContent className="space-y-5">
 
-        {/* Item list grouped by type */}
-        {(['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(type => (
+        {/* Machine records (auto-populated by importer, read-only) */}
+        {grouped['machine'].length > 0 && (
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-2">
+              CPAP Machine
+            </p>
+            <div className="space-y-2">
+              {grouped['machine'].map(item => {
+                const label = [item.brand, item.model].filter(Boolean).join(' ') || 'Unknown device'
+                return (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[var(--surface-soft)] px-4 py-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium text-[var(--foreground)] truncate">{label}</p>
+                      {item.device_serial && (
+                        <p className="text-xs text-[var(--muted-foreground)] font-mono">{item.device_serial}</p>
+                      )}
+                      {item.parser_validated != null && (
+                        <p className={`text-xs font-medium ${item.parser_validated ? 'text-[var(--olive-deep)]' : 'text-yellow-600'}`}>
+                          {item.parser_validated ? '✓ Validated' : '⚠ Parser unvalidated'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Consumable items grouped by type */}
+        {CONSUMABLE_TYPES.map(type => (
           grouped[type].length > 0 && (
             <div key={type}>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-2">
@@ -223,7 +255,7 @@ export default function EquipmentCatalog() {
               <div className="space-y-2">
                 <Label>Type</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(t => (
+                  {CONSUMABLE_TYPES.map(t => (
                     <button
                       key={t}
                       type="button"
@@ -280,8 +312,8 @@ export default function EquipmentCatalog() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="eq-start">Start date</Label>
-                <Input id="eq-start" type="date" value={form.start_date}
-                  onChange={e => setField('start_date', e.target.value)} />
+                <Input id="eq-start" type="date" value={form.start_date ?? ''}
+                  onChange={e => setField('start_date', e.target.value || null)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="eq-replace">Replace every (days)</Label>

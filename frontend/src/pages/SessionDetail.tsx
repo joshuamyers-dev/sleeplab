@@ -258,12 +258,13 @@ export default function SessionDetail() {
       )}
 
       {/* Inferred equipment */}
-      {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
+      {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter || equipment.machine) && (
         <Card>
           <CardContent className="px-5 pb-5 pt-5">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {([
+                { key: 'machine', label: 'CPAP Machine' },
                 { key: 'cushion', label: 'Cushion' },
                 { key: 'headgear', label: 'Headgear' },
                 { key: 'tubing', label: 'Tubing' },
@@ -281,6 +282,9 @@ export default function SessionDetail() {
                   <div key={key} className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2.5">
                     <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
                     <p className="text-sm font-medium">{name}{category}</p>
+                    {item.device_serial && (
+                      <p className="text-xs text-[var(--muted-foreground)] font-mono mt-0.5">{item.device_serial}</p>
+                    )}
                     {age && (
                       <p className={`text-xs mt-0.5 ${overdue ? 'text-[var(--danger-text)]' : 'text-[var(--muted-foreground)]'}`}>
                         {age} old{overdue ? ' · overdue for replacement' : ''}
