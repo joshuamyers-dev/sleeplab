@@ -143,6 +143,7 @@ def delete_equipment(
 @router.get("/inferred", response_model=InferredEquipment)
 def get_inferred_equipment(
     ref_date: date = Query(default=None, description="Date to infer active equipment for (defaults to today)"),
+    session_id: str = Query(default=None, description="Session UUID to resolve machine from its machine_equipment_id FK"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -156,18 +157,32 @@ def get_inferred_equipment(
 
     for eq_type in result:
         if eq_type == "machine":
-            # Machines don't have start_date for inference; return most recently updated
-            row = db.execute(
-                text(f"""
-                    SELECT {_EQUIPMENT_SELECT}
-                    FROM user_equipment
-                    WHERE user_id = CAST(:uid AS uuid)
-                      AND equipment_type = 'machine'
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                """),
-                {"uid": current_user["id"]},
-            ).mappings().first()
+            if session_id:
+                row = db.execute(
+                    text("""
+                        SELECT e.id::text AS id, e.equipment_type, e.start_date,
+                               e.replacement_days, e.mask_category, e.brand, e.model,
+                               e.notes, e.device_serial, e.parser_validated,
+                               e.created_at, e.updated_at
+                        FROM user_equipment e
+                        JOIN sessions s ON s.machine_equipment_id = e.id
+                        WHERE s.id = CAST(:session_id AS uuid)
+                          AND s.user_id = CAST(:uid AS uuid)
+                    """),
+                    {"session_id": session_id, "uid": current_user["id"]},
+                ).mappings().first()
+            else:
+                row = db.execute(
+                    text(f"""
+                        SELECT {_EQUIPMENT_SELECT}
+                        FROM user_equipment
+                        WHERE user_id = CAST(:uid AS uuid)
+                          AND equipment_type = 'machine'
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """),
+                    {"uid": current_user["id"]},
+                ).mappings().first()
         else:
             row = db.execute(
                 text(f"""

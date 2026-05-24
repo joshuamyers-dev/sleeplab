@@ -7,4 +7,4 @@ passlib==1.7.4
 openai==1.109.1
 python-multipart==0.0.27
 httpx>=0.27.0
-cpap-parser @ file:///tmp/cpap-parser
+# cpap-parser installed from pre-built wheel in Dockerfile (requires Rust/maturin to build)

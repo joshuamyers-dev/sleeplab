@@ -61,7 +61,7 @@ export default function SessionDetail() {
       if (s.has_spo2) {
         api.getSessionSpo2(sessionId).then(setSpo2).catch(() => setSpo2(null))
       }
-      api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => setEquipment(null))
+      api.getInferredEquipment(s.folder_date.toString(), s.id).then(setEquipment).catch(() => setEquipment(null))
       api.getWearableData(s.folder_date).then((data) => {
         if (!data.hr.length && !data.spo2.length && !data.stages.length) {
           setWearableData(null)
@@ -109,7 +109,13 @@ export default function SessionDetail() {
       {!session.parser_validated && (
         <div className="rounded-[16px] border border-[rgba(201,183,21,0.35)] bg-[rgba(201,183,21,0.10)] px-4 py-3 text-sm text-[var(--yellow-700)]">
           <span className="font-bold">⚠ Imported via community parser</span>
-          {session.manufacturer ? ` (${session.manufacturer})` : ''} — some metrics may be incomplete or approximate until this device is fully validated.
+          {session.manufacturer ? ` (${session.manufacturer})` : ''} — some metrics may be incomplete or approximate until this device is fully validated.{' '}
+          <a
+            href="https://gitlab.com/open-cpap/cpap-parser/-/work_items?sort=created_date&state=opened&search=Validation%20needed"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >Consider submitting your data to help validate the parser.</a>
         </div>
       )}
       {/* Nav row */}
@@ -273,7 +279,7 @@ export default function SessionDetail() {
               ] as { key: keyof InferredEquipment; label: string }[]).map(({ key, label }) => {
                 const item = equipment[key]
                 if (!item) return null
-                const name = [item.brand, item.model].filter(Boolean).join(' ') || label
+                const name = [item.brand, item.model].filter(Boolean).join(' ')
                 const category = item.mask_category ? ` · ${item.mask_category}` : ''
                 const age = item.days_in_use != null ? `${item.days_in_use}d` : null
                 const overdue = item.replacement_days != null && item.days_in_use != null
@@ -281,7 +287,7 @@ export default function SessionDetail() {
                 return (
                   <div key={key} className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2.5">
                     <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
-                    <p className="text-sm font-medium">{name}{category}</p>
+                    {(name || category) && <p className="text-sm font-medium">{name}{category}</p>}
                     {item.device_serial && (
                       <p className="text-xs text-[var(--muted-foreground)] font-mono mt-0.5">{item.device_serial}</p>
                     )}

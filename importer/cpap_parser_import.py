@@ -43,9 +43,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from cpap_parser import UniversalCPAPParser  # noqa: F401
 from cpap_parser import map_directory_to_sleeplab  # noqa: F401
-from cpap_parser.adapters.base import UnsupportedDirectoryError  # noqa: F401
+from cpap_parser.core import UnsupportedDirectoryError, create_parser  # noqa: F401
 
 from db import (  # noqa: F401
     find_or_create_machine_equipment,
@@ -78,7 +77,7 @@ def detect_open_cpap_layout(directory: Path) -> bool:
     if not directory.exists() or not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
     try:
-        UniversalCPAPParser().parse(str(directory))
+        create_parser().parse(str(directory))
         return True
     except UnsupportedDirectoryError:
         return False
@@ -153,7 +152,7 @@ def run_open_cpap_import(
     if not path.exists():
         raise FileNotFoundError(f"DATALOG path not found: {datalog_path}")
 
-    directory = UniversalCPAPParser().parse(str(path))
+    directory = create_parser().parse(str(path), include_timeseries=True)
     result = map_directory_to_sleeplab(directory, user_id)
 
     manufacturer = getattr(getattr(directory, "machine", None), "series", None)
@@ -182,6 +181,12 @@ def run_open_cpap_import(
             # Rename SpO2 keys to match schema columns
             session_dict["avg_spo2"] = session_dict.pop("spo2_avg", None)
             session_dict["min_spo2"] = session_dict.pop("spo2_min", None)
+
+            # Null out INT16 sentinel values (e.g. Lowenstein uses ±32767 for "no data")
+            for field in ("avg_spo2", "min_spo2"):
+                v = session_dict.get(field)
+                if v is not None and not (0 <= v <= 100):
+                    session_dict[field] = None
 
             # Localize naive datetimes from parser
             if session_dict.get("start_datetime") and session_dict["start_datetime"].tzinfo is None:
@@ -216,13 +221,13 @@ def run_open_cpap_import(
                 session_events = events_by_start.get(csl_start, [])
                 replace_session_events(conn, db_id, session_events, csl_start)
 
-                metrics = result.get("metrics", [])
-                if metrics:
-                    replace_session_metrics_cpap(conn, db_id, metrics)
+                start_ts = session_dict["start_datetime"].timestamp()
+                end_ts = start_ts + (session_dict.get("duration_seconds") or 0)
+                session_metrics = [m for m in result.get("metrics", []) if start_ts <= m["ts"] <= end_ts]
+                replace_session_metrics_cpap(conn, db_id, session_metrics)
 
-                spo2_rows = result.get("spo2", [])
-                if spo2_rows:
-                    replace_session_spo2_cpap(conn, db_id, spo2_rows)
+                session_spo2 = [r for r in result.get("spo2", []) if start_ts <= r["ts"] <= end_ts]
+                replace_session_spo2_cpap(conn, db_id, session_spo2)
 
                 conn.commit()
                 stats["imported"] += 1

@@ -3,7 +3,7 @@ PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import psycopg2
@@ -188,13 +188,22 @@ def replace_session_metrics_cpap(conn, session_db_id: int, rows: list[dict]):
         cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
     if not rows:
         return
+    def _clamp(v, lo, hi):
+        return v if (v is not None and lo <= v <= hi) else None
+
     data = [
         (
             session_db_id,
-            datetime.fromtimestamp(r["ts"], tz=datetime.UTC),
-            r.get("mask_pressure"), r.get("pressure"), r.get("epr_pressure"),
-            r.get("leak"), r.get("resp_rate"), r.get("tidal_vol"),
-            r.get("min_vent"), r.get("snore"), r.get("flow_lim"),
+            datetime.fromtimestamp(r["ts"], tz=timezone.utc),
+            _clamp(r.get("mask_pressure"), 0, 50),
+            _clamp(r.get("pressure"), 0, 50),
+            _clamp(r.get("epr_pressure"), 0, 50),
+            _clamp(r.get("leak"), 0, 150),    # L/min; >150 is not valid mask leak
+            _clamp(r.get("resp_rate"), 1, 60), # BrPM; 0 or >60 is not physiological
+            _clamp(r.get("tidal_vol"), 50, 3000),  # mL
+            _clamp(r.get("min_vent"), 0, 50),  # L/min
+            _clamp(r.get("snore"), 0, 9999),
+            _clamp(r.get("flow_lim"), 0, 1),
         )
         for r in rows
     ]
@@ -290,7 +299,7 @@ def replace_session_spo2_cpap(conn, session_db_id: int, rows: list[dict]):
     data = [
         (
             session_db_id,
-            datetime.fromtimestamp(r["ts"], tz=datetime.UTC),
+            datetime.fromtimestamp(r["ts"], tz=timezone.utc),
             r.get("spo2"),
             r.get("pulse"),
         )
