@@ -52,8 +52,8 @@ def upsert_session(conn, data: dict) -> int:
         "parser_validated": True,
         "avg_spo2": ...,
         "min_spo2": ...,
-    open-cpap-parser callers pass values from open_cpap_import.py.
-    See: sleeplab#38, importer/open_cpap_import.py
+    cpap-parser callers pass values from cpap_parser_import.py.
+    See: sleeplab#38, importer/cpap_parser_import.py
     """
     sql = """
     INSERT INTO sessions (
@@ -229,6 +229,53 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
+
+
+def find_or_create_machine_equipment(
+    conn,
+    user_id: str,
+    manufacturer: str | None,
+    device_serial: str | None,
+    model: str | None,
+    parser_validated: bool,
+) -> str | None:
+    """Return user_equipment.id (UUID) for the machine record, creating it if absent.
+
+    Returns None if both manufacturer and device_serial are None (nothing to key on).
+    """
+    if manufacturer is None and device_serial is None:
+        return None
+    with conn.cursor() as cur:
+        if device_serial:
+            cur.execute(
+                """SELECT id FROM user_equipment
+                   WHERE user_id = %s AND equipment_type = 'machine' AND device_serial = %s""",
+                (user_id, device_serial),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "UPDATE user_equipment SET parser_validated = %s, updated_at = NOW() WHERE id = %s",
+                    (parser_validated, row[0]),
+                )
+                return str(row[0])
+        cur.execute(
+            """INSERT INTO user_equipment
+               (user_id, equipment_type, brand, model, device_serial, parser_validated,
+                start_date, created_at, updated_at)
+               VALUES (%s, 'machine', %s, %s, %s, %s, NULL, NOW(), NOW())
+               RETURNING id""",
+            (user_id, manufacturer, model, device_serial, parser_validated),
+        )
+        return str(cur.fetchone()[0])
+
+
+def update_session_machine_equipment(conn, session_db_id: str, machine_equipment_id: str):
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE sessions SET machine_equipment_id = %s WHERE id = %s",
+            (machine_equipment_id, session_db_id),
+        )
 
 
 def replace_session_spo2_cpap(conn, session_db_id: int, rows: list[dict]):
