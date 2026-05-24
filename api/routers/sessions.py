@@ -52,6 +52,8 @@ def list_sessions(
                 MAX(p95_pressure) AS p95_pressure,
                 AVG(avg_leak) AS avg_leak,
                 BOOL_OR(has_spo2) AS has_spo2,
+                BOOL_AND(parser_validated) AS parser_validated,
+                (array_agg(manufacturer ORDER BY duration_seconds DESC))[1] AS manufacturer,
                 CASE
                     WHEN SUM(duration_seconds) > 0
                     THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
@@ -65,7 +67,8 @@ def list_sessions(
         SELECT id, session_id, folder_date, block_index, start_datetime, duration_seconds,
                ahi, central_apnea_count, obstructive_apnea_count, hypopnea_count,
                apnea_count, arousal_count, total_ahi_events,
-               avg_pressure, p95_pressure, avg_leak, has_spo2
+               avg_pressure, p95_pressure, avg_leak, has_spo2,
+               parser_validated, manufacturer
         FROM night
         ORDER BY folder_date DESC
         LIMIT :limit OFFSET :offset
@@ -106,6 +109,8 @@ def get_session(
                 MAX(s.p95_pressure) AS p95_pressure,
                 AVG(s.avg_leak) AS avg_leak,
                 BOOL_OR(s.has_spo2) AS has_spo2,
+                BOOL_AND(s.parser_validated) AS parser_validated,
+                (array_agg(s.manufacturer ORDER BY s.duration_seconds DESC))[1] AS manufacturer,
                 CASE WHEN SUM(s.duration_seconds) > 0
                      THEN ROUND((SUM(s.total_ahi_events) / (SUM(s.duration_seconds) / 3600.0))::numeric, 2)
                      ELSE 0 END AS ahi,

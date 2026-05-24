@@ -304,9 +304,9 @@ def main():
     args = parse_args()
     DATALOG = Path(args.datalog)
     user_id = args.user_id
-    conn = get_conn()
 
     if args.folder:
+        conn = get_conn()
         folder = DATALOG / args.folder
         if not folder.exists():
             print(f"Folder not found: {folder}")
@@ -317,6 +317,16 @@ def main():
         conn.close()
         return
 
+    # Try cpap-parser first — handles its own file discovery across the whole SD card.
+    # Run before the ResMed folder loop so non-ResMed uploads (e.g. Löwenstein) work
+    # when triggered via the browser upload path (api/routers/upload.py subprocess).
+    if detect_open_cpap_layout(DATALOG):
+        stats = run_open_cpap_import(user_id, str(DATALOG), args.from_date)
+        print(f"\nDone. {stats['imported']} sessions imported across {stats['folders']} nights.")
+        return
+
+    # Native ResMed EDF path
+    conn = get_conn()
     folders = sorted([f for f in DATALOG.iterdir() if f.is_dir() and f.name.isdigit() and len(f.name) == 8])
 
     if args.from_date:

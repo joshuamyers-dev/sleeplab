@@ -101,7 +101,7 @@ export default function Import() {
   function applySelectedFiles(root: string, files: SelectedImportFile[]) {
     setRootName(root)
     setSelectedFiles(files)
-    setFolderLabel(files.length > 0 ? `${root} (${files.length} EDF files)` : `${root} (no EDF files found)`)
+    setFolderLabel(files.length > 0 ? `${root} (${files.length} files)` : `${root} (no files found)`)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -173,7 +173,7 @@ export default function Import() {
         <CardHeader>
           <CardTitle className="text-2xl">Import Sleep Data</CardTitle>
           <CardDescription>
-            Remove the SD card from your ResMed CPAP machine, insert it into your computer, open the card, and select the <span className="font-bold text-[var(--foreground)]">DATALOG</span> folder. SleepLab will read and process it directly in your browser.
+            Remove the SD card from your CPAP machine, insert it into your computer, and select the data folder (ResMed: <span className="font-bold text-[var(--foreground)]">DATALOG</span>; Löwenstein: the root SD card folder). SleepLab will detect your device and process the data automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -230,6 +230,9 @@ export default function Import() {
                   <p className="text-sm font-bold">Upload complete</p>
                   <p className="text-sm font-medium text-[var(--muted-foreground)]">
                     Your files have been uploaded successfully. Synchronization is continuing in the background.
+                  </p>
+                  <p className="text-sm font-medium text-[var(--muted-foreground)]">
+                    If you use a non-ResMed device, sessions may show a ⚠ metric accuracy notice — this is expected until your device is fully validated.
                   </p>
                 </div>
               </div>
@@ -319,10 +322,6 @@ async function collectEdfFiles(
   // @ts-expect-error File System Access API iterator is not fully typed in all TS lib versions.
   for await (const [name, handle] of directoryHandle.entries()) {
     if (handle.kind === 'file') {
-      if (!name.toLowerCase().endsWith('.edf')) {
-        continue
-      }
-
       const file = await handle.getFile()
       entries.push({
         file,
@@ -340,7 +339,6 @@ async function collectEdfFiles(
 
 function collectEdfFilesFromInput(files: File[], rootName: string): SelectedImportFile[] {
   return files
-    .filter((file) => file.name.toLowerCase().endsWith('.edf'))
     .map((file) => ({
       file,
       relativePath: getRelativePathFromInput(file, rootName),

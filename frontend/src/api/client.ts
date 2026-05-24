@@ -99,6 +99,8 @@ export interface SessionSummary {
   p95_pressure: number | null
   avg_leak: number | null
   has_spo2: boolean
+  parser_validated: boolean
+  manufacturer: string | null
 }
 
 export interface SessionDetail extends SessionSummary {

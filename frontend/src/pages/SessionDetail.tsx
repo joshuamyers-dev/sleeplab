@@ -106,6 +106,12 @@ export default function SessionDetail() {
 
   return (
     <div className="space-y-6">
+      {!session.parser_validated && (
+        <div className="rounded-[16px] border border-[rgba(201,183,21,0.35)] bg-[rgba(201,183,21,0.10)] px-4 py-3 text-sm text-[var(--yellow-700)]">
+          <span className="font-bold">⚠ Imported via community parser</span>
+          {session.manufacturer ? ` (${session.manufacturer})` : ''} — some metrics may be incomplete or approximate until this device is fully validated.
+        </div>
+      )}
       {/* Nav row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]">

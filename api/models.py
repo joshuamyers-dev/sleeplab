@@ -21,6 +21,8 @@ class SessionSummary(BaseModel):
     p95_pressure: Optional[float]
     avg_leak: Optional[float]
     has_spo2: bool
+    parser_validated: bool = True
+    manufacturer: Optional[str] = None
 
     @computed_field
     @property
