@@ -244,6 +244,11 @@ function formatMetricDelta(value: number | null | undefined, metric: TrendMetric
   return `${sign}${formatMetricValue(value, metric)}`
 }
 
+function roundsToZero(value: number, metric: TrendMetric) {
+  const precision = metric.precision ?? 1
+  return Number(value.toFixed(precision)) === 0
+}
+
 function formatClockHour(hour: number) {
   const normalized = ((hour % 24) + 24) % 24
   const wholeHours = Math.floor(normalized)
@@ -305,7 +310,9 @@ function MetricSummaryCards({ nights, metric }: { nights: OverviewDailyStat[]; m
 
   const changeLabel = summary.change == null
     ? 'Not enough history'
-    : `${formatMetricDelta(summary.change, metric)} vs prior 7 nights`
+    : roundsToZero(summary.change, metric)
+      ? 'No meaningful change'
+      : `${formatMetricDelta(summary.change, metric)} vs prior 7 nights`
 
   return (
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -594,8 +601,10 @@ export default function TrendsPage() {
                 className="h-11 min-w-56 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 text-sm font-bold text-[var(--foreground)] outline-none focus:border-[var(--accent-border)]"
                 value={metricKey}
                 onChange={(event) => setMetricKey(event.target.value as MetricKey)}
-                aria-label="Select trend metric"
+                aria-label="Jump to any trend metric"
+                title="Jump to any metric"
               >
+                <option value={metricKey}>Jump to metric...</option>
                 {TREND_METRICS.map((option) => (
                   <option key={option.key} value={option.key}>{option.label}</option>
                 ))}
