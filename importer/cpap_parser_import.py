@@ -1,13 +1,12 @@
 """
-Multi-manufacturer CPAP importer backed by open-cpap-parser.
+Multi-manufacturer CPAP importer backed by cpap-parser.
 
-This module is the SleepLab-side integration point for open-cpap-parser
-(https://github.com/open-cpap/cpap-parser). It handles:
+This module is the SleepLab-side integration point for cpap-parser
+(https://gitlab.com/open-cpap/cpap-parser). It handles:
 
   1. Manufacturer detection via ``UniversalCPAPParser``.
   2. Delegating field mapping to the first-party SleepLab adapter that
-     ships inside open-cpap-parser
-     (``open_cpap_parser.adapters.sleeplab_output``).
+     ships inside cpap-parser (``cpap_parser.adapters.sleeplab_output``).
   3. Calling the existing DB helpers in ``importer/db.py`` to upsert
      sessions, events, metrics, and SpO2 rows.
 
@@ -20,45 +19,21 @@ Entry points
     to take before committing to a full parse.
 
 ``run_open_cpap_import(user_id, datalog_path, from_date=None)``
-    Parse *datalog_path* with open-cpap-parser and upsert all sessions
-    into the DB.  Mirrors the return shape of
+    Parse *datalog_path* with cpap-parser and upsert all sessions into
+    the DB.  Mirrors the return shape of
     ``import_sessions.run_local_import()`` so callers are interchangeable.
 
-Relationship to open-cpap-parser
----------------------------------
+Relationship to cpap-parser
+----------------------------
 Field derivation (rate-to-count conversion, SpO2 aggregation, etc.) lives
-in ``open_cpap_parser.adapters.sleeplab_output``, not here.  SleepLab
-only needs to:
+in ``cpap_parser.adapters.sleeplab_output``, not here.  SleepLab only needs to:
 
   • Call ``map_directory_to_sleeplab(directory, user_id)`` to get the
     normalised dict payload.
-  • Add the three new columns (``manufacturer``, ``data_source``,
-    ``parser_validated``) that are SleepLab-specific and not part of the
-    shared adapter output — see TODO blocks below.
+  • Add the three provenance columns (``manufacturer``, ``data_source``,
+    ``parser_validated``) that are SleepLab-specific.
   • Pass the result to ``upsert_session``, ``replace_session_events``,
-    ``replace_session_metrics``, and ``replace_session_spo2``.
-
-Pending upstream additions (open-cpap-parser issue #14)
---------------------------------------------------------
-The following fields are not yet present in ``CPAPSessionSummary`` and
-will default/be hardcoded until open-cpap-parser#14 merges:
-
-  ``start_time``    → ``start_datetime`` uses midnight of session date
-  ``arousal_count`` → hardcoded ``None``
-  ``has_spo2``      → hardcoded ``False``
-  ``spo2_avg``      → ``avg_spo2`` is ``None``
-  ``spo2_min``      → ``min_spo2`` is ``None``
-
-Once #14 merges and the library dep is updated, no changes should be
-required in this file — the adapter picks them up automatically.
-
-Session ID stability
---------------------
-The adapter currently generates ``session_id = "open-cpap-YYYY-MM-DD"``,
-which collapses multi-block nights into one row.  Once ``start_time`` is
-available (open-cpap-parser#14), the correct ID is
-``"open-cpap-YYYYMMDD_HHMMSS"`` — matching the ResMed native format and
-supporting multi-block nights via upsert keyed on ``(user_id, session_id)``.
+    ``replace_session_metrics_cpap``, and ``replace_session_spo2_cpap``.
 
 See: joshuamyers-dev/sleeplab#38, cpap-parser#14
 """
@@ -131,12 +106,12 @@ def run_open_cpap_import(
               produced by the shared adapter:
                 - ``manufacturer``     ← ``directory.machine.series``
                 - ``data_source``      ← ``"open_cpap_parser"``
-                - ``parser_validated`` ← ``True`` for ResMed;
-                                         ``False`` for unvalidated
-                                         manufacturers (e.g. Lowenstein)
-                                         until community pressure
-                                         regression is confirmed.
-                                         See sleeplab#38 for the full list.
+                - ``parser_validated`` ← ``True`` for validated manufacturers
+                                         (e.g. Lowenstein, confirmed vs.
+                                         OSCAR v1.7.x); ``False`` for
+                                         unvalidated ones (e.g. ResMed)
+                                         until pressure/event regression
+                                         is confirmed. See sleeplab#38.
            c. Call ``upsert_session(conn, session_data)``.
            d. Call ``replace_session_events(conn, session_db_id, events, ...)``
               using the session's ``start_datetime`` as the epoch.
@@ -182,10 +157,12 @@ def run_open_cpap_import(
     manufacturer = getattr(getattr(directory, "machine", None), "series", None)
 
     # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
+    # Localize the key here so it matches the localized start_datetime used for the DB lookup.
     events_by_start: dict = {}
     for item in result.get("events", []):
         event_type, onset, duration, session_start = item
-        events_by_start.setdefault(session_start, []).append((onset, duration, event_type))
+        key = _localize(session_start) if session_start.tzinfo is None else session_start
+        events_by_start.setdefault(key, []).append((onset, duration, event_type))
 
     conn = get_conn()
     stats = {"imported": 0, "folders": 0, "errors": 0}
