@@ -244,6 +244,122 @@ def test_run_import_localizes_naive_datetime(tmp_path):
     assert upserted["pld_start_datetime"].tzinfo is not None
 
 
+def _minimal_session(device_serial="SN999"):
+    from datetime import datetime
+    start = datetime(2025, 3, 1, 22, 0, 0)
+    return {
+        "session_id": "open-cpap-20250301_220000",
+        "folder_date": "2025-03-01",
+        "block_index": 0,
+        "start_datetime": start,
+        "pld_start_datetime": start,
+        "duration_seconds": 28800,
+        "device_serial": device_serial,
+        "ahi": 2.0,
+        "central_apnea_count": 0,
+        "obstructive_apnea_count": 2,
+        "hypopnea_count": 2,
+        "apnea_count": 0,
+        "arousal_count": None,
+        "total_ahi_events": 4,
+        "avg_pressure": 9.0,
+        "p95_pressure": 11.0,
+        "avg_leak": 3.0,
+        "avg_resp_rate": 14.0,
+        "avg_tidal_vol": 460.0,
+        "avg_min_vent": 6.5,
+        "avg_snore": 0.0,
+        "avg_flow_lim": 0.0,
+        "has_spo2": False,
+        "spo2_avg": None,
+        "spo2_min": None,
+        "therapy_mode": "APAP",
+        "mask_type": None,
+        "humidity_level": None,
+        "temperature_c": None,
+        "user_id": "user-1",
+        "meta": {"validation_status": "validated"},
+    }
+
+
+def test_run_import_calls_machine_equipment_helpers(tmp_path):
+    session = _minimal_session(device_serial="SN999")
+    mock_mod, _ = _mock_cpap_parser(sessions=[session])
+    with patch.dict("sys.modules", {"cpap_parser": mock_mod,
+                                     "cpap_parser.adapters": MagicMock(),
+                                     "cpap_parser.adapters.base": MagicMock()}):
+        import importlib
+
+        import cpap_parser_import
+        importlib.reload(cpap_parser_import)
+        with patch.object(cpap_parser_import, "get_conn") as mock_get_conn, \
+             patch.object(cpap_parser_import, "session_exists", return_value=False), \
+             patch.object(cpap_parser_import, "upsert_session", return_value="db-id-42") as mock_upsert, \
+             patch.object(cpap_parser_import, "replace_session_events"), \
+             patch.object(cpap_parser_import, "replace_session_metrics_cpap"), \
+             patch.object(cpap_parser_import, "replace_session_spo2_cpap"), \
+             patch.object(cpap_parser_import, "find_or_create_machine_equipment",
+                          return_value="machine-uuid-1") as mock_find, \
+             patch.object(cpap_parser_import, "update_session_machine_equipment") as mock_update:
+            mock_get_conn.return_value = MagicMock()
+            cpap_parser_import.run_open_cpap_import("user-1", str(tmp_path))
+
+    mock_find.assert_called_once()
+    find_kwargs = mock_find.call_args
+    assert find_kwargs[1]["manufacturer"] == "TestDevice"
+    assert find_kwargs[1]["device_serial"] == "SN999"
+    assert find_kwargs[1]["parser_validated"] is True
+    mock_update.assert_called_once_with(mock_get_conn.return_value, "db-id-42", "machine-uuid-1")
+
+
+def test_run_import_machine_helpers_skipped_when_find_returns_none(tmp_path):
+    session = _minimal_session(device_serial=None)
+    session["device_serial"] = None
+    mock_mod, mock_dir = _mock_cpap_parser(sessions=[session])
+    mock_dir.machine.series = None  # no manufacturer either
+    with patch.dict("sys.modules", {"cpap_parser": mock_mod,
+                                     "cpap_parser.adapters": MagicMock(),
+                                     "cpap_parser.adapters.base": MagicMock()}):
+        import importlib
+
+        import cpap_parser_import
+        importlib.reload(cpap_parser_import)
+        with patch.object(cpap_parser_import, "get_conn") as mock_get_conn, \
+             patch.object(cpap_parser_import, "session_exists", return_value=False), \
+             patch.object(cpap_parser_import, "upsert_session", return_value="db-id-77"), \
+             patch.object(cpap_parser_import, "replace_session_events"), \
+             patch.object(cpap_parser_import, "replace_session_metrics_cpap"), \
+             patch.object(cpap_parser_import, "replace_session_spo2_cpap"), \
+             patch.object(cpap_parser_import, "find_or_create_machine_equipment",
+                          return_value=None) as mock_find, \
+             patch.object(cpap_parser_import, "update_session_machine_equipment") as mock_update:
+            mock_get_conn.return_value = MagicMock()
+            cpap_parser_import.run_open_cpap_import("user-1", str(tmp_path))
+
+    mock_find.assert_called_once()
+    mock_update.assert_not_called()
+
+
+def test_run_import_machine_helpers_not_called_for_skipped_session(tmp_path):
+    session = _minimal_session()
+    mock_mod, _ = _mock_cpap_parser(sessions=[session])
+    with patch.dict("sys.modules", {"cpap_parser": mock_mod,
+                                     "cpap_parser.adapters": MagicMock(),
+                                     "cpap_parser.adapters.base": MagicMock()}):
+        import importlib
+
+        import cpap_parser_import
+        importlib.reload(cpap_parser_import)
+        with patch.object(cpap_parser_import, "get_conn"), \
+             patch.object(cpap_parser_import, "session_exists", return_value=True), \
+             patch.object(cpap_parser_import, "find_or_create_machine_equipment") as mock_find, \
+             patch.object(cpap_parser_import, "update_session_machine_equipment") as mock_update:
+            cpap_parser_import.run_open_cpap_import("user-1", str(tmp_path))
+
+    mock_find.assert_not_called()
+    mock_update.assert_not_called()
+
+
 def test_run_import_events_regrouped(tmp_path):
     from datetime import datetime
 
