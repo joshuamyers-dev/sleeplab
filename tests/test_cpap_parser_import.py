@@ -9,17 +9,20 @@ sys.path.insert(0, "importer")
 
 def _mock_cpap_parser(sessions=None, events=None, metrics=None, spo2=None):
     """Return mock cpap_parser and cpap_parser.core modules."""
-    from datetime import date
+    from datetime import timezone
     mock_dir = MagicMock()
     mock_dir.machine.series = "TestDevice"
 
-    # Build mock CPAPSession objects so metrics_by_date grouping works.
-    # Each test session dict has a folder_date; create one mock CPAPSession per date.
-    dates = {s["folder_date"] for s in (sessions or []) if s.get("folder_date")}
+    # Build mock CPAPSession objects so _folder_for_block() works.
+    # start_time must be a real timezone-aware datetime whose naive value matches
+    # the session's start_datetime (cpap-parser "local-as-UTC" convention).
     mock_cpap_sessions = []
-    for d in dates:
+    for sd in (sessions or []):
+        if sd.get("start_datetime") is None:
+            continue
         ms = MagicMock()
-        ms.start_time.date.return_value = date.fromisoformat(str(d))
+        naive = sd["start_datetime"]
+        ms.start_time = naive.replace(tzinfo=timezone.utc)
         mock_cpap_sessions.append(ms)
     mock_dir.sessions = mock_cpap_sessions
 

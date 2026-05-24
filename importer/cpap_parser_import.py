@@ -158,16 +158,46 @@ def run_open_cpap_import(
 
     manufacturer = getattr(getattr(directory, "machine", None), "series", None)
 
-    # Group metrics and spo2 by calendar date of each CPAPSession block's start_time.
-    # Using start_time.date() (not a time-range window) correctly captures overnight
-    # sessions that cross midnight and multi-block nights.
     from datetime import date as _date
+
+    # Build a sorted list of (naive_start, folder_date) from the daily summaries.
+    # CPAPSession.start_time is UTC+00:00 but the *numbers* represent device-local
+    # time (cpap-parser doesn't apply a TZ offset to the raw device timestamps).
+    # The same "local-as-UTC" convention is used by map_directory_to_sleeplab for
+    # the naive start_datetime it returns.  Stripping tzinfo before comparison
+    # lets us match them correctly across midnight-UTC crossings.
+    _summary_starts: list[tuple] = sorted(
+        (
+            (sd["start_datetime"] if sd.get("start_datetime") and sd["start_datetime"].tzinfo is None
+             else (sd["start_datetime"].replace(tzinfo=None) if sd.get("start_datetime") else None),
+             _date.fromisoformat(str(sd["folder_date"])))
+            for sd in result.get("sessions", [])
+            if sd.get("start_datetime") is not None and sd.get("folder_date") is not None
+        ),
+        key=lambda x: x[0],
+    )
+
+    def _folder_for_block(block_start_aware) -> Optional[_date]:
+        """Return the folder_date whose summary start is the latest one ≤ block start."""
+        naive = block_start_aware.replace(tzinfo=None)
+        fd = None
+        for start, d in _summary_starts:
+            if start <= naive:
+                fd = d
+            else:
+                break
+        return fd
+
+    # Group metrics and spo2 by folder_date using cpap-parser's own grouping logic.
+    # This correctly handles tail-end blocks that cross midnight UTC (e.g. a session
+    # starting at 01:53 UTC that belongs to the previous night's folder_date).
     metrics_by_date: dict[_date, list] = {}
     spo2_by_date: dict[_date, list] = {}
     for s in directory.sessions:
-        d = s.start_time.date()
-        metrics_by_date.setdefault(d, []).extend(map_timeseries_to_metrics(s))
-        spo2_by_date.setdefault(d, []).extend(map_timeseries_to_spo2(s))
+        fd = _folder_for_block(s.start_time)
+        if fd is not None:
+            metrics_by_date.setdefault(fd, []).extend(map_timeseries_to_metrics(s))
+            spo2_by_date.setdefault(fd, []).extend(map_timeseries_to_spo2(s))
 
     # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
     # Localize the key here so it matches the localized start_datetime used for the DB lookup.
