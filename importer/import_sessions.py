@@ -29,11 +29,13 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from db import (
+    find_or_create_machine_equipment,
     get_conn,
     replace_session_events,
     replace_session_metrics,
     replace_session_spo2,
     session_exists,
+    update_session_machine_equipment,
     upsert_session,
 )
 from edf_parser import parse_eve, parse_pld, parse_sa2, read_header
@@ -221,6 +223,18 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             }
 
             session_db_id = upsert_session(conn, session_data)
+
+            machine_id = find_or_create_machine_equipment(
+                conn,
+                user_id,
+                manufacturer=session_data.get("manufacturer"),
+                device_serial=session_data.get("device_serial"),
+                model=None,
+                parser_validated=True,
+            )
+            if machine_id is not None:
+                update_session_machine_equipment(conn, session_db_id, machine_id)
+
             replace_session_events(conn, session_db_id, events, csl_start)
             replace_session_metrics(conn, session_db_id, pld_header, pld_channels)
 

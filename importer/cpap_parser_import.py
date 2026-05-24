@@ -48,11 +48,13 @@ from cpap_parser import map_directory_to_sleeplab  # noqa: F401
 from cpap_parser.adapters.base import UnsupportedDirectoryError  # noqa: F401
 
 from db import (  # noqa: F401
+    find_or_create_machine_equipment,
     get_conn,
     replace_session_events,
     replace_session_metrics_cpap,
     replace_session_spo2_cpap,
     session_exists,
+    update_session_machine_equipment,
     upsert_session,
 )
 
@@ -198,6 +200,17 @@ def run_open_cpap_import(
 
             try:
                 db_id = upsert_session(conn, session_dict)
+
+                machine_id = find_or_create_machine_equipment(
+                    conn,
+                    user_id,
+                    manufacturer=manufacturer,
+                    device_serial=session_dict.get("device_serial"),
+                    model=None,
+                    parser_validated=session_dict["parser_validated"],
+                )
+                if machine_id is not None:
+                    update_session_machine_equipment(conn, db_id, machine_id)
 
                 csl_start = session_dict["start_datetime"]
                 session_events = events_by_start.get(csl_start, [])
