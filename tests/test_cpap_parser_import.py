@@ -9,8 +9,19 @@ sys.path.insert(0, "importer")
 
 def _mock_cpap_parser(sessions=None, events=None, metrics=None, spo2=None):
     """Return mock cpap_parser and cpap_parser.core modules."""
+    from datetime import date
     mock_dir = MagicMock()
     mock_dir.machine.series = "TestDevice"
+
+    # Build mock CPAPSession objects so metrics_by_date grouping works.
+    # Each test session dict has a folder_date; create one mock CPAPSession per date.
+    dates = {s["folder_date"] for s in (sessions or []) if s.get("folder_date")}
+    mock_cpap_sessions = []
+    for d in dates:
+        ms = MagicMock()
+        ms.start_time.date.return_value = date.fromisoformat(str(d))
+        mock_cpap_sessions.append(ms)
+    mock_dir.sessions = mock_cpap_sessions
 
     result = {
         "sessions": sessions or [],
@@ -28,21 +39,29 @@ def _mock_cpap_parser(sessions=None, events=None, metrics=None, spo2=None):
     mock_core.UnsupportedDirectoryError = err_cls
     mock_core.create_parser.return_value.parse.return_value = mock_dir
 
-    return mock_mod, mock_core, mock_dir, err_cls
+    # mock_sleeplab_output: map_timeseries_to_metrics returns the test metrics for
+    # the first date's session; map_timeseries_to_spo2 returns the test spo2 rows.
+    mock_sleeplab_output = MagicMock()
+    mock_sleeplab_output.map_timeseries_to_metrics.return_value = metrics or []
+    mock_sleeplab_output.map_timeseries_to_spo2.return_value = spo2 or []
+
+    return mock_mod, mock_core, mock_dir, err_cls, mock_sleeplab_output
 
 
-def _patch_modules(mock_mod, mock_core):
-    return patch.dict("sys.modules", {
+def _patch_modules(mock_mod, mock_core, mock_sleeplab_output=None):
+    mocks = {
         "cpap_parser": mock_mod,
         "cpap_parser.core": mock_core,
         "cpap_parser.adapters": MagicMock(),
         "cpap_parser.adapters.base": MagicMock(),
-    })
+        "cpap_parser.adapters.sleeplab_output": mock_sleeplab_output or MagicMock(),
+    }
+    return patch.dict("sys.modules", mocks)
 
 
 def test_detect_returns_true_for_recognised_layout(tmp_path):
-    mock_mod, mock_core, _, _ = _mock_cpap_parser()
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser()
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -51,9 +70,9 @@ def test_detect_returns_true_for_recognised_layout(tmp_path):
 
 
 def test_detect_returns_false_for_unrecognised_layout(tmp_path):
-    mock_mod, mock_core, _, err_cls = _mock_cpap_parser()
+    mock_mod, mock_core, _, err_cls, mock_sl = _mock_cpap_parser()
     mock_core.create_parser.return_value.parse.side_effect = err_cls("nope")
-    with _patch_modules(mock_mod, mock_core):
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -62,8 +81,8 @@ def test_detect_returns_false_for_unrecognised_layout(tmp_path):
 
 
 def test_detect_raises_on_missing_directory():
-    mock_mod, mock_core, _, _ = _mock_cpap_parser()
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser()
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -73,8 +92,8 @@ def test_detect_raises_on_missing_directory():
 
 
 def test_run_import_empty_result(tmp_path):
-    mock_mod, mock_core, _, _ = _mock_cpap_parser()
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser()
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -123,8 +142,8 @@ def test_run_import_single_session(tmp_path):
         "meta": {"validation_status": "validated", "validation_notes": ""},
     }
 
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session])
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session])
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -168,8 +187,8 @@ def test_run_import_skips_existing_session(tmp_path):
             "therapy_mode", "mask_type", "humidity_level", "temperature_c"]},
     }
 
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session])
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session])
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -221,8 +240,8 @@ def test_run_import_localizes_naive_datetime(tmp_path):
         "meta": {},
     }
 
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session])
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session])
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -281,8 +300,8 @@ def _minimal_session(device_serial="SN999"):
 
 def test_run_import_calls_machine_equipment_helpers(tmp_path):
     session = _minimal_session(device_serial="SN999")
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session])
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session])
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -310,9 +329,9 @@ def test_run_import_calls_machine_equipment_helpers(tmp_path):
 def test_run_import_machine_helpers_skipped_when_find_returns_none(tmp_path):
     session = _minimal_session(device_serial=None)
     session["device_serial"] = None
-    mock_mod, mock_core, mock_dir, _ = _mock_cpap_parser(sessions=[session])
+    mock_mod, mock_core, mock_dir, _, mock_sl = _mock_cpap_parser(sessions=[session])
     mock_dir.machine.series = None
-    with _patch_modules(mock_mod, mock_core):
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -335,8 +354,8 @@ def test_run_import_machine_helpers_skipped_when_find_returns_none(tmp_path):
 
 def test_run_import_machine_helpers_not_called_for_skipped_session(tmp_path):
     session = _minimal_session()
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session])
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session])
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import
@@ -393,8 +412,8 @@ def test_run_import_events_regrouped(tmp_path):
         ("Hypopnea", 600.0, 10.0, start),
     ]
 
-    mock_mod, mock_core, _, _ = _mock_cpap_parser(sessions=[session], events=events)
-    with _patch_modules(mock_mod, mock_core):
+    mock_mod, mock_core, _, _, mock_sl = _mock_cpap_parser(sessions=[session], events=events)
+    with _patch_modules(mock_mod, mock_core, mock_sl):
         import importlib
 
         import cpap_parser_import

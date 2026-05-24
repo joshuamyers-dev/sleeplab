@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Optional
 
 from cpap_parser import map_directory_to_sleeplab  # noqa: F401
+from cpap_parser.adapters.sleeplab_output import map_timeseries_to_metrics, map_timeseries_to_spo2  # noqa: F401
 from cpap_parser.core import UnsupportedDirectoryError, create_parser  # noqa: F401
 
 from db import (  # noqa: F401
@@ -157,6 +158,17 @@ def run_open_cpap_import(
 
     manufacturer = getattr(getattr(directory, "machine", None), "series", None)
 
+    # Group metrics and spo2 by calendar date of each CPAPSession block's start_time.
+    # Using start_time.date() (not a time-range window) correctly captures overnight
+    # sessions that cross midnight and multi-block nights.
+    from datetime import date as _date
+    metrics_by_date: dict[_date, list] = {}
+    spo2_by_date: dict[_date, list] = {}
+    for s in directory.sessions:
+        d = s.start_time.date()
+        metrics_by_date.setdefault(d, []).extend(map_timeseries_to_metrics(s))
+        spo2_by_date.setdefault(d, []).extend(map_timeseries_to_spo2(s))
+
     # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
     # Localize the key here so it matches the localized start_datetime used for the DB lookup.
     events_by_start: dict = {}
@@ -221,13 +233,9 @@ def run_open_cpap_import(
                 session_events = events_by_start.get(csl_start, [])
                 replace_session_events(conn, db_id, session_events, csl_start)
 
-                start_ts = session_dict["start_datetime"].timestamp()
-                end_ts = start_ts + (session_dict.get("duration_seconds") or 0)
-                session_metrics = [m for m in result.get("metrics", []) if start_ts <= m["ts"] <= end_ts]
-                replace_session_metrics_cpap(conn, db_id, session_metrics)
-
-                session_spo2 = [r for r in result.get("spo2", []) if start_ts <= r["ts"] <= end_ts]
-                replace_session_spo2_cpap(conn, db_id, session_spo2)
+                folder_date = _date.fromisoformat(str(session_dict.get("folder_date")))
+                replace_session_metrics_cpap(conn, db_id, metrics_by_date.get(folder_date, []))
+                replace_session_spo2_cpap(conn, db_id, spo2_by_date.get(folder_date, []))
 
                 conn.commit()
                 stats["imported"] += 1
