@@ -191,22 +191,21 @@ def replace_session_metrics_cpap(conn, session_db_id: int, rows: list[dict]):
     def _clamp(v, lo, hi):
         return v if (v is not None and lo <= v <= hi) else None
 
-    data = [
-        (
-            session_db_id,
-            datetime.fromtimestamp(r["ts"], tz=timezone.utc),
+    data = []
+    for r in rows:
+        vals = (
             _clamp(r.get("mask_pressure"), 0, 50),
             _clamp(r.get("pressure"), 0, 50),
             _clamp(r.get("epr_pressure"), 0, 50),
-            _clamp(r.get("leak"), 0, 150),    # L/min; >150 is not valid mask leak
-            _clamp(r.get("resp_rate"), 1, 60), # BrPM; 0 or >60 is not physiological
-            _clamp(r.get("tidal_vol"), 50, 3000),  # mL
-            _clamp(r.get("min_vent"), 0, 50),  # L/min
+            _clamp(r.get("leak"), 0, 150),
+            _clamp(r.get("resp_rate"), 1, 60),
+            _clamp(r.get("tidal_vol"), 50, 3000),
+            _clamp(r.get("min_vent"), 0, 50),
             _clamp(r.get("snore"), 0, 9999),
             _clamp(r.get("flow_lim"), 0, 1),
         )
-        for r in rows
-    ]
+        if any(v is not None for v in vals):
+            data.append((session_db_id, datetime.fromtimestamp(r["ts"], tz=timezone.utc)) + vals)
     sql = """INSERT INTO session_metrics
         (session_id, ts, mask_pressure, pressure, epr_pressure, leak,
          resp_rate, tidal_vol, min_vent, snore, flow_lim)

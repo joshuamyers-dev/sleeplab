@@ -47,6 +47,71 @@ from cpap_parser import map_directory_to_sleeplab  # noqa: F401
 from cpap_parser.adapters.sleeplab_output import map_timeseries_to_metrics, map_timeseries_to_spo2  # noqa: F401
 from cpap_parser.core import UnsupportedDirectoryError, create_parser  # noqa: F401
 
+
+def _extract_metrics_from_timeseries(session) -> list[dict]:
+    """Extract therapy metric rows directly from CPAPSession.timeseries.
+
+    cpap-parser's map_timeseries_to_metrics aligns 1 Hz therapy channels
+    against a 10 Hz timestamp array by array index, compressing 160 min of
+    data into the first 16 min of timestamps.  When 'timestamps_low' is
+    present, use it as the authoritative time axis so the full session is
+    covered at 1 Hz.
+
+    Falls back to map_timeseries_to_metrics for sessions without timestamps_low.
+    """
+    if session.timeseries is None:
+        return map_timeseries_to_metrics(session)
+
+    ts_dict = dict(session.timeseries)
+    ts_low = ts_dict.get("timestamps_low")
+    if not ts_low:
+        return map_timeseries_to_metrics(session)
+
+    mask_p = ts_dict.get("mask_pressure") or []
+    leak   = ts_dict.get("leak") or []
+    rr     = ts_dict.get("respiratory_rate") or []
+    tv     = ts_dict.get("tidal_volume") or []
+    mv     = ts_dict.get("minute_ventilation") or []
+
+    rows = []
+    for i, ts in enumerate(ts_low):
+        rows.append({
+            "ts": float(ts),
+            "mask_pressure": mask_p[i] if i < len(mask_p) else None,
+            "pressure": None,
+            "epr_pressure": None,
+            "leak": leak[i] if i < len(leak) else None,
+            "resp_rate": rr[i] if i < len(rr) else None,
+            "tidal_vol": tv[i] if i < len(tv) else None,
+            "min_vent": mv[i] if i < len(mv) else None,
+            "snore": None,
+            "flow_lim": None,
+        })
+    return rows
+
+
+def _extract_spo2_from_timeseries(session) -> list[dict]:
+    """Same timestamp-alignment fix for SpO2/pulse channels."""
+    if session.timeseries is None:
+        return map_timeseries_to_spo2(session)
+
+    ts_dict = dict(session.timeseries)
+    ts_low = ts_dict.get("timestamps_low")
+    if not ts_low:
+        return map_timeseries_to_spo2(session)
+
+    spo2  = ts_dict.get("spo2") or []
+    pulse = ts_dict.get("pulse") or []
+
+    return [
+        {
+            "ts": float(ts),
+            "spo2": spo2[i] if i < len(spo2) else None,
+            "pulse": pulse[i] if i < len(pulse) else None,
+        }
+        for i, ts in enumerate(ts_low)
+    ]
+
 from db import (  # noqa: F401
     find_or_create_machine_equipment,
     get_conn,
@@ -196,8 +261,8 @@ def run_open_cpap_import(
     for s in directory.sessions:
         fd = _folder_for_block(s.start_time)
         if fd is not None:
-            metrics_by_date.setdefault(fd, []).extend(map_timeseries_to_metrics(s))
-            spo2_by_date.setdefault(fd, []).extend(map_timeseries_to_spo2(s))
+            metrics_by_date.setdefault(fd, []).extend(_extract_metrics_from_timeseries(s))
+            spo2_by_date.setdefault(fd, []).extend(_extract_spo2_from_timeseries(s))
 
     # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
     # Localize the key here so it matches the localized start_datetime used for the DB lookup.

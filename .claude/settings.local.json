@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(uv run *)",
+      "Bash(npx tsc *)",
+      "Bash(podman build *)",
+      "Bash(podman images *)",
+      "Bash(podman network *)",
+      "Bash(podman rm *)",
+      "Bash(podman run *)",
+      "Bash(podman exec *)",
+      "Bash(curl -sf http://localhost:8000/health)",
+      "Bash(podman logs *)",
+      "Bash(podman ps *)"
     ]
   }
 }
