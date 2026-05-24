@@ -495,6 +495,17 @@ function formatMetricValue(value: number | null | undefined, metric: TrendMetric
   return metric.unit ? `${formatted} ${metric.unit}` : formatted
 }
 
+function formatMetricRange(low: number, high: number, metric: TrendMetric) {
+  if (metric.unit === 'clock') {
+    return `${formatClockHour(low)} / ${formatClockHour(high)}`
+  }
+
+  const precision = metric.precision ?? 1
+  const lowValue = low.toFixed(precision)
+  const highValue = high.toFixed(precision)
+  return metric.unit ? `${lowValue} / ${highValue} ${metric.unit}` : `${lowValue} / ${highValue}`
+}
+
 function formatMetricDelta(value: number | null | undefined, metric: TrendMetric) {
   if (value == null) return '-'
   const sign = value >= 0 ? '+' : ''
@@ -587,7 +598,7 @@ function MetricSummaryCards({ nights, metric }: { nights: OverviewDailyStat[]; m
       <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-4">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Low / High</p>
         <p className="mt-2 text-lg font-extrabold text-[var(--foreground)]">
-          {formatMetricValue(summary.lowest.value, metric)} / {formatMetricValue(summary.highest.value, metric)}
+          {formatMetricRange(summary.lowest.value, summary.highest.value, metric)}
         </p>
         <p className="mt-1 text-xs text-[var(--muted-foreground)]">
           {summary.lowest.night.folder_date} / {summary.highest.night.folder_date}
