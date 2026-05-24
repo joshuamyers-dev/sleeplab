@@ -77,19 +77,21 @@ class SpO2Response(BaseModel):
     pulse: List[Optional[int]]
 
 
-EquipmentType = Literal["cushion", "headgear", "tubing", "humidifier_chamber", "filter"]
+EquipmentType = Literal["cushion", "headgear", "tubing", "humidifier_chamber", "filter", "machine"]
 
 
 class EquipmentResponse(BaseModel):
     id: str
     equipment_type: str
-    start_date: date
+    start_date: Optional[date]
     replacement_days: Optional[int]
     mask_category: Optional[str]
     brand: Optional[str]
     model: Optional[str]
     notes: Optional[str]
     days_in_use: Optional[int]  # computed relative to a reference date when present
+    device_serial: Optional[str] = None
+    parser_validated: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
 
@@ -98,7 +100,7 @@ class EquipmentResponse(BaseModel):
 
 class EquipmentCreate(BaseModel):
     equipment_type: EquipmentType
-    start_date: date
+    start_date: Optional[date] = None
     replacement_days: Optional[int] = None
     mask_category: Optional[str] = None
     brand: Optional[str] = None
@@ -121,6 +123,7 @@ class InferredEquipment(BaseModel):
     tubing: Optional[EquipmentResponse] = None
     humidifier_chamber: Optional[EquipmentResponse] = None
     filter: Optional[EquipmentResponse] = None
+    machine: Optional[EquipmentResponse] = None
 
 
 class DailyStat(BaseModel):

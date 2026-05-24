@@ -10,23 +10,31 @@ from ..models import EquipmentCreate, EquipmentResponse, EquipmentUpdate, Inferr
 
 router = APIRouter()
 
-EQUIPMENT_TYPES = {"cushion", "headgear", "tubing", "humidifier_chamber", "filter"}
+EQUIPMENT_TYPES = {"cushion", "headgear", "tubing", "humidifier_chamber", "filter", "machine"}
+
+_EQUIPMENT_SELECT = """
+    id::text AS id, equipment_type, start_date, replacement_days,
+    mask_category, brand, model, notes, device_serial, parser_validated,
+    created_at, updated_at
+"""
 
 
 def _row_to_response(row: dict, ref_date: date | None = None) -> EquipmentResponse:
     days_in_use = None
-    if ref_date and row["start_date"]:
+    if ref_date and row.get("start_date"):
         days_in_use = (ref_date - row["start_date"]).days
     return EquipmentResponse(
         id=str(row["id"]),
         equipment_type=row["equipment_type"],
-        start_date=row["start_date"],
+        start_date=row.get("start_date"),
         replacement_days=row["replacement_days"],
         mask_category=row["mask_category"],
         brand=row["brand"],
         model=row["model"],
         notes=row["notes"],
         days_in_use=days_in_use,
+        device_serial=row.get("device_serial"),
+        parser_validated=row.get("parser_validated"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -38,12 +46,11 @@ def list_equipment(
     db: Session = Depends(get_db),
 ):
     rows = db.execute(
-        text("""
-            SELECT id::text AS id, equipment_type, start_date, replacement_days,
-                   mask_category, brand, model, notes, created_at, updated_at
+        text(f"""
+            SELECT {_EQUIPMENT_SELECT}
             FROM user_equipment
             WHERE user_id = CAST(:uid AS uuid)
-            ORDER BY equipment_type, start_date DESC
+            ORDER BY equipment_type, start_date DESC NULLS LAST
         """),
         {"uid": current_user["id"]},
     ).mappings().all()
@@ -58,15 +65,14 @@ def create_equipment(
     db: Session = Depends(get_db),
 ):
     row = db.execute(
-        text("""
+        text(f"""
             INSERT INTO user_equipment
                 (user_id, equipment_type, start_date, replacement_days,
                  mask_category, brand, model, notes)
             VALUES
                 (CAST(:uid AS uuid), :equipment_type, :start_date, :replacement_days,
                  :mask_category, :brand, :model, :notes)
-            RETURNING id::text AS id, equipment_type, start_date, replacement_days,
-                      mask_category, brand, model, notes, created_at, updated_at
+            RETURNING {_EQUIPMENT_SELECT}
         """),
         {
             "uid": current_user["id"],
@@ -111,8 +117,7 @@ def update_equipment(
             UPDATE user_equipment
             SET {', '.join(set_clauses)}
             WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)
-            RETURNING id::text AS id, equipment_type, start_date, replacement_days,
-                      mask_category, brand, model, notes, created_at, updated_at
+            RETURNING {_EQUIPMENT_SELECT}
         """),
         params,
     ).mappings().first()
@@ -144,22 +149,38 @@ def get_inferred_equipment(
     if ref_date is None:
         ref_date = date.today()
 
-    result: dict = {"cushion": None, "headgear": None, "tubing": None, "humidifier_chamber": None, "filter": None}
+    result: dict = {
+        "cushion": None, "headgear": None, "tubing": None,
+        "humidifier_chamber": None, "filter": None, "machine": None,
+    }
 
     for eq_type in result:
-        row = db.execute(
-            text("""
-                SELECT id::text AS id, equipment_type, start_date, replacement_days,
-                       mask_category, brand, model, notes, created_at, updated_at
-                FROM user_equipment
-                WHERE user_id = CAST(:uid AS uuid)
-                  AND equipment_type = :equipment_type
-                  AND start_date <= :ref_date
-                ORDER BY start_date DESC
-                LIMIT 1
-            """),
-            {"uid": current_user["id"], "equipment_type": eq_type, "ref_date": ref_date},
-        ).mappings().first()
+        if eq_type == "machine":
+            # Machines don't have start_date for inference; return most recently updated
+            row = db.execute(
+                text(f"""
+                    SELECT {_EQUIPMENT_SELECT}
+                    FROM user_equipment
+                    WHERE user_id = CAST(:uid AS uuid)
+                      AND equipment_type = 'machine'
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """),
+                {"uid": current_user["id"]},
+            ).mappings().first()
+        else:
+            row = db.execute(
+                text(f"""
+                    SELECT {_EQUIPMENT_SELECT}
+                    FROM user_equipment
+                    WHERE user_id = CAST(:uid AS uuid)
+                      AND equipment_type = :equipment_type
+                      AND start_date <= :ref_date
+                    ORDER BY start_date DESC
+                    LIMIT 1
+                """),
+                {"uid": current_user["id"], "equipment_type": eq_type, "ref_date": ref_date},
+            ).mappings().first()
         if row:
             result[eq_type] = _row_to_response(dict(row), ref_date)
 
