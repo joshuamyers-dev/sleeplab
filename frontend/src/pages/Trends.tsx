@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import type { SummaryStats, TrendAISummaryResponse } from '../api/client'
+import type { OverviewDailyStat, SummaryStats, TrendAISummaryResponse } from '../api/client'
 import { api } from '../api/client'
-import AHITrendChart from '../components/AHITrendChart'
 import GlossaryText from '../components/GlossaryText'
 import { Card, CardContent } from '../components/ui/card'
+import { Button } from '../components/ui/button'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
 
 const TREND_FLAG_COLORS = {
@@ -30,6 +32,96 @@ const TREND_DIRECTION_LABEL: Record<string, string> = {
   stable: 'Stable',
   worsening: 'Worsening',
   variable: 'Variable',
+}
+
+type MetricKey = keyof Pick<
+  OverviewDailyStat,
+  | 'ahi'
+  | 'central_apnea_index'
+  | 'obstructive_apnea_index'
+  | 'hypopnea_index'
+  | 'apnea_index'
+  | 'arousal_index'
+  | 'usage_hours'
+  | 'session_start_hour'
+  | 'session_end_hour'
+  | 'avg_pressure'
+  | 'p95_pressure'
+  | 'avg_leak'
+  | 'large_leak_minutes'
+  | 'avg_flow_lim'
+  | 'avg_tidal_vol'
+  | 'avg_min_vent'
+  | 'avg_resp_rate'
+  | 'min_spo2'
+  | 'avg_spo2'
+  | 'avg_pulse'
+  | 'equipment_age_days'
+>
+
+interface TrendMetric {
+  key: MetricKey
+  label: string
+  shortLabel: string
+  unit: string
+  domain?: [number | 'auto', number | 'auto']
+  referenceLines?: Array<{ value: number; label: string; color: string }>
+  precision?: number
+  secondaryKey?: MetricKey
+  secondaryLabel?: string
+}
+
+const TREND_METRICS: TrendMetric[] = [
+  {
+    key: 'ahi',
+    label: 'AHI',
+    shortLabel: 'AHI',
+    unit: 'events/hr',
+    referenceLines: [
+      { value: 5, label: '5', color: '#6AA136' },
+      { value: 15, label: '15', color: '#E9784B' },
+    ],
+    precision: 1,
+  },
+  { key: 'central_apnea_index', label: 'Central apnea index', shortLabel: 'CAI', unit: 'events/hr', precision: 1 },
+  { key: 'obstructive_apnea_index', label: 'Obstructive apnea index', shortLabel: 'OAI', unit: 'events/hr', precision: 1 },
+  { key: 'hypopnea_index', label: 'Hypopnea index', shortLabel: 'HI', unit: 'events/hr', precision: 1 },
+  { key: 'apnea_index', label: 'Apnea index', shortLabel: 'AI', unit: 'events/hr', precision: 1 },
+  { key: 'arousal_index', label: 'Arousal index', shortLabel: 'Arousal', unit: 'events/hr', precision: 1 },
+  { key: 'usage_hours', label: 'Usage', shortLabel: 'Usage', unit: 'hours', domain: [0, 'auto'], precision: 2 },
+  {
+    key: 'session_start_hour',
+    label: 'Session times',
+    shortLabel: 'Times',
+    unit: 'clock',
+    domain: [0, 24],
+    precision: 2,
+    secondaryKey: 'session_end_hour',
+    secondaryLabel: 'End',
+  },
+  { key: 'avg_pressure', label: 'Average pressure', shortLabel: 'Avg pressure', unit: 'cmH2O', precision: 1 },
+  { key: 'p95_pressure', label: '95th pressure', shortLabel: 'P95 pressure', unit: 'cmH2O', precision: 1 },
+  { key: 'avg_leak', label: 'Leak', shortLabel: 'Leak', unit: 'L/min', precision: 1 },
+  { key: 'large_leak_minutes', label: 'Large leak time', shortLabel: 'Large leak', unit: 'min', domain: [0, 'auto'], precision: 1 },
+  { key: 'avg_flow_lim', label: 'Flow limitation', shortLabel: 'Flow lim', unit: '', precision: 3 },
+  { key: 'avg_tidal_vol', label: 'Tidal volume', shortLabel: 'Tidal vol', unit: 'mL', precision: 0 },
+  { key: 'avg_min_vent', label: 'Minute ventilation', shortLabel: 'Min vent', unit: 'L/min', precision: 1 },
+  { key: 'avg_resp_rate', label: 'Respiratory rate', shortLabel: 'Resp rate', unit: 'breaths/min', precision: 1 },
+  { key: 'min_spo2', label: 'SpO2 minimum', shortLabel: 'Min SpO2', unit: '%', domain: [70, 100], precision: 0 },
+  { key: 'avg_spo2', label: 'SpO2 average', shortLabel: 'Avg SpO2', unit: '%', domain: [70, 100], precision: 1 },
+  { key: 'avg_pulse', label: 'Pulse', shortLabel: 'Pulse', unit: 'bpm', precision: 0 },
+  { key: 'equipment_age_days', label: 'Equipment age', shortLabel: 'Equipment', unit: 'days', domain: [0, 'auto'], precision: 0 },
+]
+
+const RANGE_OPTIONS = [
+  { label: '90D', days: 90 },
+  { label: '180D', days: 180 },
+  { label: '1Y', days: 365 },
+  { label: 'All', days: 3650 },
+]
+
+function getMetric(key: MetricKey) {
+  return TREND_METRICS.find((metric) => metric.key === key) ?? TREND_METRICS[0]
 }
 
 function TrendAICard() {
@@ -111,16 +203,196 @@ function humanizeEventType(eventType: string) {
     .join(' ')
 }
 
+function formatMetricValue(value: number | null | undefined, metric: TrendMetric) {
+  if (value == null) return '-'
+  if (metric.unit === 'clock') return formatClockHour(value)
+  const precision = metric.precision ?? 1
+  const formatted = value.toFixed(precision)
+  return metric.unit ? `${formatted} ${metric.unit}` : formatted
+}
+
+function formatClockHour(hour: number) {
+  const normalized = ((hour % 24) + 24) % 24
+  const wholeHours = Math.floor(normalized)
+  const minutes = Math.round((normalized - wholeHours) * 60)
+  const displayHours = minutes === 60 ? (wholeHours + 1) % 24 : wholeHours
+  const displayMinutes = minutes === 60 ? 0 : minutes
+  const suffix = displayHours >= 12 ? 'PM' : 'AM'
+  const hour12 = displayHours % 12 || 12
+  return `${hour12}:${String(displayMinutes).padStart(2, '0')} ${suffix}`
+}
+
+function getActiveSessionId(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || !('activePayload' in payload)) {
+    return null
+  }
+  const activePayload = (payload as { activePayload?: Array<{ payload?: { sessionId?: unknown } }> }).activePayload
+  const sessionId = activePayload?.[0]?.payload?.sessionId
+  return typeof sessionId === 'string' ? sessionId : null
+}
+
+function OverviewChart({
+  nights,
+  metric,
+}: {
+  nights: OverviewDailyStat[]
+  metric: TrendMetric
+}) {
+  const navigate = useNavigate()
+  const data = nights.map((night) => ({
+    ...night,
+    date: night.folder_date,
+    primary: night[metric.key],
+    secondary: metric.secondaryKey ? night[metric.secondaryKey] : null,
+  }))
+
+  return (
+    <Card id="long-range-overview">
+      <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-[var(--foreground)]">{metric.label}</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{nights.length} nights in the selected range</p>
+          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--accent)]">{metric.unit || 'Index'}</p>
+        </div>
+        <ResponsiveContainer width="100%" height={320}>
+          <LineChart
+            data={data}
+            margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+            onClick={(payload) => {
+              const sessionId = getActiveSessionId(payload)
+              if (sessionId) {
+                navigate(`/sessions/${sessionId}`)
+              }
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--neutral-200)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+              tickFormatter={(value: string) => value.slice(5)}
+              minTickGap={24}
+            />
+            <YAxis
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+              domain={metric.domain ?? [0, 'auto']}
+              tickFormatter={(value) => metric.unit === 'clock' ? formatClockHour(Number(value)).replace(':00 ', ' ') : String(value)}
+              width={54}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--popover-surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 14,
+                color: 'var(--foreground)',
+              }}
+              labelStyle={{ color: 'var(--foreground)' }}
+              formatter={(value, name) => {
+                const label = name === 'secondary' ? (metric.secondaryLabel ?? 'End') : metric.shortLabel
+                return [formatMetricValue(typeof value === 'number' ? value : null, metric), label]
+              }}
+            />
+            {metric.referenceLines?.map((line) => (
+              <ReferenceLine
+                key={line.value}
+                y={line.value}
+                stroke={line.color}
+                strokeDasharray="4 4"
+                label={{ value: line.label, fill: line.color, fontSize: 10 }}
+              />
+            ))}
+            <Line
+              type="monotone"
+              dataKey="primary"
+              name={metric.shortLabel}
+              stroke="#5251A7"
+              dot={false}
+              strokeWidth={2}
+              connectNulls
+            />
+            {metric.secondaryKey ? (
+              <Line
+                type="monotone"
+                dataKey="secondary"
+                name={metric.secondaryLabel ?? 'End'}
+                stroke="#6AA136"
+                dot={false}
+                strokeWidth={2}
+                connectNulls
+              />
+            ) : null}
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RecentOverviewTable({ nights, metric }: { nights: OverviewDailyStat[]; metric: TrendMetric }) {
+  const recent = nights.slice(-10).reverse()
+
+  return (
+    <Card id="overview-table">
+      <CardContent className="px-0 pb-2 pt-5 sm:pt-6">
+        <div className="px-5 sm:px-6">
+          <p className="text-sm font-bold text-[var(--foreground)]">Recent nights</p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Latest values for the selected trend.</p>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
+            <thead>
+              <tr className="border-y border-[var(--border)] bg-[var(--surface-soft)] text-left text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                <th className="px-5 py-3 sm:px-6">Date</th>
+                <th className="px-5 py-3 sm:px-6">{metric.shortLabel}</th>
+                <th className="px-5 py-3 sm:px-6">AHI</th>
+                <th className="px-5 py-3 sm:px-6">Usage</th>
+                <th className="px-5 py-3 sm:px-6">Leak</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((night) => (
+                <tr key={night.folder_date} className="border-b border-[var(--border)] last:border-b-0">
+                  <td className="px-5 py-3 font-bold text-[var(--foreground)] sm:px-6">{night.folder_date}</td>
+                  <td className="px-5 py-3 text-[var(--foreground)] sm:px-6">
+                    {formatMetricValue(night[metric.key], metric)}
+                    {metric.secondaryKey ? (
+                      <span className="ml-2 text-[var(--muted-foreground)]">
+                        to {formatMetricValue(night[metric.secondaryKey], metric)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-5 py-3 text-[var(--muted-foreground)] sm:px-6">{formatMetricValue(night.ahi, getMetric('ahi'))}</td>
+                  <td className="px-5 py-3 text-[var(--muted-foreground)] sm:px-6">{night.usage_hours.toFixed(2)} hours</td>
+                  <td className="px-5 py-3 text-[var(--muted-foreground)] sm:px-6">{formatMetricValue(night.avg_leak, getMetric('avg_leak'))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function TrendsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
+  const [overview, setOverview] = useState<OverviewDailyStat[]>([])
+  const [rangeDays, setRangeDays] = useState(180)
+  const [metricKey, setMetricKey] = useState<MetricKey>('ahi')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const metric = getMetric(metricKey)
 
   useEffect(() => {
     async function loadTrends() {
       try {
-        const data = await api.getSummary()
+        const [data, overviewData] = await Promise.all([
+          api.getSummary(),
+          api.getOverviewStats(rangeDays),
+        ])
         setSummary(data)
+        setOverview(overviewData.nights)
         setError(null)
       } catch (err) {
         setError(String(err))
@@ -138,7 +410,7 @@ export default function TrendsPage() {
 
     window.addEventListener(IMPORT_COMPLETED_EVENT, handleImportCompleted)
     return () => window.removeEventListener(IMPORT_COMPLETED_EVENT, handleImportCompleted)
-  }, [])
+  }, [rangeDays])
 
   if (loading) {
     return <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading trends...</div>
@@ -179,9 +451,73 @@ export default function TrendsPage() {
         </Card>
       </div>
 
-      <div id="ahi-trend">
-        <AHITrendChart trend={summary.ahi_trend} />
-      </div>
+      <Card>
+        <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[var(--foreground)]">Long-range overview</p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Pick a range and metric to scan nightly therapy patterns over time.</p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="grid grid-cols-4 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] p-1">
+                {RANGE_OPTIONS.map((option) => (
+                  <button
+                    key={option.days}
+                    type="button"
+                    className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                      rangeDays === option.days
+                        ? 'bg-[var(--surface-strong)] text-[var(--accent)]'
+                        : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                    }`}
+                    onClick={() => {
+                      setLoading(true)
+                      setRangeDays(option.days)
+                    }}
+                    aria-pressed={rangeDays === option.days}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <select
+                className="h-11 min-w-56 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 text-sm font-bold text-[var(--foreground)] outline-none focus:border-[var(--accent-border)]"
+                value={metricKey}
+                onChange={(event) => setMetricKey(event.target.value as MetricKey)}
+                aria-label="Select trend metric"
+              >
+                {TREND_METRICS.map((option) => (
+                  <option key={option.key} value={option.key}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {TREND_METRICS.slice(0, 12).map((option) => (
+              <Button
+                key={option.key}
+                variant={metricKey === option.key ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setMetricKey(option.key)}
+              >
+                {option.shortLabel}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {overview.length > 0 ? (
+        <>
+          <OverviewChart nights={overview} metric={metric} />
+          <RecentOverviewTable nights={overview} metric={metric} />
+        </>
+      ) : (
+        <Card>
+          <CardContent className="px-6 pb-6 pt-7 text-center text-sm text-[var(--muted-foreground)]">
+            No trend rows are available for this range.
+          </CardContent>
+        </Card>
+      )}
 
       <Card id="event-breakdown">
         <CardContent className="px-6 pb-6 pt-7">
