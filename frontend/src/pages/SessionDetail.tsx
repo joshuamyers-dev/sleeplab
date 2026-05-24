@@ -103,6 +103,10 @@ export default function SessionDetail() {
     respRate: 'Respiratory rate is the average number of breaths per minute recorded by the machine during the session.',
     tidalVolume: 'Tidal volume is the estimated amount of air moved in a normal breath. It is one more signal of breathing pattern, not usually something patients tune directly.',
   }
+  const secondaryStatContentClass = 'px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5'
+  const secondaryStatLabelClass = 'text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] sm:text-xs sm:tracking-[0.14em]'
+  const secondaryStatValueClass = 'text-2xl font-semibold text-[var(--foreground)] sm:text-3xl'
+  const secondaryStatNoteClass = 'mt-1.5 text-[11px] leading-4 text-[var(--muted-foreground)] sm:text-xs'
 
   return (
     <div className="space-y-6">
@@ -134,7 +138,7 @@ export default function SessionDetail() {
 
       {/* Session header card */}
       <Card className="overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(106,161,54,0.10),_transparent_30%),radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_24%),var(--surface-strong)]">
-        <CardContent className="px-6 pb-6 pt-6">
+        <CardContent className="px-4 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
           {/* Top row: label + badge */}
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Session detail</p>
@@ -144,7 +148,7 @@ export default function SessionDetail() {
           </div>
 
           {/* Date + time */}
-          <h1 className="mt-3 text-2xl font-extrabold text-[var(--foreground)] sm:text-3xl">
+          <h1 className="mt-2 text-2xl font-extrabold text-[var(--foreground)] sm:text-3xl">
             {fmtDate(session.folder_date + 'T00:00:00')}
           </h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -152,23 +156,23 @@ export default function SessionDetail() {
           </p>
 
           {/* Three primary stat pills */}
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-[18px] bg-[rgba(82,81,167,0.08)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">AHI</p>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-[18px] bg-[rgba(82,81,167,0.08)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>AHI</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--accent)]">
                 {session.ahi?.toFixed(1) ?? '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">events/hr</p>
             </div>
-            <div className="rounded-[18px] bg-[var(--surface-soft)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Pressure</p>
+            <div className="rounded-[18px] bg-[var(--surface-soft)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>Pressure</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--foreground)]">
                 {session.avg_pressure?.toFixed(1) ?? '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">cmH₂O</p>
             </div>
-            <div className="rounded-[18px] bg-[rgba(106,161,54,0.08)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Usage</p>
+            <div className="rounded-[18px] bg-[rgba(106,161,54,0.08)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>Usage</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--green-700)]">
                 {hours}h {mins}m
               </p>
@@ -179,51 +183,51 @@ export default function SessionDetail() {
       </Card>
 
       {/* Secondary stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Events</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Events</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">{session.total_ahi_events}</span>
+              <span className={secondaryStatValueClass}>{session.total_ahi_events}</span>
               <InfoPopover title="Events">{statHelp.events}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+            <p className={secondaryStatNoteClass}>
               CA {session.central_apnea_count} · OA {session.obstructive_apnea_count} · H {session.hypopnea_count}
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Avg leak</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Avg leak</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">
+              <span className={secondaryStatValueClass}>
                 {session.avg_leak != null ? (session.avg_leak * 1000).toFixed(1) : '—'}
               </span>
               <InfoPopover title="Average leak">{statHelp.leak}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">mL/s · P95 {session.p95_pressure?.toFixed(1) ?? '—'} cmH₂O</p>
+            <p className={secondaryStatNoteClass}>mL/s · P95 {session.p95_pressure?.toFixed(1) ?? '—'} cmH₂O</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Resp rate</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Resp rate</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">{session.avg_resp_rate?.toFixed(1) ?? '—'}</span>
+              <span className={secondaryStatValueClass}>{session.avg_resp_rate?.toFixed(1) ?? '—'}</span>
               <InfoPopover title="Respiratory rate">{statHelp.respRate}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">breaths per minute</p>
+            <p className={secondaryStatNoteClass}>breaths per minute</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Tidal volume</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Tidal volume</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">
+              <span className={secondaryStatValueClass}>
                 {session.avg_tidal_vol != null ? (session.avg_tidal_vol * 1000).toFixed(0) : '—'}
               </span>
               <InfoPopover title="Tidal volume">{statHelp.tidalVolume}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">mL</p>
+            <p className={secondaryStatNoteClass}>mL</p>
           </CardContent>
         </Card>
       </div>
@@ -231,7 +235,7 @@ export default function SessionDetail() {
       {/* Machine settings — only if any field is present */}
       {(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null) && (
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
+          <CardContent className={secondaryStatContentClass}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Device settings</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
               {session.therapy_mode && (
@@ -254,7 +258,7 @@ export default function SessionDetail() {
       {/* Inferred equipment */}
       {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
+          <CardContent className={secondaryStatContentClass}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {([

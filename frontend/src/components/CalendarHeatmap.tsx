@@ -67,26 +67,26 @@ export default function CalendarHeatmap({ sessions }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted-foreground)]">
-        <span className="uppercase tracking-[0.2em] text-[var(--muted-foreground)]">AHI</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)] sm:gap-3">
+        <span className="basis-full uppercase tracking-[0.2em] text-[var(--muted-foreground)] sm:basis-auto">AHI</span>
         {[['#6AA136','<5 Normal'],['#C9B715','5–15 Mild'],['#E9784B','15–30 Moderate'],['#8E3D40','30+ Severe'],['var(--calendar-empty)','No data']].map(([color,label]) => (
-          <span key={label} className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1">
+          <span key={label} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-1 sm:gap-2 sm:px-3">
             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
             {label}
           </span>
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-3 sm:flex sm:flex-wrap sm:gap-5">
         {months.map(({ year, month, days }) => (
-          <div key={`${year}-${month}`} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+          <div key={`${year}-${month}`} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-soft)] p-3 sm:rounded-[24px] sm:p-4">
             <div className="mb-3 text-sm font-bold text-[var(--foreground)]">{MONTHS[month]} {year}</div>
-            <div className="mb-1 grid grid-cols-7 gap-1">
+            <div className="mb-1 grid grid-cols-7 justify-items-center gap-1">
               {DAYS.map(d => <span key={d} className="text-center text-[10px] text-[var(--muted-foreground)]">{d[0]}</span>)}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 justify-items-center gap-1">
               {days.map((date, i) => {
-                if (!date) return <span key={i} className="h-4 w-4" />
+                if (!date) return <span key={i} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 const iso = toIso(date)
                 const entry = byDate[iso]
                 const color = getAhiColor(entry?.ahi ?? null)
@@ -96,7 +96,7 @@ export default function CalendarHeatmap({ sessions }: Props) {
                 return (
                   <span
                     key={i}
-                    className="h-4 w-4 rounded-sm transition hover:scale-110"
+                    className="h-3.5 w-3.5 rounded-sm transition hover:scale-110 sm:h-4 sm:w-4"
                     style={{ background: color, cursor: entry ? 'pointer' : 'default' }}
                     title={label}
                     onClick={() => entry && navigate(`/sessions/${entry.sessionId}`)}
