@@ -3,21 +3,21 @@ CPAP ETL importer: reads CPAP SD-card session data and inserts/updates
 records in the local PostgreSQL database.
 
 Currently handles ResMed AirSense EDF files natively.  Multi-manufacturer
-support via open-cpap-parser is tracked in sleeplab#38; the routing hook
-is marked with TODO(open-cpap-parser) below.
+support via cpap-parser is tracked in sleeplab#38; the routing hook
+delegates to ``cpap_parser_import`` when the SD-card layout is recognised.
 
 Run:
     python import_sessions.py
     python import_sessions.py --folder 20241215   # single folder
     python import_sessions.py --from 20250101     # from date onward
 
-open-cpap-parser integration
------------------------------
+cpap-parser integration
+------------------------
 ``run_local_import()`` first probes with ``detect_open_cpap_layout()``.
 If the directory is a recognised CPAP SD card, it delegates to
 ``run_open_cpap_import()`` instead of the native ResMed EDF path.
 
-See: importer/open_cpap_import.py, sleeplab#38
+See: importer/cpap_parser_import.py, sleeplab#38
 """
 
 import argparse
@@ -37,7 +37,7 @@ from db import (
     upsert_session,
 )
 from edf_parser import parse_eve, parse_pld, parse_sa2, read_header
-from open_cpap_import import detect_open_cpap_layout, run_open_cpap_import
+from cpap_parser_import import detect_open_cpap_layout, run_open_cpap_import
 
 AHI_EVENT_TYPES = {'Central Apnea', 'Obstructive Apnea', 'Hypopnea', 'Apnea'}
 
@@ -207,10 +207,15 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'duration_seconds':   duration_s,
                 'device_serial':      pld_header.device_serial or None,
                 'has_spo2':           spo2_data is not None,
+                'avg_spo2':           None,
+                'min_spo2':           None,
                 'therapy_mode':       None,
                 'mask_type':          None,
                 'humidity_level':     None,
                 'temperature_c':      None,
+                'manufacturer':       None,
+                'data_source':        'resmed_native',
+                'parser_validated':   True,
                 'user_id':            user_id,
                 **summary,
             }
