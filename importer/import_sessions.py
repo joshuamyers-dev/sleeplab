@@ -17,13 +17,14 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from edf_parser import parse_pld, parse_eve, parse_sa2, read_header
+from edf_parser import parse_brp, parse_pld, parse_eve, parse_sa2, read_header
 from db import (
+    get_session_db_id,
     get_conn,
     replace_session_events,
     replace_session_metrics,
     replace_session_spo2,
-    session_exists,
+    replace_session_waveform,
     upsert_session,
 )
 
@@ -53,7 +54,8 @@ def discover_session_blocks(folder: Path) -> list:
     Pairing rule: for each PLD timestamp, find the most-recent CSL timestamp
     that precedes it. CSL-only blocks (no matching PLD) are skipped.
 
-    Returns list of dicts: {csl_ts, csl_path, eve_path, pld_ts, pld_path, sa2_path}
+    Returns list of dicts:
+        {csl_ts, csl_path, eve_path, pld_ts, pld_path, brp_path, spo2_path}
     """
     files = list(folder.glob("*.edf"))
     if not files:
@@ -92,7 +94,8 @@ def discover_session_blocks(folder: Path) -> list:
             'eve_path': by_ts_type.get((matching_csl, 'EVE')),
             'pld_ts':   pld_ts,
             'pld_path': by_ts_type[(pld_ts, 'PLD')],
-            'sa2_path': by_ts_type.get((pld_ts, 'SA2')),
+            'brp_path': by_ts_type.get((pld_ts, 'BRP')),
+            'spo2_path': by_ts_type.get((pld_ts, 'SA2')) or by_ts_type.get((pld_ts, 'SAD')),
         })
 
     return blocks
@@ -157,8 +160,15 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
         session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
 
         try:
-            if session_exists(conn, user_id, session_id):
-                print(f"    SKIP block {block_idx} ({session_id}): already imported")
+            existing_session_db_id = get_session_db_id(conn, user_id, session_id)
+            if existing_session_db_id:
+                backfilled = backfill_waveform_for_block(conn, existing_session_db_id, block)
+                if backfilled:
+                    conn.commit()
+                    imported += 1
+                    print(f"    BACKFILL block {block_idx} ({session_id}): waveform")
+                else:
+                    print(f"    SKIP block {block_idx} ({session_id}): already imported")
                 continue
 
             # Parse PLD (required)
@@ -172,7 +182,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             # Get CSL start datetime for event absolute timestamps.
             # EDF timestamps are naive local machine time; attach MACHINE_TZ so
             # psycopg2 stores the correct UTC equivalent in TIMESTAMPTZ columns.
-            csl_start = _localize(pld_header.start_datetime)  # fallback
+            csl_start = pld_header.start_datetime  # fallback
             if block['csl_path'] and block['csl_path'].exists():
                 csl_hdr = read_header(str(block['csl_path']))
                 csl_start = _localize(csl_hdr.start_datetime)
@@ -180,10 +190,20 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             pld_start = _localize(pld_header.start_datetime)
             duration_s = int(pld_header.num_records * pld_header.duration_per_record)
 
-            # Parse SA2 (optional)
+            # Parse SA2/SAD (optional)
             spo2_data = None
-            if block['sa2_path'] and block['sa2_path'].exists():
-                _, spo2_data = parse_sa2(block['sa2_path'])
+            spo2_header = None
+            spo2_start = None
+            if block['spo2_path'] and block['spo2_path'].exists():
+                spo2_header, spo2_data = parse_sa2(block['spo2_path'])
+                spo2_start = _localize(spo2_header.start_datetime)
+
+            waveform = None
+            waveform_header = None
+            waveform_start = None
+            if block['brp_path'] and block['brp_path'].exists():
+                waveform_header, waveform = parse_brp(block['brp_path'])
+                waveform_start = _localize(waveform_header.start_datetime)
 
             summary = derive_summary(pld_channels, events, duration_s)
 
@@ -206,10 +226,19 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
 
             session_db_id = upsert_session(conn, session_data)
             replace_session_events(conn, session_db_id, events, csl_start)
-            replace_session_metrics(conn, session_db_id, pld_header, pld_channels)
+            replace_session_metrics(conn, session_db_id, pld_header, pld_channels, pld_start)
 
-            if spo2_data:
-                replace_session_spo2(conn, session_db_id, pld_header, spo2_data)
+            if spo2_data and spo2_header:
+                replace_session_spo2(conn, session_db_id, spo2_header, spo2_data, spo2_start)
+            if waveform and waveform_header and waveform_start:
+                replace_session_waveform(
+                    conn,
+                    session_db_id,
+                    waveform_header,
+                    waveform,
+                    events,
+                    start_datetime=waveform_start,
+                )
 
             conn.commit()
             imported += 1
@@ -219,6 +248,30 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             print(f"    ERROR block {block_idx} ({session_id}): {e}")
 
     return imported
+
+
+def backfill_waveform_for_block(conn, session_db_id: str, block: dict) -> bool:
+    """Populate event-focused BRP waveform data for an existing imported session."""
+    if not block['brp_path'] or not block['brp_path'].exists():
+        return False
+
+    events = []
+    if block['eve_path'] and block['eve_path'].exists():
+        _, events = parse_eve(block['eve_path'])
+    if not events:
+        return False
+
+    waveform_header, waveform = parse_brp(block['brp_path'])
+    waveform_start = _localize(waveform_header.start_datetime)
+    replace_session_waveform(
+        conn,
+        session_db_id,
+        waveform_header,
+        waveform,
+        events,
+        start_datetime=waveform_start,
+    )
+    return True
 
 
 def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] = None) -> dict:

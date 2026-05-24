@@ -41,6 +41,16 @@ def session_exists(conn, user_id: str, session_id: str) -> bool:
         return cur.fetchone() is not None
 
 
+def get_session_db_id(conn, user_id: str, session_id: str) -> str | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM sessions WHERE user_id = %s AND session_id = %s",
+            (user_id, session_id),
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
 def upsert_session(conn, data: dict) -> int:
     """
     Insert or update a session row. Returns the session's integer id.
@@ -123,7 +133,7 @@ def replace_session_events(conn, session_db_id: int, events: list, csl_start: da
         psycopg2.extras.execute_values(cur, sql, rows)
 
 
-def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
+def replace_session_metrics(conn, session_db_id: int, header, channels: dict, start_datetime=None):
     """Delete existing metrics for this session and bulk-insert all PLD time-series rows."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
@@ -136,7 +146,7 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
     spr = data_signals[0].num_samples_per_record  # 30 samples per 60s record = 2s epochs
     dur = header.duration_per_record               # 60.0 seconds
     epoch = dur / spr                              # 2.0 seconds
-    pld_start = header.start_datetime
+    pld_start = start_datetime or header.start_datetime
 
     rows = []
     total_samples = spr * header.num_records
@@ -160,7 +170,7 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
 
 
-def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
+def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple, start_datetime=None):
     """Delete existing SpO2 rows and insert new ones."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
@@ -169,7 +179,7 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     spo2_sig = header.signals[1]   # SpO2.1s at 1 Hz
     spr = spo2_sig.num_samples_per_record  # 1 sample/second per record
     dur = header.duration_per_record
-    pld_start = header.start_datetime
+    pld_start = start_datetime or header.start_datetime
 
     rows = []
     for rec in range(header.num_records):
@@ -183,3 +193,86 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
+
+
+def replace_session_waveform(
+    conn,
+    session_db_id: int,
+    header,
+    channels: dict,
+    events: list | None = None,
+    before_seconds: int = 120,
+    after_seconds: int = 180,
+    start_datetime=None,
+):
+    """
+    Delete existing BRP waveform rows and bulk-insert event-focused samples.
+
+    Full-night BRP is large: a typical 7-hour night is ~630k rows at 25 Hz.
+    The Event Inspector only needs windows around scored events, so by default
+    we store merged event windows rather than the entire night.
+    """
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM session_waveform WHERE session_id = %s", (session_db_id,))
+
+    flow_vals = channels.get("Flow.40ms")
+    pressure_vals = channels.get("Press.40ms")
+    if not flow_vals and not pressure_vals:
+        return
+
+    data_signals = [s for s in header.signals if s.label != "Crc16"]
+    if not data_signals:
+        return
+
+    spr = data_signals[0].num_samples_per_record
+    dur = header.duration_per_record
+    if spr <= 0 or dur <= 0:
+        return
+
+    epoch = dur / spr
+    start = start_datetime or header.start_datetime
+    total_samples = spr * header.num_records
+    windows = _merge_waveform_windows(events or [], before_seconds, after_seconds)
+    if not windows:
+        return
+
+    rows = []
+    for start_idx, end_idx in windows:
+        start_idx = max(0, int(start_idx / epoch))
+        end_idx = min(total_samples, int(end_idx / epoch) + 1)
+        for idx in range(start_idx, end_idx):
+            ts = start + timedelta(seconds=idx * epoch)
+            flow = flow_vals[idx] if flow_vals and idx < len(flow_vals) else None
+            pressure = pressure_vals[idx] if pressure_vals and idx < len(pressure_vals) else None
+            rows.append((
+                session_db_id,
+                ts,
+                round(flow, 4) if flow is not None else None,
+                round(pressure, 2) if pressure is not None else None,
+            ))
+
+    if not rows:
+        return
+
+    sql = "INSERT INTO session_waveform (session_id, ts, flow, pressure) VALUES %s"
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
+
+
+def _merge_waveform_windows(events: list, before_seconds: int, after_seconds: int) -> list[tuple[float, float]]:
+    windows = []
+    for onset, duration, _event_type in events:
+        duration = duration or 0
+        windows.append((max(0, onset - before_seconds), onset + duration + after_seconds))
+    if not windows:
+        return []
+
+    windows.sort()
+    merged = [windows[0]]
+    for start, end in windows[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged

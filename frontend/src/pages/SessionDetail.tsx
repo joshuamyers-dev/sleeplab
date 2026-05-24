@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
-import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData } from '../api/client'
+import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData, EventWindowResponse } from '../api/client'
 import WearableSleepStageChart from '../components/WearableSleepStageChart'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
+import EventInspector from '../components/EventInspector'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
 import MetricsChart from '../components/MetricsChartSplit'
@@ -30,6 +31,34 @@ function ahiBadge(ahi: number | null): { label: string; className: string } {
   return { label: 'Difficult night', className: 'bg-[var(--danger-soft)] text-[var(--danger-text)]' }
 }
 
+const EVENT_WINDOW_PRESETS: Record<number, { before: number; after: number }> = {
+  1: { before: 30, after: 30 },
+  3: { before: 60, after: 120 },
+  5: { before: 120, after: 180 },
+}
+
+const EVENT_WINDOW_DOWNSAMPLE: Record<number, number> = {
+  1: 1,
+  3: 2,
+  5: 3,
+}
+
+const EVENT_CODES: Record<string, string> = {
+  'Central Apnea': 'CA',
+  'Obstructive Apnea': 'OA',
+  'Hypopnea': 'H',
+  'Apnea': 'A',
+  'Arousal': 'RE',
+}
+
+const EVENT_COLORS: Record<string, string> = {
+  'Central Apnea': '#5251A7',
+  'Obstructive Apnea': '#8E3D40',
+  'Hypopnea': '#E9784B',
+  'Apnea': '#C9B715',
+  'Arousal': '#6AA136',
+}
+
 export default function SessionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -43,12 +72,21 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(true)
   const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
   const [wearableData, setWearableData] = useState<WearableData | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
+  const [eventWindowLoading, setEventWindowLoading] = useState(false)
+  const [eventWindowMinutes, setEventWindowMinutes] = useState(3)
+  const eventWindowCacheRef = useRef<Map<string, EventWindowResponse>>(new Map())
 
   useEffect(() => {
     setLoading(true)
     setSpo2(null)
     setEquipment(null)
     setWearableData(null)
+    setSelectedEventId(null)
+    setEventWindow(null)
+    setEventWindowLoading(false)
+    eventWindowCacheRef.current.clear()
     Promise.all([
       api.getSession(sessionId),
       api.getEvents(sessionId),
@@ -85,6 +123,75 @@ export default function SessionDetail() {
       })
     })
   }, [session, sessionId])
+
+  useEffect(() => {
+    if (!selectedEventId) return
+    const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
+    const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
+    const cacheKey = `${selectedEventId}:${eventWindowMinutes}`
+    const cached = eventWindowCacheRef.current.get(cacheKey)
+    if (cached) {
+      setEventWindow(cached)
+      setEventWindowLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setEventWindowLoading(true)
+    api.getEventWindow(sessionId, selectedEventId, {
+      before_seconds: preset.before,
+      after_seconds: preset.after,
+      waveform_downsample: waveformDownsample,
+    }).then((data) => {
+      eventWindowCacheRef.current.set(cacheKey, data)
+      if (!cancelled) setEventWindow(data)
+    }).catch(() => {
+      if (!cancelled) setEventWindow(null)
+    }).finally(() => {
+      if (!cancelled) setEventWindowLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [eventWindowMinutes, selectedEventId, sessionId])
+
+  function inspectEvent(event: EventRecord) {
+    setSelectedEventId(event.id)
+  }
+
+  const selectedEventIndex = selectedEventId == null
+    ? -1
+    : events.findIndex((event) => event.id === selectedEventId)
+
+  function inspectRelativeEvent(delta: -1 | 1) {
+    if (selectedEventIndex < 0) return
+    const nextEvent = events[selectedEventIndex + delta]
+    if (nextEvent) {
+      inspectEvent(nextEvent)
+    }
+  }
+
+  useEffect(() => {
+    if (selectedEventIndex < 0) return
+    const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
+    const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
+    for (const neighborIndex of [selectedEventIndex - 1, selectedEventIndex + 1]) {
+      const neighbor = events[neighborIndex]
+      if (!neighbor) continue
+      const cacheKey = `${neighbor.id}:${eventWindowMinutes}`
+      if (eventWindowCacheRef.current.has(cacheKey)) continue
+      api.getEventWindow(sessionId, neighbor.id, {
+        before_seconds: preset.before,
+        after_seconds: preset.after,
+        waveform_downsample: waveformDownsample,
+      }).then((data) => {
+        eventWindowCacheRef.current.set(cacheKey, data)
+      }).catch(() => {
+        // Prefetch is opportunistic; normal selection will retry if needed.
+      })
+    }
+  }, [eventWindowMinutes, events, selectedEventIndex, sessionId])
 
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
   if (!session || !metrics) return null
@@ -300,9 +407,29 @@ export default function SessionDetail() {
             events={events}
             durationSeconds={session.duration_seconds}
             startDatetime={session.start_datetime}
+            selectedEventId={selectedEventId}
+            onSelectEvent={inspectEvent}
+          />
+          <EventTable
+            events={events}
+            selectedEventId={selectedEventId}
+            onSelectEvent={inspectEvent}
           />
         </CardContent>
       </Card>
+
+      {(selectedEventId || eventWindowLoading) && (
+        <EventInspector
+          data={eventWindow}
+          loading={eventWindowLoading}
+          windowMinutes={eventWindowMinutes}
+          hasPreviousEvent={selectedEventIndex > 0}
+          hasNextEvent={selectedEventIndex >= 0 && selectedEventIndex < events.length - 1}
+          onWindowMinutesChange={setEventWindowMinutes}
+          onPreviousEvent={() => inspectRelativeEvent(-1)}
+          onNextEvent={() => inspectRelativeEvent(1)}
+        />
+      )}
 
       <MetricsChart metrics={metrics} />
 
@@ -313,6 +440,69 @@ export default function SessionDetail() {
       {wearableData && wearableData.stages.length > 0 && (
         <WearableSleepStageChart stages={wearableData.stages} />
       )}
+    </div>
+  )
+}
+
+function EventTable({
+  events,
+  selectedEventId,
+  onSelectEvent,
+}: {
+  events: EventRecord[]
+  selectedEventId: number | null
+  onSelectEvent: (event: EventRecord) => void
+}) {
+  if (!events.length) return null
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-[14px] border border-[var(--border)]">
+      <div className="max-h-52 overflow-auto">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="sticky top-0 bg-[var(--surface-strong)] text-[var(--muted-foreground)]">
+            <tr>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Code</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Time</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Duration</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => {
+              const selected = event.id === selectedEventId
+              const color = EVENT_COLORS[event.event_type] ?? '#8E3D40'
+              return (
+                <tr
+                  key={event.id}
+                  title={`${EVENT_CODES[event.event_type] ?? event.event_type} at ${fmtTime(event.event_datetime)}`}
+                  className={`cursor-pointer border-t border-[var(--border)] transition ${
+                    selected ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--surface-soft)]'
+                  }`}
+                  onClick={() => onSelectEvent(event)}
+                >
+                  <td className="px-3 py-2">
+                    <span
+                      className="inline-flex min-w-8 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                      style={{ background: color }}
+                    >
+                      {EVENT_CODES[event.event_type] ?? event.event_type}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-medium text-[var(--foreground)]">
+                    {fmtTime(event.event_datetime)}
+                  </td>
+                  <td className="px-3 py-2 text-[var(--muted-foreground)]">
+                    {event.duration_seconds ? `${event.duration_seconds}s` : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-[var(--muted-foreground)]">
+                    {event.event_type}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

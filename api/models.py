@@ -75,6 +75,19 @@ class SpO2Response(BaseModel):
     pulse: List[Optional[int]]
 
 
+class WaveformResponse(BaseModel):
+    timestamps: List[str]
+    flow: List[Optional[float]]
+    pressure: List[Optional[float]]
+
+
+class EventWindowResponse(BaseModel):
+    event: EventRecord
+    neighboring_events: List[EventRecord]
+    metrics: MetricsResponse
+    waveform: WaveformResponse
+
+
 EquipmentType = Literal["cushion", "headgear", "tubing", "humidifier_chamber", "filter"]
 
 

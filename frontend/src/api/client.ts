@@ -187,6 +187,19 @@ export interface SpO2Response {
   pulse: (number | null)[]
 }
 
+export interface WaveformResponse {
+  timestamps: string[]
+  flow: (number | null)[]
+  pressure: (number | null)[]
+}
+
+export interface EventWindowResponse {
+  event: EventRecord
+  neighboring_events: EventRecord[]
+  metrics: MetricsResponse
+  waveform: WaveformResponse
+}
+
 export interface DailyStat {
   folder_date: string
   ahi: number | null
@@ -333,6 +346,8 @@ export const api = {
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
+  getEventWindow: (id: string, eventId: number, params?: { before_seconds?: number; after_seconds?: number; waveform_downsample?: number }) =>
+    get<EventWindowResponse>(`/sessions/${id}/events/${eventId}/window`, params as Record<string, string | number> | undefined),
   getMetrics: (id: string, downsample = 15) =>
     get<MetricsResponse>(`/sessions/${id}/metrics`, { downsample }),
   getSessionSpo2: (id: string) => get<SpO2Response>(`/sessions/${id}/spo2`),

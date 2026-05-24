@@ -6,7 +6,7 @@ from datetime import date
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import SessionSummary, SessionDetail, EventRecord, MetricsResponse, SpO2Response, EquipmentResponse, InferredEquipment
+from ..models import SessionSummary, SessionDetail, EventRecord, MetricsResponse, SpO2Response, EquipmentResponse, InferredEquipment, WaveformResponse, EventWindowResponse
 
 router = APIRouter()
 
@@ -155,6 +155,113 @@ def get_session_events(
     return [EventRecord.model_validate(dict(r)) for r in rows]
 
 
+@router.get("/{session_id}/events/{event_id}/window", response_model=EventWindowResponse)
+def get_event_window(
+    session_id: str,
+    event_id: int,
+    before_seconds: int = Query(120, ge=10, le=600),
+    after_seconds: int = Query(180, ge=10, le=600),
+    waveform_downsample: int = Query(1, ge=1, le=25),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Focused metrics and BRP waveform around one event."""
+    internal_session_id = _require_session(session_id, current_user["id"], db)
+
+    event_row = db.execute(
+        text("""
+            SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
+            FROM session_events se
+            JOIN sessions s ON se.session_id = s.id
+            WHERE se.id = :event_id
+              AND s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+              AND s.user_id = CAST(:uid AS uuid)
+        """),
+        {"event_id": event_id, "sid": internal_session_id, "uid": current_user["id"]},
+    ).mappings().first()
+    if not event_row:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    neighboring_event_rows = db.execute(
+        text("""
+            SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
+            FROM session_events se
+            JOIN sessions s ON se.session_id = s.id
+            WHERE s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+              AND s.user_id = CAST(:uid AS uuid)
+              AND se.event_datetime >= (:event_ts - (:before_seconds * INTERVAL '1 second'))
+              AND se.event_datetime <= (:event_ts + (:after_seconds * INTERVAL '1 second'))
+            ORDER BY se.event_datetime
+        """),
+        {
+            "sid": internal_session_id,
+            "uid": current_user["id"],
+            "event_ts": event_row["event_datetime"],
+            "before_seconds": before_seconds,
+            "after_seconds": after_seconds,
+        },
+    ).mappings().all()
+
+    metric_rows = db.execute(
+        text("""
+            SELECT ts, mask_pressure, pressure, epr_pressure, leak,
+                   resp_rate, tidal_vol, min_vent, snore, flow_lim
+            FROM session_metrics sm
+            JOIN sessions s ON sm.session_id = s.id
+            WHERE s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+              AND s.user_id = CAST(:uid AS uuid)
+              AND sm.ts >= (:event_ts - (:before_seconds * INTERVAL '1 second'))
+              AND sm.ts <= (:event_ts + (:after_seconds * INTERVAL '1 second'))
+            ORDER BY sm.ts
+        """),
+        {
+            "sid": internal_session_id,
+            "uid": current_user["id"],
+            "event_ts": event_row["event_datetime"],
+            "before_seconds": before_seconds,
+            "after_seconds": after_seconds,
+        },
+    ).mappings().all()
+
+    waveform_rows = db.execute(
+        text("""
+            WITH numbered AS (
+                SELECT sw.ts, sw.flow, sw.pressure,
+                       ROW_NUMBER() OVER (ORDER BY sw.ts) AS rn
+                FROM session_waveform sw
+                JOIN sessions s ON sw.session_id = s.id
+                WHERE s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
+                  AND s.user_id = CAST(:uid AS uuid)
+                  AND sw.ts >= (:event_ts - (:before_seconds * INTERVAL '1 second'))
+                  AND sw.ts <= (:event_ts + (:after_seconds * INTERVAL '1 second'))
+            )
+            SELECT ts, flow, pressure
+            FROM numbered
+            WHERE (rn - 1) % :ds = 0
+            ORDER BY ts
+        """),
+        {
+            "sid": internal_session_id,
+            "uid": current_user["id"],
+            "event_ts": event_row["event_datetime"],
+            "before_seconds": before_seconds,
+            "after_seconds": after_seconds,
+            "ds": waveform_downsample,
+        },
+    ).mappings().all()
+
+    return EventWindowResponse(
+        event=EventRecord.model_validate(dict(event_row)),
+        neighboring_events=[EventRecord.model_validate(dict(r)) for r in neighboring_event_rows],
+        metrics=_metrics_response(metric_rows),
+        waveform=WaveformResponse(
+            timestamps=[r["ts"].isoformat() for r in waveform_rows],
+            flow=[_f(r["flow"]) for r in waveform_rows],
+            pressure=[_f(r["pressure"]) for r in waveform_rows],
+        ),
+    )
+
+
 @router.get("/{session_id}/metrics", response_model=MetricsResponse)
 def get_session_metrics(
     session_id: str,
@@ -183,30 +290,16 @@ def get_session_metrics(
             SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                    resp_rate, tidal_vol, min_vent, snore, flow_lim
             FROM numbered
-            WHERE rn % :ds = 1
+            WHERE (rn - 1) % :ds = 0
             ORDER BY ts
         """),
         {"sid": internal_session_id, "ds": downsample, "uid": current_user["id"]}
     ).mappings().all()
 
     if not rows:
-        return MetricsResponse(
-            timestamps=[], mask_pressure=[], pressure=[], epr_pressure=[],
-            leak=[], resp_rate=[], tidal_vol=[], min_vent=[], snore=[], flow_lim=[]
-        )
+        return _empty_metrics_response()
 
-    return MetricsResponse(
-        timestamps=[r["ts"].isoformat() for r in rows],
-        mask_pressure=[_f(r["mask_pressure"]) for r in rows],
-        pressure=[_f(r["pressure"]) for r in rows],
-        epr_pressure=[_f(r["epr_pressure"]) for r in rows],
-        leak=[_f(r["leak"]) for r in rows],
-        resp_rate=[_f(r["resp_rate"]) for r in rows],
-        tidal_vol=[_f(r["tidal_vol"]) for r in rows],
-        min_vent=[_f(r["min_vent"]) for r in rows],
-        snore=[_f(r["snore"]) for r in rows],
-        flow_lim=[_f(r["flow_lim"]) for r in rows],
-    )
+    return _metrics_response(rows)
 
 
 @router.get("/{session_id}/breath", response_model=MetricsResponse)
@@ -242,11 +335,19 @@ def get_session_breath(
     ).mappings().all()
 
     if not rows:
-        return MetricsResponse(
-            timestamps=[], mask_pressure=[], pressure=[], epr_pressure=[],
-            leak=[], resp_rate=[], tidal_vol=[], min_vent=[], snore=[], flow_lim=[]
-        )
+        return _empty_metrics_response()
 
+    return _metrics_response(rows)
+
+
+def _empty_metrics_response() -> MetricsResponse:
+    return MetricsResponse(
+        timestamps=[], mask_pressure=[], pressure=[], epr_pressure=[],
+        leak=[], resp_rate=[], tidal_vol=[], min_vent=[], snore=[], flow_lim=[]
+    )
+
+
+def _metrics_response(rows) -> MetricsResponse:
     return MetricsResponse(
         timestamps=[r["ts"].isoformat() for r in rows],
         mask_pressure=[_f(r["mask_pressure"]) for r in rows],

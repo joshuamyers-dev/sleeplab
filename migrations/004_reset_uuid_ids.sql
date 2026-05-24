@@ -3,6 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DROP TABLE IF EXISTS session_spo2;
+DROP TABLE IF EXISTS session_waveform;
 DROP TABLE IF EXISTS session_metrics;
 DROP TABLE IF EXISTS session_events;
 DROP TABLE IF EXISTS sessions;
