@@ -5,9 +5,8 @@
 ## SleepyHead / OSCAR / cpap-parser
 
 This project depends on **cpap-parser** as a key functional module for
-multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
-parsing code lives in cpap-parser — SleepLab itself does not implement
-any direct derivative of SleepyHead or OSCAR.
+multi-manufacturer CPAP data parsing. SleepLab incorporates functionality
+derived from the SleepyHead/OSCAR lineage via cpap-parser.
 
 cpap-parser is a derivative of both the free and open-source software
 **SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
