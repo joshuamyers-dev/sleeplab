@@ -57,6 +57,7 @@ class TestGetSession:
         assert data.get("mask_type") is None
         assert data.get("humidity_level") is None
         assert data.get("temperature_c") is None
+        assert data.get("machine_tz") is None
 
     def test_get_nonexistent(self, client: TestClient, auth_headers):
         fake_id = "00000000-0000-0000-0000-000000000000"

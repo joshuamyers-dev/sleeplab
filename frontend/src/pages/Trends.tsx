@@ -35,13 +35,27 @@ const TREND_DIRECTION_LABEL: Record<string, string> = {
 function TrendAICard() {
   const [data, setData] = useState<TrendAISummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
+    api.getImportSettings()
+      .then((settings) => setAiConfigured(settings.llm_configured))
+      .catch(() => setAiConfigured(false))
+  }, [])
+
+  useEffect(() => {
+    if (aiConfigured !== true) {
+      return
+    }
     api
       .getTrendAISummary()
       .then(setData)
       .finally(() => setLoading(false))
-  }, [])
+  }, [aiConfigured])
+
+  if (aiConfigured !== true) {
+    return null
+  }
 
   const flag = (data?.flag ?? 'watch') as keyof typeof TREND_FLAG_COLORS
   const colors = TREND_FLAG_COLORS[flag] ?? TREND_FLAG_COLORS.watch

@@ -21,7 +21,6 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://cpap:cpap@postgres:5432/cpap
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in your environment or .env file}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
       API_URL: ${API_URL:-http://localhost:8000}
       # Set to "true" to enable SleepHQ cloud import (installs sleephq-client at startup)
@@ -42,13 +41,6 @@ services:
     # Example — add to your .env: LOCAL_DATALOG_PATH=/mnt/nas/CPAP/DATALOG
     # volumes:
     #   - ${LOCAL_DATALOG_PATH:-}:/data:ro
-      # Timezone the CPAP machine is set to.  Used by the importer to correctly
-      # interpret naive local timestamps in EDF files before storing as UTC.
-      # Must be a valid IANA timezone name, e.g. America/New_York, Europe/London.
-      MACHINE_TZ: ${MACHINE_TZ:-UTC}
-      # Timezone used to format time labels on plots and session cards in the UI.
-      # Defaults to UTC; set to your local timezone for accurate display.
-      DISPLAY_TZ: ${DISPLAY_TZ:-UTC}
     ports:
       - "8080:8080"
       - "8000:8000"

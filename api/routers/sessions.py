@@ -1,14 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Dict, List, Optional
 from datetime import date
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from typing import Dict, List, Optional
 
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import SessionSummary, SessionDetail, EventRecord, MetricsResponse, SpO2Response, EquipmentResponse, InferredEquipment
 
 router = APIRouter()
+
+
+class SessionTimezoneUpdate(BaseModel):
+    machine_tz: str
 
 
 @router.get("/", response_model=List[SessionSummary])
@@ -52,6 +59,7 @@ def list_sessions(
                 MAX(p95_pressure) AS p95_pressure,
                 AVG(avg_leak) AS avg_leak,
                 BOOL_OR(has_spo2) AS has_spo2,
+                (array_agg(machine_tz ORDER BY duration_seconds DESC))[1] AS machine_tz,
                 CASE
                     WHEN SUM(duration_seconds) > 0
                     THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
@@ -65,7 +73,7 @@ def list_sessions(
         SELECT id, session_id, folder_date, block_index, start_datetime, duration_seconds,
                ahi, central_apnea_count, obstructive_apnea_count, hypopnea_count,
                apnea_count, arousal_count, total_ahi_events,
-               avg_pressure, p95_pressure, avg_leak, has_spo2
+               avg_pressure, p95_pressure, avg_leak, has_spo2, machine_tz
         FROM night
         ORDER BY folder_date DESC
         LIMIT :limit OFFSET :offset
@@ -120,7 +128,8 @@ def get_session(
                 (array_agg(s.therapy_mode    ORDER BY s.duration_seconds DESC))[1] AS therapy_mode,
                 (array_agg(s.mask_type       ORDER BY s.duration_seconds DESC))[1] AS mask_type,
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
-                (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c
+                (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
+                (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -293,6 +302,87 @@ def get_session_spo2(
     )
 
 
+@router.put("/{session_id}/timezone", response_model=SessionDetail)
+def update_session_timezone(
+    session_id: str,
+    body: SessionTimezoneUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reinterpret a night's imported timestamps using a corrected machine timezone."""
+    try:
+        new_zone_name = body.machine_tz.strip()
+        new_zone = ZoneInfo(new_zone_name)
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Unknown timezone: {body.machine_tz}")
+
+    selected = db.execute(
+        text("""
+            SELECT folder_date
+            FROM sessions
+            WHERE id = CAST(:id AS uuid)
+              AND user_id = CAST(:uid AS uuid)
+        """),
+        {"id": session_id, "uid": current_user["id"]},
+    ).mappings().first()
+    if not selected:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    rows = db.execute(
+        text("""
+            SELECT id::text AS id, start_datetime, pld_start_datetime, COALESCE(machine_tz, 'UTC') AS machine_tz
+            FROM sessions
+            WHERE user_id = CAST(:uid AS uuid)
+              AND folder_date = :folder_date
+        """),
+        {"uid": current_user["id"], "folder_date": selected["folder_date"]},
+    ).mappings().all()
+
+    for row in rows:
+        try:
+            old_zone = ZoneInfo(row["machine_tz"] or "UTC")
+        except (ZoneInfoNotFoundError, KeyError, ValueError):
+            old_zone = ZoneInfo("UTC")
+
+        old_start = row["start_datetime"]
+        old_pld_start = row["pld_start_datetime"]
+        new_start = _reinterpret_with_timezone(old_start, old_zone, new_zone)
+        new_pld_start = _reinterpret_with_timezone(old_pld_start, old_zone, new_zone)
+        delta = new_start - old_start
+
+        db.execute(
+            text("""
+                UPDATE sessions
+                SET start_datetime = :start_datetime,
+                    pld_start_datetime = :pld_start_datetime,
+                    machine_tz = :machine_tz,
+                    updated_at = NOW()
+                WHERE id = CAST(:id AS uuid)
+            """),
+            {
+                "id": row["id"],
+                "start_datetime": new_start,
+                "pld_start_datetime": new_pld_start,
+                "machine_tz": new_zone_name,
+            },
+        )
+        db.execute(
+            text("UPDATE session_events SET event_datetime = event_datetime + :delta WHERE session_id = CAST(:id AS uuid)"),
+            {"id": row["id"], "delta": delta},
+        )
+        db.execute(
+            text("UPDATE session_metrics SET ts = ts + :delta WHERE session_id = CAST(:id AS uuid)"),
+            {"id": row["id"], "delta": delta},
+        )
+        db.execute(
+            text("UPDATE session_spo2 SET ts = ts + :delta WHERE session_id = CAST(:id AS uuid)"),
+            {"id": row["id"], "delta": delta},
+        )
+
+    db.commit()
+    return get_session(session_id=session_id, current_user=current_user, db=db)
+
+
 def _require_session(session_id: str, user_id: str, db: Session) -> str:
     row = db.execute(
         text("SELECT id::text AS id FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
@@ -306,6 +396,11 @@ def _require_session(session_id: str, user_id: str, db: Session) -> str:
 def _f(val) -> Optional[float]:
     """Convert Decimal to float for JSON serialization."""
     return float(val) if val is not None else None
+
+
+def _reinterpret_with_timezone(value, old_zone: ZoneInfo, new_zone: ZoneInfo):
+    wall_time = value.astimezone(old_zone).replace(tzinfo=None)
+    return wall_time.replace(tzinfo=new_zone)
 
 
 @router.delete("/all", status_code=204)

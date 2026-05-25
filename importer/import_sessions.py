@@ -31,9 +31,9 @@ from db import (
 AHI_EVENT_TYPES = {'Central Apnea', 'Obstructive Apnea', 'Hypopnea', 'Apnea'}
 
 
-def _machine_tz() -> ZoneInfo:
+def _machine_tz(name: str | None = None) -> ZoneInfo:
     """Return the ZoneInfo for MACHINE_TZ, falling back to UTC on invalid input."""
-    name = os.environ.get("MACHINE_TZ", "UTC")
+    name = name or os.environ.get("MACHINE_TZ", "UTC")
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, KeyError, ValueError):
@@ -41,9 +41,21 @@ def _machine_tz() -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def _localize(naive_dt: datetime) -> datetime:
+def _localize(naive_dt: datetime, machine_tz: ZoneInfo | None = None) -> datetime:
     """Attach MACHINE_TZ to a naive datetime from an EDF header."""
-    return naive_dt.replace(tzinfo=_machine_tz())
+    return naive_dt.replace(tzinfo=machine_tz or _machine_tz())
+
+
+def _machine_tz_for_user(conn, user_id: str) -> tuple[str, ZoneInfo]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT machine_tz FROM user_import_settings WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+    name = row[0] if row and row[0] else None
+    zone = _machine_tz(name)
+    return name or zone.key, zone
 
 
 def discover_session_blocks(folder: Path) -> list:
@@ -152,6 +164,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
         return 0
 
     imported = 0
+    machine_tz_name, machine_tz = _machine_tz_for_user(conn, user_id)
     for block_idx, block in enumerate(blocks):
         pld_ts = block['pld_ts']
         session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
@@ -172,12 +185,12 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             # Get CSL start datetime for event absolute timestamps.
             # EDF timestamps are naive local machine time; attach MACHINE_TZ so
             # psycopg2 stores the correct UTC equivalent in TIMESTAMPTZ columns.
-            csl_start = _localize(pld_header.start_datetime)  # fallback
+            csl_start = _localize(pld_header.start_datetime, machine_tz)  # fallback
             if block['csl_path'] and block['csl_path'].exists():
                 csl_hdr = read_header(str(block['csl_path']))
-                csl_start = _localize(csl_hdr.start_datetime)
+                csl_start = _localize(csl_hdr.start_datetime, machine_tz)
 
-            pld_start = _localize(pld_header.start_datetime)
+            pld_start = _localize(pld_header.start_datetime, machine_tz)
             duration_s = int(pld_header.num_records * pld_header.duration_per_record)
 
             # Parse SA2 (optional)
@@ -200,16 +213,17 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'mask_type':          None,
                 'humidity_level':     None,
                 'temperature_c':      None,
+                'machine_tz':         machine_tz_name,
                 'user_id':            user_id,
                 **summary,
             }
 
             session_db_id = upsert_session(conn, session_data)
             replace_session_events(conn, session_db_id, events, csl_start)
-            replace_session_metrics(conn, session_db_id, pld_header, pld_channels)
+            replace_session_metrics(conn, session_db_id, pld_header, pld_channels, pld_start)
 
             if spo2_data:
-                replace_session_spo2(conn, session_db_id, pld_header, spo2_data)
+                replace_session_spo2(conn, session_db_id, pld_header, spo2_data, pld_start)
 
             conn.commit()
             imported += 1

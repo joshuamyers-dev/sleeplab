@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { useAuth } from '../context/AuthContext'
+import { setDisplayTz as applyDisplayTz } from '../lib/displayTz'
 
 export default function SettingsPage() {
   const { user, isLoading, updateProfile } = useAuth()
@@ -71,6 +72,25 @@ export default function SettingsPage() {
   const [localMessage, setLocalMessage] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [isLocalSubmitting, setIsLocalSubmitting] = useState(false)
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+
+  // Internal app settings
+  const [machineTz, setMachineTz] = useState('UTC')
+  const [displayTz, setDisplayTz] = useState('UTC')
+  const [hasMachineTz, setHasMachineTz] = useState(false)
+  const [hasDisplayTz, setHasDisplayTz] = useState(false)
+  const [timezoneMessage, setTimezoneMessage] = useState<string | null>(null)
+  const [timezoneError, setTimezoneError] = useState<string | null>(null)
+  const [isTimezoneSubmitting, setIsTimezoneSubmitting] = useState(false)
+
+  const [llmProvider, setLlmProvider] = useState('ollama')
+  const [llmBaseUrl, setLlmBaseUrl] = useState('')
+  const [llmModel, setLlmModel] = useState('')
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [llmApiKeySaved, setLlmApiKeySaved] = useState(false)
+  const [llmMessage, setLlmMessage] = useState<string | null>(null)
+  const [llmError, setLlmError] = useState<string | null>(null)
+  const [isLlmSubmitting, setIsLlmSubmitting] = useState(false)
 
   // Wearable settings
   const [wearableProvider, setWearableProvider] = useState('')
@@ -102,11 +122,19 @@ export default function SettingsPage() {
       setLastImportStatus(settings.last_local_import_status)
       setWearableProvider(settings.wearable_provider ?? '')
       setWearableBaseUrl(settings.wearable_base_url ?? '')
+      setMachineTz(settings.has_machine_tz ? settings.machine_tz : browserTz)
+      setDisplayTz(settings.has_display_tz ? settings.display_tz : browserTz)
+      setHasMachineTz(settings.has_machine_tz)
+      setHasDisplayTz(settings.has_display_tz)
+      setLlmProvider(settings.llm_provider ?? 'ollama')
+      setLlmBaseUrl(settings.llm_base_url ?? '')
+      setLlmModel(settings.llm_model ?? '')
+      setLlmApiKeySaved(settings.has_llm_api_key)
       // wearable_api_key is always null from server — leave blank
     }).catch(() => {
       // No settings saved yet — leave fields empty
     })
-  }, [])
+  }, [browserTz])
 
   if (!isLoading && !user) {
     return <Navigate to="/login" replace />
@@ -189,6 +217,61 @@ export default function SettingsPage() {
       setLocalError(err instanceof Error ? err.message : 'Could not save settings')
     } finally {
       setIsLocalSubmitting(false)
+    }
+  }
+
+  async function handleTimezoneSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setTimezoneError(null)
+    setTimezoneMessage(null)
+    setIsTimezoneSubmitting(true)
+    try {
+      const settings = await api.saveImportSettings({
+        machine_tz: machineTz || undefined,
+        display_tz: displayTz || undefined,
+      })
+      setMachineTz(settings.machine_tz)
+      setDisplayTz(settings.display_tz)
+      setHasMachineTz(settings.has_machine_tz)
+      setHasDisplayTz(settings.has_display_tz)
+      applyDisplayTz(settings.display_tz)
+      setTimezoneMessage('Timezone settings saved.')
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : 'Could not save timezone settings')
+    } finally {
+      setIsTimezoneSubmitting(false)
+    }
+  }
+
+  function useBrowserTimezone() {
+    setMachineTz(browserTz)
+    setDisplayTz(browserTz)
+    setTimezoneMessage(`Detected ${browserTz}. Save to use it for future imports and display.`)
+    setTimezoneError(null)
+  }
+
+  async function handleLlmSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setLlmError(null)
+    setLlmMessage(null)
+    setIsLlmSubmitting(true)
+    try {
+      const settings = await api.saveImportSettings({
+        llm_provider: llmProvider || undefined,
+        llm_base_url: llmBaseUrl || null,
+        llm_model: llmModel || null,
+        llm_api_key: llmApiKey || null,
+      })
+      setLlmProvider(settings.llm_provider)
+      setLlmBaseUrl(settings.llm_base_url ?? '')
+      setLlmModel(settings.llm_model ?? '')
+      setLlmApiKeySaved(settings.has_llm_api_key)
+      setLlmApiKey('')
+      setLlmMessage('AI backend settings saved.')
+    } catch (err) {
+      setLlmError(err instanceof Error ? err.message : 'Could not save AI backend settings')
+    } finally {
+      setIsLlmSubmitting(false)
     }
   }
 
@@ -434,6 +517,136 @@ export default function SettingsPage() {
         </CardContent>
       </Card>}
       <EquipmentCatalog />
+
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Timezone</CardTitle>
+          <CardDescription>
+            Set how CPAP file timestamps are interpreted during import and how times are shown in the app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleTimezoneSubmit}>
+            {!hasMachineTz || !hasDisplayTz ? (
+              <div className="rounded-lg border border-[var(--border)] px-4 py-3 text-sm">
+                <p className="font-medium text-[var(--foreground)]">Browser timezone detected: {browserTz}</p>
+                <p className="mt-1 text-[var(--muted-foreground)]">This is the best automatic guess available in the browser. Save it below if your CPAP machine is set to the same timezone.</p>
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <Label htmlFor="machineTz">Machine timezone</Label>
+                <Input
+                  id="machineTz"
+                  value={machineTz}
+                  onChange={(event) => setMachineTz(event.target.value)}
+                  autoComplete="off"
+                  placeholder="America/New_York"
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">Used when importing naive EDF timestamps.</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="displayTz">Display timezone</Label>
+                <Input
+                  id="displayTz"
+                  value={displayTz}
+                  onChange={(event) => setDisplayTz(event.target.value)}
+                  autoComplete="off"
+                  placeholder="America/New_York"
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">Used for chart labels, session times, and event timelines.</p>
+              </div>
+            </div>
+
+            {timezoneMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{timezoneMessage}</p> : null}
+            {timezoneError ? <p className="text-sm text-[var(--danger-text)]">{timezoneError}</p> : null}
+
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="outline" onClick={useBrowserTimezone}>Use detected timezone</Button>
+              <Button type="submit" disabled={isTimezoneSubmitting}>
+                {isTimezoneSubmitting ? 'Saving...' : 'Save timezone settings'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">AI Backend</CardTitle>
+          <CardDescription>
+            Configure the OpenAI-compatible backend used for summaries and recommendations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleLlmSubmit}>
+            <div className="space-y-3">
+              <Label htmlFor="llmProvider">Provider</Label>
+              <select
+                id="llmProvider"
+                value={llmProvider}
+                onChange={(event) => setLlmProvider(event.target.value)}
+                className="flex h-9 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="ollama">Ollama</option>
+                <option value="litellm">LiteLLM</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <Label htmlFor="llmBaseUrl">Base URL</Label>
+                <Input
+                  id="llmBaseUrl"
+                  value={llmBaseUrl}
+                  onChange={(event) => setLlmBaseUrl(event.target.value)}
+                  autoComplete="off"
+                  placeholder={llmProvider === 'openai' ? 'https://api.openai.com/v1' : 'http://localhost:11434/v1'}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="llmModel">Model</Label>
+                <Input
+                  id="llmModel"
+                  value={llmModel}
+                  onChange={(event) => setLlmModel(event.target.value)}
+                  autoComplete="off"
+                  placeholder={llmProvider === 'ollama' ? 'llama3.1:8b' : 'gpt-4o-mini'}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="llmApiKey">
+                API key
+                {llmApiKeySaved && (
+                  <span className="ml-2 text-xs font-normal text-[var(--olive-deep)]">saved</span>
+                )}
+              </Label>
+              <Input
+                id="llmApiKey"
+                type="password"
+                value={llmApiKey}
+                onChange={(event) => setLlmApiKey(event.target.value)}
+                autoComplete="new-password"
+                placeholder={llmApiKeySaved ? 'Leave blank to keep existing key' : 'Required for OpenAI and some custom backends'}
+              />
+            </div>
+
+            {llmMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{llmMessage}</p> : null}
+            {llmError ? <p className="text-sm text-[var(--danger-text)]">{llmError}</p> : null}
+
+            <Button type="submit" disabled={isLlmSubmitting}>
+              {isLlmSubmitting ? 'Saving...' : 'Save AI backend settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..llm_client import get_llm_client, get_model, is_configured
+from ..settings_store import get_llm_settings, has_explicit_llm_settings
 
 router = APIRouter()
 
@@ -44,7 +45,8 @@ def get_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not is_configured():
+    llm_settings = get_llm_settings(db, current_user["id"])
+    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return AISummaryResponse(error="LLM backend not configured")
 
     start_date = date.today() - timedelta(days=days - 1)
@@ -163,9 +165,9 @@ def get_ai_summary(
     )
 
     try:
-        client = get_llm_client()
+        client = get_llm_client(llm_settings)
         response = client.chat.completions.create(
-            model=get_model(),
+            model=get_model(llm_settings),
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -254,7 +256,8 @@ def get_session_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not is_configured():
+    llm_settings = get_llm_settings(db, current_user["id"])
+    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return SessionAISummaryResponse(error="LLM backend not configured")
 
     row = db.execute(
@@ -295,9 +298,9 @@ def get_session_ai_summary(
     )
 
     try:
-        client = get_llm_client()
+        client = get_llm_client(llm_settings)
         response = client.chat.completions.create(
-            model=get_model(),
+            model=get_model(llm_settings),
             messages=[
                 {"role": "system", "content": SESSION_AI_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -342,7 +345,8 @@ def get_trend_ai_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not is_configured():
+    llm_settings = get_llm_settings(db, current_user["id"])
+    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return TrendAISummaryResponse(error="LLM backend not configured")
 
     rows = db.execute(
@@ -383,9 +387,9 @@ def get_trend_ai_summary(
     )
 
     try:
-        client = get_llm_client()
+        client = get_llm_client(llm_settings)
         response = client.chat.completions.create(
-            model=get_model(),
+            model=get_model(llm_settings),
             messages=[
                 {"role": "system", "content": TREND_AI_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},

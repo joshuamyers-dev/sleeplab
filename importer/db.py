@@ -55,7 +55,7 @@ def upsert_session(conn, data: dict) -> int:
         avg_pressure, p95_pressure, avg_leak, avg_resp_rate, avg_tidal_vol,
         avg_min_vent, avg_snore, avg_flow_lim, has_spo2,
         therapy_mode, mask_type, humidity_level, temperature_c,
-        user_id, updated_at
+        machine_tz, user_id, updated_at
     ) VALUES (
         %(session_id)s, %(folder_date)s, %(block_index)s, %(start_datetime)s, %(pld_start_datetime)s,
         %(duration_seconds)s, %(device_serial)s, %(ahi)s,
@@ -64,7 +64,7 @@ def upsert_session(conn, data: dict) -> int:
         %(avg_pressure)s, %(p95_pressure)s, %(avg_leak)s, %(avg_resp_rate)s, %(avg_tidal_vol)s,
         %(avg_min_vent)s, %(avg_snore)s, %(avg_flow_lim)s, %(has_spo2)s,
         %(therapy_mode)s, %(mask_type)s, %(humidity_level)s, %(temperature_c)s,
-        %(user_id)s, NOW()
+        %(machine_tz)s, %(user_id)s, NOW()
     )
     ON CONFLICT (user_id, session_id) DO UPDATE SET
         folder_date             = EXCLUDED.folder_date,
@@ -93,6 +93,7 @@ def upsert_session(conn, data: dict) -> int:
         mask_type               = EXCLUDED.mask_type,
         humidity_level          = EXCLUDED.humidity_level,
         temperature_c           = EXCLUDED.temperature_c,
+        machine_tz              = EXCLUDED.machine_tz,
         -- user_id intentionally excluded: re-import must not change ownership
         updated_at              = NOW()
     RETURNING id
@@ -123,7 +124,7 @@ def replace_session_events(conn, session_db_id: int, events: list, csl_start: da
         psycopg2.extras.execute_values(cur, sql, rows)
 
 
-def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
+def replace_session_metrics(conn, session_db_id: int, header, channels: dict, start_datetime: datetime | None = None):
     """Delete existing metrics for this session and bulk-insert all PLD time-series rows."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
@@ -136,7 +137,7 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
     spr = data_signals[0].num_samples_per_record  # 30 samples per 60s record = 2s epochs
     dur = header.duration_per_record               # 60.0 seconds
     epoch = dur / spr                              # 2.0 seconds
-    pld_start = header.start_datetime
+    pld_start = start_datetime or header.start_datetime
 
     rows = []
     total_samples = spr * header.num_records
@@ -160,7 +161,7 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
 
 
-def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
+def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple, start_datetime: datetime | None = None):
     """Delete existing SpO2 rows and insert new ones."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
@@ -169,7 +170,7 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     spo2_sig = header.signals[1]   # SpO2.1s at 1 Hz
     spr = spo2_sig.num_samples_per_record  # 1 sample/second per record
     dur = header.duration_per_record
-    pld_start = header.start_datetime
+    pld_start = start_datetime or header.start_datetime
 
     rows = []
     for rec in range(header.num_records):

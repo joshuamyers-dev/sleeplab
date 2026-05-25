@@ -81,10 +81,18 @@ function AppLayout() {
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const wasSyncingRef = useRef(false)
 
-  // Fetch display timezone from server config once on mount.
   useEffect(() => {
-    api.getAppConfig().then((cfg) => setDisplayTz(cfg.display_tz)).catch(() => {})
-  }, [])
+    if (!user || isLoading) {
+      return
+    }
+    api.getImportSettings()
+      .then((settings) => {
+        if (settings.has_display_tz) {
+          setDisplayTz(settings.display_tz)
+        }
+      })
+      .catch(() => {})
+  }, [user, isLoading])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
