@@ -1,4 +1,5 @@
 import sys
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +10,6 @@ sys.path.insert(0, "importer")
 
 def _mock_cpap_parser(sessions=None, events=None, metrics=None, spo2=None):
     """Return mock cpap_parser and cpap_parser.core modules."""
-    from datetime import timezone
     mock_dir = MagicMock()
     mock_dir.machine.series = "TestDevice"
 
@@ -22,7 +22,7 @@ def _mock_cpap_parser(sessions=None, events=None, metrics=None, spo2=None):
             continue
         ms = MagicMock()
         naive = sd["start_datetime"]
-        ms.start_time = naive.replace(tzinfo=timezone.utc)
+        ms.start_time = naive.replace(tzinfo=UTC)
         mock_cpap_sessions.append(ms)
     mock_dir.sessions = mock_cpap_sessions
 
@@ -311,7 +311,7 @@ def test_run_import_calls_machine_equipment_helpers(tmp_path):
         importlib.reload(cpap_parser_import)
         with patch.object(cpap_parser_import, "get_conn") as mock_get_conn, \
              patch.object(cpap_parser_import, "session_exists", return_value=False), \
-             patch.object(cpap_parser_import, "upsert_session", return_value="db-id-42") as mock_upsert, \
+             patch.object(cpap_parser_import, "upsert_session", return_value="db-id-42"), \
              patch.object(cpap_parser_import, "replace_session_events"), \
              patch.object(cpap_parser_import, "replace_session_metrics_cpap"), \
              patch.object(cpap_parser_import, "replace_session_spo2_cpap"), \
