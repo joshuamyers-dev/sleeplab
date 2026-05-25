@@ -51,6 +51,7 @@ which this project inherits accordingly.
 | [python-multipart](https://github.com/andrew-d/python-multipart) | Apache-2.0 |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause |
 | [cpap-parser](https://gitlab.com/open-cpap/cpap-parser) | GPL-3.0-only |
+| [cpap-py](https://pypi.org/project/cpap-py/) | MIT |
 | [sleephq-client](https://github.com/frohoff/sleephq-client) | MIT |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT |
 
