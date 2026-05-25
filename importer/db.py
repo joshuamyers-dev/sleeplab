@@ -3,7 +3,7 @@ PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg2
@@ -205,7 +205,7 @@ def replace_session_metrics_cpap(conn, session_db_id: int, rows: list[dict]):
             _clamp(r.get("flow_lim"), 0, 1),
         )
         if any(v is not None for v in vals):
-            data.append((session_db_id, datetime.fromtimestamp(r["ts"], tz=timezone.utc)) + vals)
+            data.append((session_db_id, datetime.fromtimestamp(r["ts"], tz=UTC)) + vals)
     sql = """INSERT INTO session_metrics
         (session_id, ts, mask_pressure, pressure, epr_pressure, leak,
          resp_rate, tidal_vol, min_vent, snore, flow_lim)
@@ -298,12 +298,15 @@ def replace_session_spo2_cpap(conn, session_db_id: int, rows: list[dict]):
     data = [
         (
             session_db_id,
-            datetime.fromtimestamp(r["ts"], tz=timezone.utc),
+            datetime.fromtimestamp(r["ts"], tz=UTC),
             r.get("spo2"),
             r.get("pulse"),
         )
         for r in rows
+        if r.get("spo2") is not None or r.get("pulse") is not None
     ]
+    if not data:
+        return
     sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, data, page_size=5000)

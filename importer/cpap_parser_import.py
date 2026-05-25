@@ -41,7 +41,6 @@ See: joshuamyers-dev/sleeplab#38, cpap-parser#14
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from cpap_parser import map_directory_to_sleeplab  # noqa: F401
 from cpap_parser.adapters.sleeplab_output import map_timeseries_to_metrics, map_timeseries_to_spo2  # noqa: F401
@@ -106,11 +105,13 @@ def _extract_spo2_from_timeseries(session) -> list[dict]:
     return [
         {
             "ts": float(ts),
-            "spo2": spo2[i] if i < len(spo2) else None,
-            "pulse": pulse[i] if i < len(pulse) else None,
+            "spo2":  (spo2[i]  if spo2[i]  > 0 else None) if i < len(spo2)  else None,
+            "pulse": (pulse[i] if pulse[i] > 0 else None) if i < len(pulse) else None,
         }
         for i, ts in enumerate(ts_low)
     ]
+
+from datetime import UTC
 
 from db import (  # noqa: F401
     find_or_create_machine_equipment,
@@ -152,7 +153,7 @@ def detect_open_cpap_layout(directory: Path) -> bool:
 def run_open_cpap_import(
     user_id: str,
     datalog_path: str,
-    from_date: Optional[str] = None,
+    from_date: str | None = None,
 ) -> dict:
     """Parse a CPAP SD-card directory and upsert all sessions into the DB.
 
@@ -242,7 +243,7 @@ def run_open_cpap_import(
         key=lambda x: x[0],
     )
 
-    def _folder_for_block(block_start_aware) -> Optional[_date]:
+    def _folder_for_block(block_start_aware) -> _date | None:
         """Return the folder_date whose summary start is the latest one ≤ block start."""
         naive = block_start_aware.replace(tzinfo=None)
         fd = None
@@ -264,13 +265,25 @@ def run_open_cpap_import(
             metrics_by_date.setdefault(fd, []).extend(_extract_metrics_from_timeseries(s))
             spo2_by_date.setdefault(fd, []).extend(_extract_spo2_from_timeseries(s))
 
-    # Group events by session start: cpap-parser gives (event_type, onset, duration, session_start)
-    # Localize the key here so it matches the localized start_datetime used for the DB lookup.
-    events_by_start: dict = {}
+    # Group events by folder_date so all sub-blocks of a night map to the right session.
+    # cpap-parser gives (event_type, onset_s, duration_s, block_session_start) tuples where
+    # block_session_start is the CPAPSession block start (not the daily-summary start).
+    # We store the naive block start alongside the event so onset can be re-expressed
+    # relative to the summary's csl_start during the insert loop.
+    events_by_date: dict[_date, list] = {}
+    event_counts_by_date: dict[_date, dict] = {}
     for item in result.get("events", []):
         event_type, onset, duration, session_start = item
-        key = _localize(session_start) if session_start.tzinfo is None else session_start
-        events_by_start.setdefault(key, []).append((onset, duration, event_type))
+        ss_aware = (session_start if session_start.tzinfo is not None
+                    else session_start.replace(tzinfo=UTC))
+        fd = _folder_for_block(ss_aware)
+        if fd is not None:
+            naive_block_start = session_start.replace(tzinfo=None)
+            events_by_date.setdefault(fd, []).append(
+                (naive_block_start, onset, duration, event_type)
+            )
+            cnt = event_counts_by_date.setdefault(fd, {})
+            cnt[event_type] = cnt.get(event_type, 0) + 1
 
     conn = get_conn()
     stats = {"imported": 0, "folders": 0, "errors": 0}
@@ -289,10 +302,11 @@ def run_open_cpap_import(
             session_dict["avg_spo2"] = session_dict.pop("spo2_avg", None)
             session_dict["min_spo2"] = session_dict.pop("spo2_min", None)
 
-            # Null out INT16 sentinel values (e.g. Lowenstein uses ±32767 for "no data")
+            # Null out out-of-range SpO2 values (includes INT16 sentinel ±32767 and
+            # device-zeroed oximetry when no pulse-ox is connected).
             for field in ("avg_spo2", "min_spo2"):
                 v = session_dict.get(field)
-                if v is not None and not (0 <= v <= 100):
+                if v is not None and not (0 < v <= 100):
                     session_dict[field] = None
 
             # Localize naive datetimes from parser
@@ -311,6 +325,40 @@ def run_open_cpap_import(
             )
 
             try:
+                folder_date = _date.fromisoformat(str(session_dict.get("folder_date")))
+
+                # Derive event counts / AHI from parsed events when the device summary
+                # omits them (e.g. Lowenstein firmware doesn't write AHI to the file).
+                if session_dict.get("total_ahi_events", 0) == 0:
+                    counts = event_counts_by_date.get(folder_date, {})
+                    if counts:
+                        oa = counts.get("ObstructiveApnea", 0)
+                        ca = counts.get("CentralApnea", 0)
+                        hy = counts.get("Hypopnea", 0)
+                        total = oa + ca + hy
+                        session_dict["obstructive_apnea_count"] = oa
+                        session_dict["central_apnea_count"] = ca
+                        session_dict["hypopnea_count"] = hy
+                        session_dict["apnea_count"] = oa + ca
+                        session_dict["total_ahi_events"] = total
+                        dur_h = (session_dict.get("duration_seconds") or 0) / 3600
+                        if dur_h > 0:
+                            session_dict["ahi"] = round(total / dur_h, 2)
+
+                # Derive per-session averages from timeseries when the adapter omits them.
+                metrics_for_session = metrics_by_date.get(folder_date, [])
+                if metrics_for_session:
+                    for _key, _col in (
+                        ("avg_leak", "leak"),
+                        ("avg_resp_rate", "resp_rate"),
+                        ("avg_tidal_vol", "tidal_vol"),
+                        ("avg_min_vent", "min_vent"),
+                    ):
+                        if session_dict.get(_key) is None:
+                            _vals = [r[_col] for r in metrics_for_session if r.get(_col) is not None]
+                            if _vals:
+                                session_dict[_key] = round(sum(_vals) / len(_vals), 2)
+
                 db_id = upsert_session(conn, session_dict)
 
                 machine_id = find_or_create_machine_equipment(
@@ -325,10 +373,13 @@ def run_open_cpap_import(
                     update_session_machine_equipment(conn, db_id, machine_id)
 
                 csl_start = session_dict["start_datetime"]
-                session_events = events_by_start.get(csl_start, [])
+                raw_events = events_by_date.get(folder_date, [])
+                session_events = [
+                    ((_localize(nb) - csl_start).total_seconds() + onset, dur, ev_type)
+                    for nb, onset, dur, ev_type in raw_events
+                ]
                 replace_session_events(conn, db_id, session_events, csl_start)
 
-                folder_date = _date.fromisoformat(str(session_dict.get("folder_date")))
                 replace_session_metrics_cpap(conn, db_id, metrics_by_date.get(folder_date, []))
                 replace_session_spo2_cpap(conn, db_id, spo2_by_date.get(folder_date, []))
 
