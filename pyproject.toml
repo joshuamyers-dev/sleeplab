@@ -40,5 +40,8 @@ ignore = ["E501"]
 [tool.ruff.format]
 quote-style = "double"
 
+[tool.uv]
+index-url = "https://pypi.org/simple"
+
 [tool.uv.sources]
 cpap-parser = { url = "https://gitlab.com/open-cpap/cpap-parser/-/archive/main/cpap-parser-main.tar.gz" }
