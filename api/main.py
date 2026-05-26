@@ -46,6 +46,7 @@ def parse_version_parts(version: str | None) -> tuple[int, ...] | None:
     normalized = normalize_version(version)
     if not normalized:
         return None
+
     parts: list[int] = []
     for piece in normalized.split("."):
         if not piece.isdigit():
@@ -66,8 +67,9 @@ def get_latest_release() -> dict[str, str | None]:
     now = time.time()
     cached_payload = _release_cache.get("payload")
     checked_at = float(_release_cache.get("checked_at") or 0.0)
+
     if cached_payload is not None and now - checked_at < RELEASE_CHECK_TTL_SECONDS:
-        return cached_payload
+        return cached_payload  # type: ignore[return-value]
 
     payload: dict[str, str | None] = {"latest_version": None, "release_url": None}
     request = Request(
@@ -77,6 +79,7 @@ def get_latest_release() -> dict[str, str | None]:
             "User-Agent": "SleepLab",
         },
     )
+
     try:
         with urlopen(request, timeout=3) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -96,12 +99,13 @@ def get_app_version() -> str:
     configured = os.environ.get("SLEEPLAB_VERSION", "").strip()
     if configured:
         return configured
+
     try:
         content = VERSION_FILE.read_text(encoding="utf-8").strip()
         if not content:
             return DEFAULT_VERSION
-        # VERSION format: "calver [semver]" — extract semver from brackets
-        match = re.search(r'\[([^\]]+)\]', content)
+        # VERSION format: "calver [semver]" - extract semver from brackets.
+        match = re.search(r"\[([^\]]+)\]", content)
         if match:
             return match.group(1)
         return content

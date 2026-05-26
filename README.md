@@ -1,5 +1,9 @@
 # SleepLab
 
+[![GNU GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
+[![Frontend](https://img.shields.io/github/package-json/v/joshuamyers-dev/sleeplab?label=frontend&color=informational)](frontend/package.json)
+[![Backend](https://img.shields.io/github/pyproject/v/joshuamyers-dev/sleeplab?label=backend&color=informational)](pyproject.toml)
+
 SleepLab is a local-first sleep therapy dashboard for importing and exploring ResMed CPAP data. It includes:
 
 - A React + Vite frontend in `frontend/`
@@ -482,3 +486,38 @@ cd frontend && npm run lint
 
 - The backend reads `DATABASE_URL` from environment and falls back to a local development default in [`api/database.py`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/api/database.py).
 - The backend uses a fallback development JWT secret if `SECRET_KEY` is not set. Set a real `SECRET_KEY` outside local development.
+
+## Acknowledgements
+
+This project depends on **open-cpap-parser** as a key functional module for
+multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
+parsing code lives in open-cpap-parser — SleepLab itself does not implement
+any direct derivative of SleepyHead or OSCAR.
+
+open-cpap-parser is a derivative of the free and open-source software
+**SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
+and of **[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code)** (Open Source CPAP
+Analysis Reporter), which is itself a derivative of SleepyHead. The binary-format
+parsing logic in open-cpap-parser's Rust extension module is ported from OSCAR.
+
+Per Mark Watkins' redistribution request, any derivative of this work
+must mention clearly in its advertising material, software installer, and
+about screens that it **"is based on the free and open-source software
+SleepyHead, developed and copyright by Mark Watkins (C) 2011-2018."**
+Referencing "GPL software" alone is not sufficient. See [NOTICE.md](NOTICE.md)
+for the full redistribution notice and third-party copyright statements.
+
+## License
+
+GNU General Public License v3.0 (GPL-3.0)
+
+This project is licensed under the GNU General Public License v3.0.
+See [LICENSE.md](LICENSE.md) for the full license text.
+
+This project incorporates **open-cpap-parser** as a key functional module,
+which is a derivative of **[OSCAR](https://gitlab.com/CrimsonNape/OSCAR-code)**
+and the free and open-source software **SleepyHead**, developed and copyright by
+Mark Watkins (Jedimark) (C) 2011-2018. Both SleepyHead and OSCAR are distributed
+under the GPL-3.0, which this project inherits. All other components are
+permissively licensed (MIT, BSD-3-Clause, Apache-2.0) and are compatible with
+GPL-3.0.

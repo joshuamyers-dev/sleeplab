@@ -28,7 +28,7 @@ export default function AHITrendChart({ trend }: Props) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload = e as any
             if (payload?.activePayload?.[0]?.payload?.sessionId) {
-              navigate(`/sessions/${payload.activePayload[0].payload.sessionId}`)
+              navigate(`/sessions/${payload.activePayload[0].payload.date}`)
             }
           }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#d8dcdd" />

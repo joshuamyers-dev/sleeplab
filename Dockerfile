@@ -29,7 +29,7 @@ COPY api ./api
 COPY importer ./importer
 COPY migrations ./migrations
 COPY docker ./docker
-COPY schema.sql server.py ./
+COPY schema.sql server.py VERSION ./
 COPY --from=frontend-build /build/frontend/dist ./frontend/dist
 
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf \

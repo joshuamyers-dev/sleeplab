@@ -31,9 +31,9 @@ function ahiBadge(ahi: number | null): { label: string; className: string } {
 }
 
 export default function SessionDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
-  const sessionId = id ?? ''
+  const sessionDate = date ?? ''
 
   const [session, setSession] = useState<SessionDetailType | null>(null)
   const [events, setEvents] = useState<EventRecord[]>([])
@@ -50,27 +50,30 @@ export default function SessionDetail() {
     setEquipment(null)
     setWearableData(null)
     Promise.all([
-      api.getSession(sessionId),
-      api.getEvents(sessionId),
-      api.getMetrics(sessionId, 15),
-    ]).then(([s, e, m]) => {
+      api.getSessionByDate(sessionDate),
+    ]).then(([s]) => {
       setSession(s)
-      setEvents(e)
-      setMetrics(m)
-      setLoading(false)
-      if (s.has_spo2) {
-        api.getSessionSpo2(sessionId).then(setSpo2).catch(() => setSpo2(null))
-      }
-      api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => setEquipment(null))
-      api.getWearableData(s.folder_date).then((data) => {
-        if (!data.hr.length && !data.spo2.length && !data.stages.length) {
-          setWearableData(null)
-          return
+      return Promise.all([
+        api.getEvents(s.id),
+        api.getMetrics(s.id, 15),
+      ]).then(([e, m]) => {
+        setEvents(e)
+        setMetrics(m)
+        setLoading(false)
+        if (s.has_spo2) {
+          api.getSessionSpo2(s.id).then(setSpo2).catch(() => setSpo2(null))
         }
-        setWearableData(data)
-      }).catch(() => setWearableData(null))
+        api.getInferredEquipment(s.folder_date.toString()).then(setEquipment).catch(() => setEquipment(null))
+        api.getWearableData(s.folder_date).then((data) => {
+          if (!data.hr.length && !data.spo2.length && !data.stages.length) {
+            setWearableData(null)
+            return
+          }
+          setWearableData(data)
+        }).catch(() => setWearableData(null))
+      })
     }).catch(() => navigate('/dashboard'))
-  }, [navigate, sessionId])
+  }, [navigate, sessionDate])
 
   useEffect(() => {
     if (!session) return
@@ -78,13 +81,13 @@ export default function SessionDetail() {
       const sorted = all
         
         .sort((a, b) => a.folder_date.localeCompare(b.folder_date))
-      const idx = sorted.findIndex(s => s.id === sessionId)
+      const idx = sorted.findIndex(s => s.folder_date === sessionDate)
       setPrevNext({
-        prev: idx > 0 ? sorted[idx - 1].id : null,
-        next: idx < sorted.length - 1 ? sorted[idx + 1].id : null,
+        prev: idx > 0 ? sorted[idx - 1].folder_date : null,
+        next: idx < sorted.length - 1 ? sorted[idx + 1].folder_date : null,
       })
     })
-  }, [session, sessionId])
+  }, [session, sessionDate])
 
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
   if (!session || !metrics) return null
@@ -288,7 +291,7 @@ export default function SessionDetail() {
         </Card>
       )}
 
-      <SessionAICard sessionId={sessionId} />
+      <SessionAICard sessionId={session.id} />
 
       <Card>
         <CardHeader>

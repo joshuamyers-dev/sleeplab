@@ -99,7 +99,7 @@ export default function CalendarHeatmap({ sessions }: Props) {
                     className="h-4 w-4 rounded-sm transition hover:scale-110"
                     style={{ background: color, cursor: entry ? 'pointer' : 'default' }}
                     title={label}
-                    onClick={() => entry && navigate(`/sessions/${entry.sessionId}`)}
+                    onClick={() => entry && navigate(`/sessions/${iso}`)}
                   />
                 )
               })}

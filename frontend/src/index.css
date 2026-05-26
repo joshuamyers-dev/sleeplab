@@ -156,6 +156,25 @@
     font: inherit;
   }
 
+  select {
+    color: var(--foreground);
+    background-color: var(--surface-strong);
+    border-color: var(--border);
+  }
+
+  select option,
+  select optgroup {
+    color: var(--foreground);
+    background-color: var(--surface-strong);
+  }
+
+  [data-theme='dark'] select,
+  [data-theme='dark'] select option,
+  [data-theme='dark'] select optgroup {
+    color: var(--foreground);
+    background-color: #1c2026;
+  }
+
   #root {
     min-height: 100vh;
   }

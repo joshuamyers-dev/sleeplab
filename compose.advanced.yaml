@@ -1,0 +1,136 @@
+# =============================================================================
+# SleepLab — Advanced Compose Configuration
+# =============================================================================
+# This file documents all available configuration options.
+# Compatible with both docker compose and podman compose.
+#
+# Quick start:
+#   1. cp .env.example .env  and edit values
+#   2. docker compose -f compose.advanced.yaml up -d
+#      (or: podman compose -f compose.advanced.yaml up -d)
+#
+# Registries:
+#   - Docker Hub (default):  joshuaaaronmyers/sleeplab
+#   - GitHub Container Registry: ghcr.io/joshuamyers-dev/sleeplab
+#
+# For a minimal zero-config setup see compose.yaml instead.
+# =============================================================================
+
+name: sleeplab
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+
+    environment:
+      # Database credentials — override these in .env.
+      POSTGRES_DB: ${POSTGRES_DB:-cpap}
+      POSTGRES_USER: ${POSTGRES_USER:-cpap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+
+    volumes:
+      # Persistent storage — survives container restarts and upgrades.
+      - sleeplab_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cpap} -d ${POSTGRES_DB:-cpap}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # SleepLab application (FastAPI + nginx frontend)
+  # ---------------------------------------------------------------------------
+  app:
+    # Switch to GHCR by replacing with:
+    # image: ghcr.io/joshuamyers-dev/sleeplab:latest
+    image: joshuaaaronmyers/sleeplab:latest
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      # --- Database ----------------------------------------------------------
+      # Connection URL built from the same variables used by the postgres service.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-cpap}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cpap}
+
+      # --- Security ----------------------------------------------------------
+      # Generate a strong key:  openssl rand -hex 32
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+
+      # --- API / Networking --------------------------------------------------
+      # Public URL of the SleepLab instance (used by the frontend config.js).
+      # Set this to your domain or IP if accessing from another device.
+      API_URL: ${API_URL:-http://localhost:8000}
+
+      # Comma-separated origins allowed for CORS.  * allows all (dev only).
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+
+      # --- Optional: OpenAI --------------------------------------------------
+      # Enables AI-powered session summaries.  Get a key at https://platform.openai.com
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # --- Optional: SleepHQ cloud import ------------------------------------
+      # Set to "true" and the sleephq-client package will be installed at startup.
+      # Requires SLEEPHQ_API_KEY and SLEEPHQ_BASE_URL in your .env.
+      SLEEPHQ_ENABLED: ${SLEEPHQ_ENABLED:-false}
+
+      # --- Optional: Import webhook ------------------------------------------
+      # Shared secret for automated CPAP imports (POST /import/webhook/{userId}
+      # and POST /import/trigger/all).  Generate with: openssl rand -hex 16
+      IMPORT_WEBHOOK_SECRET: ${IMPORT_WEBHOOK_SECRET:-}
+
+      # --- Optional: Wearable data integration -------------------------------
+      # Set WEARABLE_ENABLED=false to disable all wearable fetching.
+      WEARABLE_ENABLED: ${WEARABLE_ENABLED:-true}
+      # Provider: "open-wearables" or "mirobody"
+      WEARABLE_DEFAULT_PROVIDER: ${WEARABLE_DEFAULT_PROVIDER:-}
+      WEARABLE_DEFAULT_BASE_URL: ${WEARABLE_DEFAULT_BASE_URL:-}
+      # API key for the wearable data provider.
+      WEARABLE_DEFAULT_API_KEY: ${WEARABLE_DEFAULT_API_KEY:-}
+
+      # --- Time zones --------------------------------------------------------
+      # IANA timezone the CPAP machine is set to (e.g. America/New_York).
+      # Used to interpret naive local timestamps in EDF files before storing as UTC.
+      MACHINE_TZ: ${MACHINE_TZ:-UTC}
+      # IANA timezone for chart labels and session cards in the UI.
+      DISPLAY_TZ: ${DISPLAY_TZ:-UTC}
+
+    # -------------------------------------------------------------------------
+    # Optional: Local DATALOG import
+    # -------------------------------------------------------------------------
+    # Bind-mount a directory containing CPAP DATALOG files so SleepLab can
+    # import them directly.  Set LOCAL_DATALOG_PATH in .env to the host path
+    # (e.g. /mnt/nas/cpap-data/DATALOG).  Defaults to ./data (relative to this
+    # compose file).  The :ro suffix mounts read-only for safety.
+    volumes:
+      - ${LOCAL_DATALOG_PATH:-./data}:/data:ro
+
+    ports:
+      # Web UI — open this in your browser.
+      - "8080:8080"
+      # FastAPI direct access — needed by external tools like CPAP_data_uploader.
+      # Omit this line if you only access the API through the nginx proxy.
+      - "8000:8000"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    restart: unless-stopped
+
+# ---------------------------------------------------------------------------
+# Persistent volumes
+# ---------------------------------------------------------------------------
+volumes:
+  sleeplab_postgres_data:
