@@ -69,7 +69,7 @@ jobs:
           echo "calver=$CALVER" >> "$GITHUB_OUTPUT"
 
       - name: Build and push to GHCR
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         continue-on-error: true
         with:
           context: .
@@ -81,7 +81,7 @@ jobs:
             ghcr.io/joshuamyers-dev/sleeplab:${{ github.sha }}
 
       - name: Build and push to Docker Hub
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
