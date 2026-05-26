@@ -214,6 +214,36 @@ export interface DailyStat {
   session_id: string
 }
 
+export interface OverviewDailyStat {
+  folder_date: string
+  session_id: string
+  ahi: number | null
+  central_apnea_index: number | null
+  obstructive_apnea_index: number | null
+  hypopnea_index: number | null
+  apnea_index: number | null
+  arousal_index: number | null
+  usage_hours: number
+  session_start_hour: number | null
+  session_end_hour: number | null
+  avg_pressure: number | null
+  p95_pressure: number | null
+  avg_leak: number | null
+  large_leak_minutes: number | null
+  avg_flow_lim: number | null
+  avg_tidal_vol: number | null
+  avg_min_vent: number | null
+  avg_resp_rate: number | null
+  min_spo2: number | null
+  avg_spo2: number | null
+  avg_pulse: number | null
+  equipment_age_days: number | null
+}
+
+export interface OverviewStats {
+  nights: OverviewDailyStat[]
+}
+
 export interface AppConfig {
   display_tz: string
   machine_tz: string
@@ -347,6 +377,7 @@ function postForm<T>(path: string, formData: FormData) {
 export const api = {
   getVersion: () => get<VersionResponse>('/version'),
   getSummary: () => get<SummaryStats>('/stats/summary'),
+  getOverviewStats: (days = 180) => get<OverviewStats>('/stats/overview', { days }),
   getAISummary: (days = 30) => get<AISummaryResponse>('/stats/ai-summary', { days }),
   getSessionAISummary: (sessionId: string) => get<SessionAISummaryResponse>(`/stats/sessions/${sessionId}/ai-summary`),
   getTrendAISummary: () => get<TrendAISummaryResponse>('/stats/trend-ai'),
