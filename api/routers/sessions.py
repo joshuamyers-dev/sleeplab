@@ -319,3 +319,63 @@ def delete_all_sessions(
         {"uid": current_user["id"]},
     )
     db.commit()
+
+
+@router.get("/by-date/{folder_date}", response_model=SessionDetail)
+def get_session_by_date(
+    folder_date: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get session detail by date (YYYY-MM-DD)."""
+    row = db.execute(
+        text("""
+            WITH night AS (
+                SELECT folder_date, user_id
+                FROM sessions
+                WHERE folder_date = CAST(:date AS date) AND user_id = CAST(:uid AS uuid)
+                LIMIT 1
+            )
+            SELECT
+                (array_agg(s.id::text ORDER BY s.duration_seconds DESC))[1] AS id,
+                (array_agg(s.session_id ORDER BY s.duration_seconds DESC))[1] AS session_id,
+                s.folder_date,
+                0 AS block_index,
+                MIN(s.start_datetime) AS start_datetime,
+                MIN(s.start_datetime) AS pld_start_datetime,
+                SUM(s.duration_seconds) AS duration_seconds,
+                SUM(s.total_ahi_events) AS total_ahi_events,
+                SUM(s.central_apnea_count) AS central_apnea_count,
+                SUM(s.obstructive_apnea_count) AS obstructive_apnea_count,
+                SUM(s.hypopnea_count) AS hypopnea_count,
+                SUM(s.apnea_count) AS apnea_count,
+                SUM(s.arousal_count) AS arousal_count,
+                AVG(s.avg_pressure) AS avg_pressure,
+                MAX(s.p95_pressure) AS p95_pressure,
+                AVG(s.avg_leak) AS avg_leak,
+                BOOL_OR(s.has_spo2) AS has_spo2,
+                CASE WHEN SUM(s.duration_seconds) > 0
+                     THEN ROUND((SUM(s.total_ahi_events) / (SUM(s.duration_seconds) / 3600.0))::numeric, 2)
+                     ELSE 0 END AS ahi,
+                AVG(s.avg_resp_rate) AS avg_resp_rate,
+                AVG(s.avg_tidal_vol) AS avg_tidal_vol,
+                AVG(s.avg_min_vent) AS avg_min_vent,
+                AVG(s.avg_snore) AS avg_snore,
+                AVG(s.avg_flow_lim) AS avg_flow_lim,
+                AVG(s.avg_spo2) AS avg_spo2,
+                MIN(s.min_spo2) AS min_spo2,
+                (array_agg(s.device_serial   ORDER BY s.duration_seconds DESC))[1] AS device_serial,
+                (array_agg(s.therapy_mode    ORDER BY s.duration_seconds DESC))[1] AS therapy_mode,
+                (array_agg(s.mask_type       ORDER BY s.duration_seconds DESC))[1] AS mask_type,
+                (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
+                (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c
+            FROM sessions s
+            JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
+            WHERE s.duration_seconds >= 600
+            GROUP BY s.folder_date
+        """),
+        {"date": folder_date, "uid": current_user["id"]},
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No session found for this date")
+    return SessionDetail.model_validate(dict(row))
