@@ -128,75 +128,80 @@ export default function Dashboard() {
     avgPressure: 'The average treatment pressure your machine delivered during recorded nights. This can help show whether your pressure settings are in the right range.',
     respiratoryEvents: 'The average number of breathing events seen on each recorded night. Lower numbers usually suggest steadier breathing during treatment.',
   }
+  const statCardContentClass = 'flex h-full flex-col items-start px-4 pb-4 pt-5 sm:px-6 sm:pb-6 sm:pt-7'
+  const statLabelClass = 'flex items-center gap-1.5 text-xs font-bold text-[var(--foreground)] sm:gap-2 sm:text-sm'
+  const statValueClass = 'mt-2 text-3xl font-semibold sm:text-4xl'
+  const statDescriptionClass = 'mt-1 text-xs leading-5 text-[var(--muted-foreground)] sm:text-sm'
+  const statLinkClass = 'mt-3 inline-flex items-center gap-1 text-xs font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)] sm:text-sm'
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="space-y-5 sm:space-y-8">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.10),_transparent_30%),var(--surface-strong)]">
-          <CardContent className="flex h-full flex-col items-start px-6 pb-6 pt-7">
-            <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+          <CardContent className={statCardContentClass}>
+            <div className={statLabelClass}>
               <span>Streaks</span>
               <InfoPopover title="Streaks">{statHelp.streaks}</InfoPopover>
             </div>
-            <div className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{streakCount}</div>
-            <div className="mt-1 text-sm text-[var(--muted-foreground)]">Consecutive nights tracked</div>
-            <Link className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/calendar#calendar-grid">
+            <div className={`${statValueClass} text-[var(--foreground)]`}>{streakCount}</div>
+            <div className={statDescriptionClass}>Consecutive nights tracked</div>
+            <Link className={statLinkClass} to="/calendar#calendar-grid">
               <span>View calendar</span>
               <ChevronRightIcon className="h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex h-full flex-col items-start px-6 pb-6 pt-7">
-            <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+          <CardContent className={statCardContentClass}>
+            <div className={statLabelClass}>
               <span>Compliance</span>
               <InfoPopover title="Compliance">{statHelp.compliance}</InfoPopover>
             </div>
-            <div className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{summary.compliance_pct}%</div>
-            <div className="mt-1 text-sm text-[var(--muted-foreground)]">Used the machine consistently</div>
-            <Link className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/trends#usage-trend">
+            <div className={`${statValueClass} text-[var(--foreground)]`}>{summary.compliance_pct}%</div>
+            <div className={statDescriptionClass}>Used the machine consistently</div>
+            <Link className={statLinkClass} to="/trends#usage-trend">
               <span>View usage trend</span>
               <ChevronRightIcon className="h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex h-full flex-col items-start px-6 pb-6 pt-7">
-            <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+          <CardContent className={statCardContentClass}>
+            <div className={statLabelClass}>
               <span>Average AHI</span>
               <InfoPopover title="Average AHI">{statHelp.avgAhi}</InfoPopover>
             </div>
-            <div className={`mt-2 text-4xl font-semibold ${ahiTone(summary.avg_ahi)}`}>{summary.avg_ahi?.toFixed(1) ?? '—'}</div>
-            <div className="mt-1 text-sm text-[var(--muted-foreground)]">Breathing events each hour</div>
-            <Link className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/trends#ahi-trend">
+            <div className={`${statValueClass} ${ahiTone(summary.avg_ahi)}`}>{summary.avg_ahi?.toFixed(1) ?? '—'}</div>
+            <div className={statDescriptionClass}>Breathing events each hour</div>
+            <Link className={statLinkClass} to="/trends#ahi-trend">
               <span>View AHI trend</span>
               <ChevronRightIcon className="h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex h-full flex-col items-start px-6 pb-6 pt-7">
-            <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+          <CardContent className={statCardContentClass}>
+            <div className={statLabelClass}>
               <span>Average Pressure</span>
               <InfoPopover title="Average pressure">{statHelp.avgPressure}</InfoPopover>
             </div>
-            <div className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{summary.avg_pressure?.toFixed(1) ?? '—'}</div>
-            <div className="mt-1 text-sm text-[var(--muted-foreground)]">Typical treatment pressure used</div>
-            <Link className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/calendar#calendar-grid">
+            <div className={`${statValueClass} text-[var(--foreground)]`}>{summary.avg_pressure?.toFixed(1) ?? '—'}</div>
+            <div className={statDescriptionClass}>Typical treatment pressure used</div>
+            <Link className={statLinkClass} to="/calendar#calendar-grid">
               <span>View session details</span>
               <ChevronRightIcon className="h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex h-full flex-col items-start px-6 pb-6 pt-7">
-            <div className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+        <Card className="col-span-2 lg:col-span-1">
+          <CardContent className={statCardContentClass}>
+            <div className={statLabelClass}>
               <span>Respiratory Events</span>
               <InfoPopover title="Respiratory events">{statHelp.respiratoryEvents}</InfoPopover>
             </div>
-            <div className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{respiratoryEventsPerNight.toFixed(1)}</div>
-            <div className="mt-1 text-sm text-[var(--muted-foreground)]">Average breathing events per night</div>
-            <Link className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/trends#event-breakdown">
+            <div className={`${statValueClass} text-[var(--foreground)]`}>{respiratoryEventsPerNight.toFixed(1)}</div>
+            <div className={statDescriptionClass}>Average breathing events per night</div>
+            <Link className={statLinkClass} to="/trends#event-breakdown">
               <span>View event timeline</span>
               <ChevronRightIcon className="h-4 w-4" />
             </Link>
