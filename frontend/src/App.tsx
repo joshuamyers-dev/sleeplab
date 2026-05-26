@@ -8,6 +8,7 @@ import {
   ActivityIcon,
   CalendarIcon,
   ChevronRightIcon,
+  EquipmentIcon,
   HomeIcon,
   MoonIcon,
   SunIcon,
@@ -15,6 +16,7 @@ import {
 import logo from './assets/logo.webp'
 import Dashboard from './pages/Dashboard'
 import CalendarPage from './pages/Calendar'
+import EquipmentPage from './pages/Equipment'
 import ImportPage from './pages/Import'
 import InsightsPage from './pages/Insights'
 import Login from './pages/Login'
@@ -201,6 +203,7 @@ function AppLayout() {
   const onOverview = location.pathname === '/dashboard'
   const onCalendar = location.pathname === '/calendar'
   const onTrends = location.pathname === '/trends'
+  const onEquipment = location.pathname === '/equipment'
 
   const routes = (
     <Routes>
@@ -210,6 +213,7 @@ function AppLayout() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/trends" element={<ProtectedRoute><TrendsPage /></ProtectedRoute>} />
+      <Route path="/equipment" element={<ProtectedRoute><EquipmentPage /></ProtectedRoute>} />
       <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
       <Route path="/sessions/:date" element={<ProtectedRoute><SessionDetail /></ProtectedRoute>} />
       <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
@@ -321,6 +325,17 @@ function AppLayout() {
                 >
                   <ActivityIcon className="h-4 w-4" />
                   <span>Trends</span>
+                </Link>
+                <Link
+                  to="/equipment"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${
+                    onEquipment
+                      ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                      : 'text-[var(--muted-foreground)] hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  <EquipmentIcon className="h-4 w-4" />
+                  <span>Equipment</span>
                 </Link>
                 <div className="ml-auto inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-soft)] p-1">
                   <button

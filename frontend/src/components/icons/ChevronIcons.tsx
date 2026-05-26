@@ -53,6 +53,15 @@ export function ActivityIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function EquipmentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
+      <path d="M6 5.5h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M7.5 5.5V4.8A2.3 2.3 0 0 1 9.8 2.5h.4a2.3 2.3 0 0 1 2.3 2.3v.7M4 10h12M7 13h2M11 13h2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function SparklesIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>

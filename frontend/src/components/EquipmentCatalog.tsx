@@ -16,6 +16,15 @@ const TYPE_LABELS: Record<EquipmentType, string> = {
 
 const MASK_CATEGORIES = ['Nasal', 'Nasal Pillows', 'Full Face', 'Hybrid']
 
+type ReplacementUnit = 'days' | 'weeks' | 'months' | 'years'
+
+const REPLACEMENT_UNIT_DAYS: Record<ReplacementUnit, number> = {
+  days: 1,
+  weeks: 7,
+  months: 30,
+  years: 365,
+}
+
 // US insurance replacement intervals by type.
 // Cushion default is 15d (nasal); updates to 30d when Full Face / Hybrid is selected.
 const DEFAULT_REPLACEMENT_DAYS: Record<EquipmentType, number> = {
@@ -40,6 +49,36 @@ function replacementStatus(item: Equipment): { label: string; className: string 
   return { label: `${remaining}d until replacement`, className: 'text-[var(--muted-foreground)]' }
 }
 
+function remainingReplacementDays(item: Equipment): number | null {
+  if (!item.replacement_days || item.days_in_use == null) return null
+  return item.replacement_days - item.days_in_use
+}
+
+function equipmentLabel(item: Equipment): string {
+  return [item.brand, item.model].filter(Boolean).join(' ') || TYPE_LABELS[item.equipment_type]
+}
+
+function reminderMessage(remaining: number): string {
+  if (remaining < 0) return `${Math.abs(remaining)}d overdue`
+  if (remaining === 0) return 'Due today'
+  if (remaining === 1) return 'Due tomorrow'
+  return `Due in ${remaining}d`
+}
+
+function inferReplacementUnit(days: number | null | undefined): ReplacementUnit {
+  if (!days) return 'days'
+  if (days % REPLACEMENT_UNIT_DAYS.years === 0) return 'years'
+  if (days % REPLACEMENT_UNIT_DAYS.months === 0) return 'months'
+  if (days % REPLACEMENT_UNIT_DAYS.weeks === 0) return 'weeks'
+  return 'days'
+}
+
+function replacementIntervalValue(days: number | null | undefined, unit: ReplacementUnit): string {
+  if (!days) return ''
+  const value = days / REPLACEMENT_UNIT_DAYS[unit]
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
+}
+
 const EMPTY_FORM: EquipmentCreate = {
   equipment_type: 'cushion',
   start_date: new Date().toISOString().slice(0, 10),
@@ -55,6 +94,9 @@ export default function EquipmentCatalog() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<EquipmentCreate>({ ...EMPTY_FORM })
+  const [replacementIntervalUnit, setReplacementIntervalUnit] = useState<ReplacementUnit>(
+    inferReplacementUnit(EMPTY_FORM.replacement_days),
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -65,12 +107,30 @@ export default function EquipmentCatalog() {
 
   function openAdd() {
     setForm({ ...EMPTY_FORM })
+    setReplacementIntervalUnit(inferReplacementUnit(EMPTY_FORM.replacement_days))
+    setEditingId(null)
+    setError(null)
+    setShowForm(true)
+  }
+
+  function openReplacement(item: Equipment) {
+    setReplacementIntervalUnit(inferReplacementUnit(item.replacement_days))
+    setForm({
+      equipment_type: item.equipment_type,
+      start_date: new Date().toISOString().slice(0, 10),
+      replacement_days: item.replacement_days,
+      mask_category: item.mask_category,
+      brand: item.brand,
+      model: item.model,
+      notes: item.notes,
+    })
     setEditingId(null)
     setError(null)
     setShowForm(true)
   }
 
   function openEdit(item: Equipment) {
+    setReplacementIntervalUnit(inferReplacementUnit(item.replacement_days))
     setForm({
       equipment_type: item.equipment_type,
       start_date: item.start_date,
@@ -93,21 +153,49 @@ export default function EquipmentCatalog() {
   function setField<K extends keyof EquipmentCreate>(key: K, value: EquipmentCreate[K]) {
     if (key === 'equipment_type') {
       const t = value as EquipmentType
+      const replacementDays = DEFAULT_REPLACEMENT_DAYS[t]
+      setReplacementIntervalUnit(inferReplacementUnit(replacementDays))
       setForm(f => ({
         ...f,
         equipment_type: t,
-        replacement_days: DEFAULT_REPLACEMENT_DAYS[t],
+        replacement_days: replacementDays,
         mask_category: t !== 'cushion' ? null : f.mask_category,
       }))
     } else if (key === 'mask_category') {
       const cat = value as string | null
+      const replacementDays = cushionDaysForCategory(cat)
+      setReplacementIntervalUnit(inferReplacementUnit(replacementDays))
       setForm(f => ({
         ...f,
         mask_category: cat,
-        replacement_days: f.equipment_type === 'cushion' ? cushionDaysForCategory(cat) : f.replacement_days,
+        replacement_days: f.equipment_type === 'cushion' ? replacementDays : f.replacement_days,
       }))
     } else {
       setForm(f => ({ ...f, [key]: value }))
+    }
+  }
+
+  function setReplacementInterval(value: string) {
+    const numericValue = Number(value)
+    setForm(f => ({
+      ...f,
+      replacement_days: value && Number.isFinite(numericValue) && numericValue > 0
+        ? Math.round(numericValue * REPLACEMENT_UNIT_DAYS[replacementIntervalUnit])
+        : null,
+    }))
+  }
+
+  function setReplacementUnit(unit: ReplacementUnit) {
+    const currentValue = replacementIntervalValue(form.replacement_days, replacementIntervalUnit)
+    setReplacementIntervalUnit(unit)
+    if (currentValue) {
+      const numericValue = Number(currentValue)
+      setForm(f => ({
+        ...f,
+        replacement_days: Number.isFinite(numericValue) && numericValue > 0
+          ? Math.round(numericValue * REPLACEMENT_UNIT_DAYS[unit])
+          : null,
+      }))
     }
   }
 
@@ -157,6 +245,11 @@ export default function EquipmentCatalog() {
     ])
   ) as Record<EquipmentType, Equipment[]>
 
+  const reminderItems = items
+    .map(item => ({ item, remaining: remainingReplacementDays(item) }))
+    .filter((entry): entry is { item: Equipment; remaining: number } => entry.remaining != null && entry.remaining <= 14)
+    .sort((a, b) => a.remaining - b.remaining)
+
   return (
     <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
       <CardHeader>
@@ -166,6 +259,35 @@ export default function EquipmentCatalog() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {reminderItems.length > 0 && (
+          <div className="space-y-3 rounded-[18px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4">
+            <div>
+              <p className="text-sm font-bold text-[var(--accent)]">Replacement reminders</p>
+              <p className="text-sm text-[var(--accent)]/80">
+                These tracked items are due within the next two weeks.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {reminderItems.map(({ item, remaining }) => (
+                <div key={item.id} className="flex flex-col gap-3 rounded-[14px] bg-[var(--surface-strong)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[var(--foreground)]">
+                      {equipmentLabel(item)}
+                      {item.mask_category ? <span className="font-medium text-[var(--muted-foreground)]"> · {item.mask_category}</span> : null}
+                    </p>
+                    <p className={`text-xs font-bold ${remaining <= 7 ? 'text-[var(--danger-text)]' : 'text-yellow-500'}`}>
+                      {reminderMessage(remaining)}
+                      {item.days_in_use != null ? ` · ${item.days_in_use}d in use` : ''}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => openReplacement(item)}>
+                    Log replacement
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Item list grouped by type */}
         {(['cushion', 'headgear', 'tubing', 'humidifier_chamber', 'filter'] as EquipmentType[]).map(type => (
@@ -177,7 +299,7 @@ export default function EquipmentCatalog() {
               <div className="space-y-2">
                 {grouped[type].map(item => {
                   const status = replacementStatus(item)
-                  const label = [item.brand, item.model].filter(Boolean).join(' ') || TYPE_LABELS[type]
+                  const label = equipmentLabel(item)
                   const categoryTag = item.mask_category ? ` · ${item.mask_category}` : ''
                   return (
                     <div key={item.id} className="flex items-center justify-between gap-3 rounded-[14px] bg-[var(--surface-soft)] px-4 py-3">
@@ -188,7 +310,7 @@ export default function EquipmentCatalog() {
                         <p className="text-xs text-[var(--muted-foreground)]">
                           Started {item.start_date}
                           {item.days_in_use != null && ` · ${item.days_in_use}d in use`}
-                          {status && <span className={` · ${status.className}`}>{status.label}</span>}
+                          {status && <span className={status.className}> · {status.label}</span>}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
@@ -284,10 +406,31 @@ export default function EquipmentCatalog() {
                   onChange={e => setField('start_date', e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="eq-replace">Replace every (days)</Label>
-                <Input id="eq-replace" inputMode="numeric" value={form.replacement_days ?? ''}
-                  placeholder="Optional"
-                  onChange={e => setField('replacement_days', e.target.value ? Number(e.target.value) : null)} />
+                <Label htmlFor="eq-replace">Replace every</Label>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem]">
+                  <Input
+                    id="eq-replace"
+                    inputMode="decimal"
+                    value={replacementIntervalValue(form.replacement_days, replacementIntervalUnit)}
+                    placeholder="Optional"
+                    onChange={e => setReplacementInterval(e.target.value)}
+                  />
+                  <select
+                    value={replacementIntervalUnit}
+                    onChange={e => setReplacementUnit(e.target.value as ReplacementUnit)}
+                    className="flex h-11 w-full rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-border)]"
+                  >
+                    <option value="days" className="bg-[var(--surface-strong)] text-[var(--foreground)]">Days</option>
+                    <option value="weeks" className="bg-[var(--surface-strong)] text-[var(--foreground)]">Weeks</option>
+                    <option value="months" className="bg-[var(--surface-strong)] text-[var(--foreground)]">Months</option>
+                    <option value="years" className="bg-[var(--surface-strong)] text-[var(--foreground)]">Years</option>
+                  </select>
+                </div>
+                {form.replacement_days ? (
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Saved as {form.replacement_days} days for reminders.
+                  </p>
+                ) : null}
               </div>
             </div>
 
