@@ -6,15 +6,7 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python3.12 -m uvicorn server:app --host 0.0.0.0 --port 8000",
-        "cwd": "/Users/joshuanissenbaum/Programming/cpap-dashboard"
-      }
-    },
-    "fetch-deps": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "python3.12 -m pip install -r api/requirements.txt",
-        "cwd": "/Users/joshuanissenbaum/Programming/cpap-dashboard"
+        "command": "python3.12 -m uvicorn api.main:app --host 0.0.0.0 --port 8000"
       }
     }
   }

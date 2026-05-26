@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.0.0...v1.0.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* remove hardcoded local path from api/project.json ([d5a57c2](https://github.com/joshuamyers-dev/sleeplab/commit/d5a57c231642269cb6036aba3f0a53cf841b4c04))
+
 # 1.0.0 (2026-05-26)
 
 
