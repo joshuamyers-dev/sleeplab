@@ -106,6 +106,7 @@ export interface SessionSummary {
   p95_pressure: number | null
   avg_leak: number | null
   has_spo2: boolean
+  machine_tz: string | null
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -194,11 +195,54 @@ export interface SpO2Response {
   pulse: (number | null)[]
 }
 
+export interface WaveformResponse {
+  timestamps: string[]
+  flow: (number | null)[]
+  pressure: (number | null)[]
+}
+
+export interface EventWindowResponse {
+  event: EventRecord
+  neighboring_events: EventRecord[]
+  metrics: MetricsResponse
+  waveform: WaveformResponse
+}
+
 export interface DailyStat {
   folder_date: string
   ahi: number | null
   duration_hours: number
   session_id: string
+}
+
+export interface OverviewDailyStat {
+  folder_date: string
+  session_id: string
+  ahi: number | null
+  central_apnea_index: number | null
+  obstructive_apnea_index: number | null
+  hypopnea_index: number | null
+  apnea_index: number | null
+  arousal_index: number | null
+  usage_hours: number
+  session_start_hour: number | null
+  session_end_hour: number | null
+  avg_pressure: number | null
+  p95_pressure: number | null
+  avg_leak: number | null
+  large_leak_minutes: number | null
+  avg_flow_lim: number | null
+  avg_tidal_vol: number | null
+  avg_min_vent: number | null
+  avg_resp_rate: number | null
+  min_spo2: number | null
+  avg_spo2: number | null
+  avg_pulse: number | null
+  equipment_age_days: number | null
+}
+
+export interface OverviewStats {
+  nights: OverviewDailyStat[]
 }
 
 export interface AppConfig {
@@ -222,6 +266,16 @@ export interface ImportSettings {
   wearable_provider: string | null
   wearable_base_url: string | null
   wearable_api_key: string | null
+  machine_tz: string
+  display_tz: string
+  has_machine_tz: boolean
+  has_display_tz: boolean
+  llm_provider: string
+  llm_base_url: string | null
+  llm_model: string | null
+  llm_api_key: string | null
+  has_llm_api_key: boolean
+  llm_configured: boolean
 }
 
 export interface WearableData {
@@ -334,6 +388,7 @@ function postForm<T>(path: string, formData: FormData) {
 export const api = {
   getVersion: () => get<VersionResponse>('/version'),
   getSummary: () => get<SummaryStats>('/stats/summary'),
+  getOverviewStats: (days = 180) => get<OverviewStats>('/stats/overview', { days }),
   getAISummary: (days = 30) => get<AISummaryResponse>('/stats/ai-summary', { days }),
   getSessionAISummary: (sessionId: string) => get<SessionAISummaryResponse>(`/stats/sessions/${sessionId}/ai-summary`),
   getTrendAISummary: () => get<TrendAISummaryResponse>('/stats/trend-ai'),
@@ -341,7 +396,11 @@ export const api = {
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
+  updateSessionTimezone: (id: string, machineTz: string) =>
+    put<SessionDetail>(`/sessions/${id}/timezone`, { machine_tz: machineTz }),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
+  getEventWindow: (id: string, eventId: number, params?: { before_seconds?: number; after_seconds?: number; waveform_downsample?: number }) =>
+    get<EventWindowResponse>(`/sessions/${id}/events/${eventId}/window`, params as Record<string, string | number> | undefined),
   getMetrics: (id: string, downsample = 15) =>
     get<MetricsResponse>(`/sessions/${id}/metrics`, { downsample }),
   getSessionSpo2: (id: string) => get<SpO2Response>(`/sessions/${id}/spo2`),

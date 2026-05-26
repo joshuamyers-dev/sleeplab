@@ -7,6 +7,8 @@ interface Props {
   events: EventRecord[]
   durationSeconds: number
   startDatetime: string
+  selectedEventId?: number | null
+  onSelectEvent?: (event: EventRecord) => void
 }
 
 const EVENT_COLORS: Record<string, string> = {
@@ -22,7 +24,7 @@ function fmtTime(startIso: string, offsetSeconds: number): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
-export default function EventTimeline({ events, durationSeconds, startDatetime }: Props) {
+export default function EventTimeline({ events, durationSeconds, startDatetime, selectedEventId, onSelectEvent }: Props) {
   const [activeTooltip, setActiveTooltip] = useState<{
     eventType: string
     timeLabel: string
@@ -71,19 +73,29 @@ export default function EventTimeline({ events, durationSeconds, startDatetime }
           </div>
         ) : null}
 
-        <div className="relative h-6 overflow-hidden rounded-full bg-[rgba(125,105,93,0.14)]">
-          {events.map((evt, i) => {
-            const xPct = (evt.onset_seconds / durationSeconds) * 100
+        <div className="relative h-6 rounded-full bg-[rgba(125,105,93,0.14)]">
+          {events.map((evt) => {
+            const isSelected = selectedEventId === evt.id
+            const markerStartSeconds = isSelected && evt.duration_seconds
+              ? Math.max(0, evt.onset_seconds - evt.duration_seconds)
+              : evt.onset_seconds
+            const xPct = (markerStartSeconds / durationSeconds) * 100
             const widthPct = evt.duration_seconds
-              ? Math.max((evt.duration_seconds / durationSeconds) * 100, 0.3)
+              ? Math.max((evt.duration_seconds / durationSeconds) * 100, isSelected ? 0.8 : 0.3)
               : 0.3
             const color = EVENT_COLORS[evt.event_type] ?? '#888'
             const timeLabel = fmtTime(startDatetime, evt.onset_seconds)
             const durationLabel = evt.duration_seconds ? `${evt.duration_seconds}s` : 'Duration not available'
             return (
-              <span
-                key={i}
-                className="absolute top-0 h-full min-w-1 rounded-sm opacity-85"
+              <button
+                key={evt.id}
+                type="button"
+                aria-label={`${evt.event_type} at ${timeLabel}`}
+                className={`absolute rounded-sm opacity-85 transition focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${
+                  isSelected
+                    ? '-top-1 h-8 z-10 min-w-1.5 ring-2 ring-white shadow-[0_0_0_3px_rgba(148,139,255,0.35),0_0_18px_rgba(148,139,255,0.75)]'
+                    : 'top-0 h-full min-w-1'
+                }`}
                 style={{
                   left: `${xPct}%`,
                   width: `${widthPct}%`,
@@ -107,7 +119,7 @@ export default function EventTimeline({ events, durationSeconds, startDatetime }
                   })
                 }
                 onMouseLeave={() => setActiveTooltip(null)}
-                tabIndex={0}
+                onClick={() => onSelectEvent?.(evt)}
               />
             )
           })}

@@ -132,6 +132,19 @@ def parse_pld(path: str) -> tuple:
     return header, channels
 
 
+def parse_brp(path: str) -> tuple:
+    """
+    Parse a BRP (breath/pressure waveform) EDF file.
+
+    Returns:
+        (EDFHeader, dict[label -> list[float]])
+
+    ResMed BRP files typically contain Flow.40ms and Press.40ms, sampled
+    1500 times per 60-second record (25 Hz).
+    """
+    return parse_pld(path)
+
+
 def parse_eve(path: str) -> tuple:
     """
     Parse an EVE (events) EDF+ file.

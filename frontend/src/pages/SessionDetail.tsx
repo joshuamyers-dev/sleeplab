@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
-import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData } from '../api/client'
+import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData, EventWindowResponse } from '../api/client'
 import WearableSleepStageChart from '../components/WearableSleepStageChart'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
+import EventInspector from '../components/EventInspector'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
 import MetricsChart from '../components/MetricsChartSplit'
@@ -12,6 +13,8 @@ import SpO2Chart from '../components/SpO2Chart'
 import SessionAICard from '../components/SessionAICard'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: getDisplayTz() })
@@ -30,6 +33,34 @@ function ahiBadge(ahi: number | null): { label: string; className: string } {
   return { label: 'Difficult night', className: 'bg-[var(--danger-soft)] text-[var(--danger-text)]' }
 }
 
+const EVENT_WINDOW_PRESETS: Record<number, { before: number; after: number }> = {
+  1: { before: 30, after: 30 },
+  3: { before: 60, after: 120 },
+  5: { before: 120, after: 180 },
+}
+
+const EVENT_WINDOW_DOWNSAMPLE: Record<number, number> = {
+  1: 1,
+  3: 2,
+  5: 3,
+}
+
+const EVENT_CODES: Record<string, string> = {
+  'Central Apnea': 'CA',
+  'Obstructive Apnea': 'OA',
+  'Hypopnea': 'H',
+  'Apnea': 'A',
+  'Arousal': 'RE',
+}
+
+const EVENT_COLORS: Record<string, string> = {
+  'Central Apnea': '#5251A7',
+  'Obstructive Apnea': '#8E3D40',
+  'Hypopnea': '#E9784B',
+  'Apnea': '#C9B715',
+  'Arousal': '#6AA136',
+}
+
 export default function SessionDetail() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
@@ -43,16 +74,34 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(true)
   const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
   const [wearableData, setWearableData] = useState<WearableData | null>(null)
+  const [timezoneDraft, setTimezoneDraft] = useState('')
+  const [timezoneMessage, setTimezoneMessage] = useState<string | null>(null)
+  const [timezoneError, setTimezoneError] = useState<string | null>(null)
+  const [isTimezoneSubmitting, setIsTimezoneSubmitting] = useState(false)
+  const [isTimezoneEditorOpen, setIsTimezoneEditorOpen] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
+  const [eventWindowLoading, setEventWindowLoading] = useState(false)
+  const [eventWindowMinutes, setEventWindowMinutes] = useState(3)
+  const eventWindowCacheRef = useRef<Map<string, EventWindowResponse>>(new Map())
 
   useEffect(() => {
     setLoading(true)
     setSpo2(null)
     setEquipment(null)
     setWearableData(null)
+    setTimezoneMessage(null)
+    setTimezoneError(null)
+    setIsTimezoneEditorOpen(false)
+    setSelectedEventId(null)
+    setEventWindow(null)
+    setEventWindowLoading(false)
+    eventWindowCacheRef.current.clear()
     Promise.all([
       api.getSessionByDate(sessionDate),
     ]).then(([s]) => {
       setSession(s)
+      setTimezoneDraft(s.machine_tz ?? '')
       return Promise.all([
         api.getEvents(s.id),
         api.getMetrics(s.id, 15),
@@ -89,6 +138,108 @@ export default function SessionDetail() {
     })
   }, [session, sessionDate])
 
+  useEffect(() => {
+    if (!session || !selectedEventId) return
+    const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
+    const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
+    const cacheKey = `${selectedEventId}:${eventWindowMinutes}`
+    const cached = eventWindowCacheRef.current.get(cacheKey)
+    if (cached) {
+      setEventWindow(cached)
+      setEventWindowLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setEventWindowLoading(true)
+    api.getEventWindow(session.id, selectedEventId, {
+      before_seconds: preset.before,
+      after_seconds: preset.after,
+      waveform_downsample: waveformDownsample,
+    }).then((data) => {
+      eventWindowCacheRef.current.set(cacheKey, data)
+      if (!cancelled) setEventWindow(data)
+    }).catch(() => {
+      if (!cancelled) setEventWindow(null)
+    }).finally(() => {
+      if (!cancelled) setEventWindowLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [eventWindowMinutes, selectedEventId, session])
+
+  function inspectEvent(event: EventRecord) {
+    setSelectedEventId(event.id)
+  }
+
+  const selectedEventIndex = selectedEventId == null
+    ? -1
+    : events.findIndex((event) => event.id === selectedEventId)
+
+  function inspectRelativeEvent(delta: -1 | 1) {
+    if (selectedEventIndex < 0) return
+    const nextEvent = events[selectedEventIndex + delta]
+    if (nextEvent) {
+      inspectEvent(nextEvent)
+    }
+  }
+
+  useEffect(() => {
+    if (!session || selectedEventIndex < 0) return
+    const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
+    const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
+    for (const neighborIndex of [selectedEventIndex - 1, selectedEventIndex + 1]) {
+      const neighbor = events[neighborIndex]
+      if (!neighbor) continue
+      const cacheKey = `${neighbor.id}:${eventWindowMinutes}`
+      if (eventWindowCacheRef.current.has(cacheKey)) continue
+      api.getEventWindow(session.id, neighbor.id, {
+        before_seconds: preset.before,
+        after_seconds: preset.after,
+        waveform_downsample: waveformDownsample,
+      }).then((data) => {
+        eventWindowCacheRef.current.set(cacheKey, data)
+      }).catch(() => {
+        // Prefetch is opportunistic; normal selection will retry if needed.
+      })
+    }
+  }, [eventWindowMinutes, events, selectedEventIndex, session])
+
+  async function handleTimezoneSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setTimezoneError(null)
+    setTimezoneMessage(null)
+    setIsTimezoneSubmitting(true)
+    try {
+      const updated = await api.updateSessionTimezone(session.id, timezoneDraft)
+      const [nextEvents, nextMetrics] = await Promise.all([
+        api.getEvents(updated.id),
+        api.getMetrics(updated.id, 15),
+      ])
+      setSession(updated)
+      setTimezoneDraft(updated.machine_tz ?? '')
+      setEvents(nextEvents)
+      setMetrics(nextMetrics)
+      setSelectedEventId(null)
+      setEventWindow(null)
+      eventWindowCacheRef.current.clear()
+      if (updated.has_spo2) {
+        api.getSessionSpo2(updated.id).then(setSpo2).catch(() => setSpo2(null))
+      } else {
+        setSpo2(null)
+      }
+      setTimezoneMessage('Session timezone updated.')
+      setIsTimezoneEditorOpen(false)
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : 'Could not update session timezone')
+    } finally {
+      setIsTimezoneSubmitting(false)
+    }
+  }
+
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
   if (!session || !metrics) return null
 
@@ -106,6 +257,10 @@ export default function SessionDetail() {
     respRate: 'Respiratory rate is the average number of breaths per minute recorded by the machine during the session.',
     tidalVolume: 'Tidal volume is the estimated amount of air moved in a normal breath. It is one more signal of breathing pattern, not usually something patients tune directly.',
   }
+  const secondaryStatContentClass = 'px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5'
+  const secondaryStatLabelClass = 'text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] sm:text-xs sm:tracking-[0.14em]'
+  const secondaryStatValueClass = 'text-2xl font-semibold text-[var(--foreground)] sm:text-3xl'
+  const secondaryStatNoteClass = 'mt-1.5 text-[11px] leading-4 text-[var(--muted-foreground)] sm:text-xs'
 
   return (
     <div className="space-y-6">
@@ -137,7 +292,7 @@ export default function SessionDetail() {
 
       {/* Session header card */}
       <Card className="overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(106,161,54,0.10),_transparent_30%),radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_24%),var(--surface-strong)]">
-        <CardContent className="px-6 pb-6 pt-6">
+        <CardContent className="px-4 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
           {/* Top row: label + badge */}
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Session detail</p>
@@ -147,31 +302,68 @@ export default function SessionDetail() {
           </div>
 
           {/* Date + time */}
-          <h1 className="mt-3 text-2xl font-extrabold text-[var(--foreground)] sm:text-3xl">
+          <h1 className="mt-2 text-2xl font-extrabold text-[var(--foreground)] sm:text-3xl">
             {fmtDate(session.folder_date + 'T00:00:00')}
           </h1>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            {fmtTime(session.start_datetime)} – {fmtTime(endTime)}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--muted-foreground)]">
+            <span>{fmtTime(session.start_datetime)} – {fmtTime(endTime)}</span>
+            {session.machine_tz ? (
+              <span title="CPAP machine timezone used for import">· {session.machine_tz}</span>
+            ) : (
+              <span title="CPAP machine timezone was not recorded for this import">· timezone not recorded</span>
+            )}
+            <button
+              type="button"
+              className="ml-1 rounded-full border border-[var(--border)] px-2 py-0.5 text-xs font-bold text-[var(--accent)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
+              onClick={() => {
+                setTimezoneDraft(session.machine_tz ?? '')
+                setTimezoneError(null)
+                setTimezoneMessage(null)
+                setIsTimezoneEditorOpen((current) => !current)
+              }}
+            >
+              {isTimezoneEditorOpen ? 'Cancel edit' : 'Edit'}
+            </button>
+          </div>
+
+          {isTimezoneEditorOpen ? (
+            <form className="mt-3 flex flex-col gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface-soft)] p-3 sm:flex-row sm:items-end" onSubmit={handleTimezoneSubmit}>
+              <div className="space-y-2 sm:min-w-72">
+                <Label htmlFor="sessionMachineTz">Correct machine timezone</Label>
+                <Input
+                  id="sessionMachineTz"
+                  value={timezoneDraft}
+                  onChange={(event) => setTimezoneDraft(event.target.value)}
+                  autoComplete="off"
+                  placeholder="America/New_York"
+                />
+              </div>
+              <Button type="submit" disabled={isTimezoneSubmitting || !timezoneDraft}>
+                {isTimezoneSubmitting ? 'Updating...' : 'Update timezone'}
+              </Button>
+            </form>
+          ) : null}
+          {timezoneMessage ? <p className="mt-2 text-sm font-medium text-[var(--olive-deep)]">{timezoneMessage}</p> : null}
+          {timezoneError ? <p className="mt-2 text-sm text-[var(--danger-text)]">{timezoneError}</p> : null}
 
           {/* Three primary stat pills */}
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-[18px] bg-[rgba(82,81,167,0.08)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">AHI</p>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-[18px] bg-[rgba(82,81,167,0.08)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>AHI</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--accent)]">
                 {session.ahi?.toFixed(1) ?? '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">events/hr</p>
             </div>
-            <div className="rounded-[18px] bg-[var(--surface-soft)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Pressure</p>
+            <div className="rounded-[18px] bg-[var(--surface-soft)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>Pressure</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--foreground)]">
                 {session.avg_pressure?.toFixed(1) ?? '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">cmH₂O</p>
             </div>
-            <div className="rounded-[18px] bg-[rgba(106,161,54,0.08)] px-4 py-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Usage</p>
+            <div className="rounded-[18px] bg-[rgba(106,161,54,0.08)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>Usage</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--green-700)]">
                 {hours}h {mins}m
               </p>
@@ -182,51 +374,51 @@ export default function SessionDetail() {
       </Card>
 
       {/* Secondary stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Events</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Events</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">{session.total_ahi_events}</span>
+              <span className={secondaryStatValueClass}>{session.total_ahi_events}</span>
               <InfoPopover title="Events">{statHelp.events}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+            <p className={secondaryStatNoteClass}>
               CA {session.central_apnea_count} · OA {session.obstructive_apnea_count} · H {session.hypopnea_count}
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Avg leak</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Avg leak</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">
+              <span className={secondaryStatValueClass}>
                 {session.avg_leak != null ? (session.avg_leak * 1000).toFixed(1) : '—'}
               </span>
               <InfoPopover title="Average leak">{statHelp.leak}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">mL/s · P95 {session.p95_pressure?.toFixed(1) ?? '—'} cmH₂O</p>
+            <p className={secondaryStatNoteClass}>mL/s · P95 {session.p95_pressure?.toFixed(1) ?? '—'} cmH₂O</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Resp rate</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Resp rate</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">{session.avg_resp_rate?.toFixed(1) ?? '—'}</span>
+              <span className={secondaryStatValueClass}>{session.avg_resp_rate?.toFixed(1) ?? '—'}</span>
               <InfoPopover title="Respiratory rate">{statHelp.respRate}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">breaths per minute</p>
+            <p className={secondaryStatNoteClass}>breaths per minute</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Tidal volume</p>
+          <CardContent className={secondaryStatContentClass}>
+            <p className={secondaryStatLabelClass}>Tidal volume</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-3xl font-semibold text-[var(--foreground)]">
+              <span className={secondaryStatValueClass}>
                 {session.avg_tidal_vol != null ? (session.avg_tidal_vol * 1000).toFixed(0) : '—'}
               </span>
               <InfoPopover title="Tidal volume">{statHelp.tidalVolume}</InfoPopover>
             </div>
-            <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">mL</p>
+            <p className={secondaryStatNoteClass}>mL</p>
           </CardContent>
         </Card>
       </div>
@@ -234,7 +426,7 @@ export default function SessionDetail() {
       {/* Machine settings — only if any field is present */}
       {(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null) && (
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
+          <CardContent className={secondaryStatContentClass}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Device settings</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
               {session.therapy_mode && (
@@ -257,7 +449,7 @@ export default function SessionDetail() {
       {/* Inferred equipment */}
       {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
         <Card>
-          <CardContent className="px-5 pb-5 pt-5">
+          <CardContent className={secondaryStatContentClass}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {([
@@ -303,9 +495,29 @@ export default function SessionDetail() {
             events={events}
             durationSeconds={session.duration_seconds}
             startDatetime={session.start_datetime}
+            selectedEventId={selectedEventId}
+            onSelectEvent={inspectEvent}
+          />
+          <EventTable
+            events={events}
+            selectedEventId={selectedEventId}
+            onSelectEvent={inspectEvent}
           />
         </CardContent>
       </Card>
+
+      {(selectedEventId || eventWindowLoading) && (
+        <EventInspector
+          data={eventWindow}
+          loading={eventWindowLoading}
+          windowMinutes={eventWindowMinutes}
+          hasPreviousEvent={selectedEventIndex > 0}
+          hasNextEvent={selectedEventIndex >= 0 && selectedEventIndex < events.length - 1}
+          onWindowMinutesChange={setEventWindowMinutes}
+          onPreviousEvent={() => inspectRelativeEvent(-1)}
+          onNextEvent={() => inspectRelativeEvent(1)}
+        />
+      )}
 
       <MetricsChart metrics={metrics} />
 
@@ -316,6 +528,69 @@ export default function SessionDetail() {
       {wearableData && wearableData.stages.length > 0 && (
         <WearableSleepStageChart stages={wearableData.stages} />
       )}
+    </div>
+  )
+}
+
+function EventTable({
+  events,
+  selectedEventId,
+  onSelectEvent,
+}: {
+  events: EventRecord[]
+  selectedEventId: number | null
+  onSelectEvent: (event: EventRecord) => void
+}) {
+  if (!events.length) return null
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-[14px] border border-[var(--border)]">
+      <div className="max-h-52 overflow-auto">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="sticky top-0 bg-[var(--surface-strong)] text-[var(--muted-foreground)]">
+            <tr>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Code</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Time</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Duration</th>
+              <th className="px-3 py-2 font-bold uppercase tracking-[0.12em]">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => {
+              const selected = event.id === selectedEventId
+              const color = EVENT_COLORS[event.event_type] ?? '#8E3D40'
+              return (
+                <tr
+                  key={event.id}
+                  title={`${EVENT_CODES[event.event_type] ?? event.event_type} at ${fmtTime(event.event_datetime)}`}
+                  className={`cursor-pointer border-t border-[var(--border)] transition ${
+                    selected ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--surface-soft)]'
+                  }`}
+                  onClick={() => onSelectEvent(event)}
+                >
+                  <td className="px-3 py-2">
+                    <span
+                      className="inline-flex min-w-8 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                      style={{ background: color }}
+                    >
+                      {EVENT_CODES[event.event_type] ?? event.event_type}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-medium text-[var(--foreground)]">
+                    {fmtTime(event.event_datetime)}
+                  </td>
+                  <td className="px-3 py-2 text-[var(--muted-foreground)]">
+                    {event.duration_seconds ? `${event.duration_seconds}s` : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-[var(--muted-foreground)]">
+                    {event.event_type}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

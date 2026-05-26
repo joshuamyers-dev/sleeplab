@@ -21,6 +21,7 @@ class SessionSummary(BaseModel):
     p95_pressure: Optional[float]
     avg_leak: Optional[float]
     has_spo2: bool
+    machine_tz: Optional[str] = None
 
     @computed_field
     @property
@@ -73,6 +74,19 @@ class SpO2Response(BaseModel):
     timestamps: List[str]
     spo2: List[Optional[int]]
     pulse: List[Optional[int]]
+
+
+class WaveformResponse(BaseModel):
+    timestamps: List[str]
+    flow: List[Optional[float]]
+    pressure: List[Optional[float]]
+
+
+class EventWindowResponse(BaseModel):
+    event: EventRecord
+    neighboring_events: List[EventRecord]
+    metrics: MetricsResponse
+    waveform: WaveformResponse
 
 
 EquipmentType = Literal["cushion", "headgear", "tubing", "humidifier_chamber", "filter"]
@@ -128,6 +142,32 @@ class DailyStat(BaseModel):
     session_id: str
 
 
+class OverviewDailyStat(BaseModel):
+    folder_date: date
+    session_id: str
+    ahi: Optional[float]
+    central_apnea_index: Optional[float]
+    obstructive_apnea_index: Optional[float]
+    hypopnea_index: Optional[float]
+    apnea_index: Optional[float]
+    arousal_index: Optional[float]
+    usage_hours: float
+    session_start_hour: Optional[float]
+    session_end_hour: Optional[float]
+    avg_pressure: Optional[float]
+    p95_pressure: Optional[float]
+    avg_leak: Optional[float]
+    large_leak_minutes: Optional[float]
+    avg_flow_lim: Optional[float]
+    avg_tidal_vol: Optional[float]
+    avg_min_vent: Optional[float]
+    avg_resp_rate: Optional[float]
+    min_spo2: Optional[float]
+    avg_spo2: Optional[float]
+    avg_pulse: Optional[float]
+    equipment_age_days: Optional[int]
+
+
 class SummaryStats(BaseModel):
     total_nights: int
     nights_with_data: int
@@ -136,3 +176,7 @@ class SummaryStats(BaseModel):
     avg_pressure: Optional[float]
     ahi_trend: List[DailyStat]
     event_breakdown: Dict
+
+
+class OverviewStats(BaseModel):
+    nights: List[OverviewDailyStat]

@@ -12,6 +12,15 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..database import get_db
+from ..llm_client import is_configured
+from ..settings_store import (
+    get_llm_settings,
+    get_timezone_settings,
+    get_user_import_settings_row,
+    has_explicit_llm_settings,
+    normalize_llm_provider,
+    normalize_timezone,
+)
 from .upload import IMPORT_JOBS, _mark_import_finished, _mark_import_running
 
 router = APIRouter()
@@ -39,6 +48,16 @@ class ImportSettingsResponse(BaseModel):
     wearable_provider: str | None = None
     wearable_base_url: str | None = None
     wearable_api_key: str | None = None  # always None in responses
+    machine_tz: str = "UTC"
+    display_tz: str = "UTC"
+    has_machine_tz: bool = False
+    has_display_tz: bool = False
+    llm_provider: str = "ollama"
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None  # always None in responses
+    has_llm_api_key: bool = False
+    llm_configured: bool = False
 
 
 class WebhookPayload(BaseModel):
@@ -58,6 +77,12 @@ class ImportSettingsUpdate(BaseModel):
     wearable_provider: str | None = None
     wearable_base_url: str | None = None
     wearable_api_key: str | None = None
+    machine_tz: str | None = None
+    display_tz: str | None = None
+    llm_provider: str | None = None
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str | None = None
 
 
 def _validate_local_path(raw: str) -> Path:
@@ -82,15 +107,24 @@ def get_import_settings(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    row = db.execute(
-        text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": current_user["id"]},
-    ).mappings().first()
+    row = get_user_import_settings_row(db, current_user["id"])
 
     enabled = os.environ.get("SLEEPHQ_ENABLED", "false").lower() == "true"
+    tz = get_timezone_settings(db, current_user["id"])
+    llm = get_llm_settings(db, current_user["id"])
+    llm_configured = has_explicit_llm_settings(db, current_user["id"]) and is_configured(llm)
 
     if row is None:
-        return ImportSettingsResponse(sleephq_enabled=enabled)
+        return ImportSettingsResponse(
+            sleephq_enabled=enabled,
+            machine_tz=tz["machine_tz"],
+            display_tz=tz["display_tz"],
+            llm_provider=str(llm["llm_provider"]),
+            llm_base_url=llm["llm_base_url"],
+            llm_model=llm["llm_model"],
+            has_llm_api_key=bool(llm["llm_api_key"] and llm["llm_api_key"] not in {"ollama", "litellm"}),
+            llm_configured=llm_configured,
+        )
 
     last_at = row["last_local_import_at"]
     return ImportSettingsResponse(
@@ -109,6 +143,16 @@ def get_import_settings(
         wearable_provider=row["wearable_provider"],
         wearable_base_url=row["wearable_base_url"],
         wearable_api_key=None,  # never expose
+        machine_tz=tz["machine_tz"],
+        display_tz=tz["display_tz"],
+        has_machine_tz=bool(row["machine_tz"]),
+        has_display_tz=bool(row["display_tz"]),
+        llm_provider=str(llm["llm_provider"]),
+        llm_base_url=llm["llm_base_url"],
+        llm_model=llm["llm_model"],
+        llm_api_key=None,
+        has_llm_api_key=bool(row["llm_api_key"]),
+        llm_configured=llm_configured,
     )
 
 
@@ -121,11 +165,14 @@ def save_import_settings(
     # Validate local path if provided
     if body.local_datalog_path is not None and body.local_datalog_path != "":
         _validate_local_path(body.local_datalog_path)
+    try:
+        body.machine_tz = normalize_timezone(body.machine_tz)
+        body.display_tz = normalize_timezone(body.display_tz)
+        body.llm_provider = normalize_llm_provider(body.llm_provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    existing = db.execute(
-        text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": current_user["id"]},
-    ).mappings().first()
+    existing = get_user_import_settings_row(db, current_user["id"])
 
     if existing is None:
         db.execute(
@@ -135,13 +182,17 @@ def save_import_settings(
                      sleephq_team_id, sleephq_machine_id,
                      auto_import_sleephq, lookback_days,
                      local_datalog_path, local_import_frequency, updated_at,
-                     wearable_provider, wearable_base_url, wearable_api_key)
+                     wearable_provider, wearable_base_url, wearable_api_key,
+                     machine_tz, display_tz,
+                     llm_provider, llm_base_url, llm_api_key, llm_model)
                 VALUES
                     (CAST(:uid AS uuid), :client_id, :client_secret,
                      :team_id, :machine_id,
                      :auto_import, :lookback,
                      :local_path, :local_freq, NOW(),
-                     :w_provider, :w_base_url, :w_api_key)
+                     :w_provider, :w_base_url, :w_api_key,
+                     :machine_tz, :display_tz,
+                     :llm_provider, :llm_base_url, :llm_api_key, :llm_model)
             """),
             {
                 "uid": current_user["id"],
@@ -156,6 +207,12 @@ def save_import_settings(
                 "w_provider": body.wearable_provider,
                 "w_base_url": body.wearable_base_url,
                 "w_api_key": body.wearable_api_key,
+                "machine_tz": body.machine_tz,
+                "display_tz": body.display_tz,
+                "llm_provider": body.llm_provider,
+                "llm_base_url": body.llm_base_url,
+                "llm_api_key": body.llm_api_key,
+                "llm_model": body.llm_model,
             },
         )
     else:
@@ -205,6 +262,30 @@ def save_import_settings(
         if body.wearable_api_key is not None:
             set_clauses.append("wearable_api_key = :w_api_key")
             fields["w_api_key"] = body.wearable_api_key
+
+        if "machine_tz" in body.model_fields_set:
+            set_clauses.append("machine_tz = :machine_tz")
+            fields["machine_tz"] = body.machine_tz
+
+        if "display_tz" in body.model_fields_set:
+            set_clauses.append("display_tz = :display_tz")
+            fields["display_tz"] = body.display_tz
+
+        if "llm_provider" in body.model_fields_set:
+            set_clauses.append("llm_provider = :llm_provider")
+            fields["llm_provider"] = body.llm_provider
+
+        if "llm_base_url" in body.model_fields_set:
+            set_clauses.append("llm_base_url = :llm_base_url")
+            fields["llm_base_url"] = body.llm_base_url or None
+
+        if body.llm_api_key is not None and body.llm_api_key != "***":
+            set_clauses.append("llm_api_key = :llm_api_key")
+            fields["llm_api_key"] = body.llm_api_key or None
+
+        if "llm_model" in body.model_fields_set:
+            set_clauses.append("llm_model = :llm_model")
+            fields["llm_model"] = body.llm_model or None
 
         db.execute(
             text(f"UPDATE user_import_settings SET {', '.join(set_clauses)} WHERE user_id = CAST(:uid AS uuid)"),

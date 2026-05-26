@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import SummaryStats, DailyStat
+from ..models import SummaryStats, DailyStat, OverviewStats, OverviewDailyStat
 
 router = APIRouter()
+
+
+def _float_or_none(value):
+    return float(value) if value is not None else None
 
 
 @router.get("/summary", response_model=SummaryStats)
@@ -107,4 +111,160 @@ def get_summary(
         avg_pressure=avg_pressure,
         ahi_trend=ahi_trend,
         event_breakdown=event_breakdown,
+    )
+
+
+@router.get("/overview", response_model=OverviewStats)
+def get_overview(
+    days: int = Query(180, ge=7, le=3650),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Long-range nightly trend data for the overview page.
+
+    Multi-block nights are grouped into one row. Event counts are normalized to
+    hourly indexes so they can be compared across nights of different lengths.
+    """
+    rows = db.execute(text("""
+        WITH night AS (
+            SELECT
+                folder_date,
+                (array_agg(id::text ORDER BY duration_seconds DESC))[1] AS session_id,
+                MIN(start_datetime) AS start_datetime,
+                MIN(start_datetime) + (SUM(duration_seconds) * INTERVAL '1 second') AS end_datetime,
+                SUM(duration_seconds) AS duration_seconds,
+                SUM(total_ahi_events) AS total_ahi_events,
+                SUM(central_apnea_count) AS central_apnea_count,
+                SUM(obstructive_apnea_count) AS obstructive_apnea_count,
+                SUM(hypopnea_count) AS hypopnea_count,
+                SUM(apnea_count) AS apnea_count,
+                SUM(COALESCE(arousal_count, 0)) AS arousal_count,
+                AVG(avg_pressure) AS avg_pressure,
+                MAX(p95_pressure) AS p95_pressure,
+                AVG(avg_leak) AS avg_leak,
+                AVG(avg_flow_lim) AS avg_flow_lim,
+                AVG(avg_tidal_vol) AS avg_tidal_vol,
+                AVG(avg_min_vent) AS avg_min_vent,
+                AVG(avg_resp_rate) AS avg_resp_rate,
+                AVG(avg_spo2) AS avg_spo2,
+                MIN(min_spo2) AS min_spo2
+            FROM sessions
+            WHERE user_id = CAST(:uid AS uuid)
+              AND duration_seconds >= 600
+              AND folder_date >= CURRENT_DATE - (:days * INTERVAL '1 day')
+            GROUP BY folder_date
+        ),
+        metric AS (
+            SELECT
+                s.folder_date,
+                ROUND((COUNT(*) FILTER (WHERE sm.leak >= 24) * 2.0 / 60.0)::numeric, 1) AS large_leak_minutes
+            FROM sessions s
+            JOIN session_metrics sm ON sm.session_id = s.id
+            WHERE s.user_id = CAST(:uid AS uuid)
+              AND s.duration_seconds >= 600
+              AND s.folder_date >= CURRENT_DATE - (:days * INTERVAL '1 day')
+            GROUP BY s.folder_date
+        ),
+        spo2 AS (
+            SELECT
+                s.folder_date,
+                AVG(ss.spo2) AS avg_spo2,
+                MIN(ss.spo2) AS min_spo2,
+                AVG(ss.pulse) AS avg_pulse
+            FROM sessions s
+            JOIN session_spo2 ss ON ss.session_id = s.id
+            WHERE s.user_id = CAST(:uid AS uuid)
+              AND s.duration_seconds >= 600
+              AND s.folder_date >= CURRENT_DATE - (:days * INTERVAL '1 day')
+            GROUP BY s.folder_date
+        ),
+        equipment AS (
+            SELECT
+                n.folder_date,
+                MAX(n.folder_date - eq.start_date) AS equipment_age_days
+            FROM night n
+            LEFT JOIN LATERAL (
+                SELECT DISTINCT ON (equipment_type)
+                    equipment_type,
+                    start_date
+                FROM user_equipment
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND start_date <= n.folder_date
+                ORDER BY equipment_type, start_date DESC
+            ) eq ON TRUE
+            GROUP BY n.folder_date
+        )
+        SELECT
+            n.folder_date,
+            n.session_id,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.total_ahi_events / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS ahi,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.central_apnea_count / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS central_apnea_index,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.obstructive_apnea_count / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS obstructive_apnea_index,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.hypopnea_count / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS hypopnea_index,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.apnea_count / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS apnea_index,
+            CASE WHEN n.duration_seconds > 0
+                 THEN ROUND((n.arousal_count / (n.duration_seconds / 3600.0))::numeric, 2)
+                 ELSE NULL END AS arousal_index,
+            ROUND((n.duration_seconds / 3600.0)::numeric, 2) AS usage_hours,
+            ROUND((EXTRACT(HOUR FROM n.start_datetime) + EXTRACT(MINUTE FROM n.start_datetime) / 60.0)::numeric, 2) AS session_start_hour,
+            ROUND((EXTRACT(HOUR FROM n.end_datetime) + EXTRACT(MINUTE FROM n.end_datetime) / 60.0)::numeric, 2) AS session_end_hour,
+            ROUND(n.avg_pressure::numeric, 2) AS avg_pressure,
+            ROUND(n.p95_pressure::numeric, 2) AS p95_pressure,
+            ROUND(n.avg_leak::numeric, 2) AS avg_leak,
+            m.large_leak_minutes,
+            ROUND(n.avg_flow_lim::numeric, 4) AS avg_flow_lim,
+            ROUND(n.avg_tidal_vol::numeric, 2) AS avg_tidal_vol,
+            ROUND(n.avg_min_vent::numeric, 2) AS avg_min_vent,
+            ROUND(n.avg_resp_rate::numeric, 2) AS avg_resp_rate,
+            COALESCE(sp.min_spo2, n.min_spo2) AS min_spo2,
+            ROUND(COALESCE(sp.avg_spo2, n.avg_spo2)::numeric, 1) AS avg_spo2,
+            ROUND(sp.avg_pulse::numeric, 1) AS avg_pulse,
+            e.equipment_age_days
+        FROM night n
+        LEFT JOIN metric m ON m.folder_date = n.folder_date
+        LEFT JOIN spo2 sp ON sp.folder_date = n.folder_date
+        LEFT JOIN equipment e ON e.folder_date = n.folder_date
+        ORDER BY n.folder_date
+    """), {"uid": current_user["id"], "days": days}).mappings().all()
+
+    return OverviewStats(
+        nights=[
+            OverviewDailyStat(
+                folder_date=row["folder_date"],
+                session_id=row["session_id"],
+                ahi=_float_or_none(row["ahi"]),
+                central_apnea_index=_float_or_none(row["central_apnea_index"]),
+                obstructive_apnea_index=_float_or_none(row["obstructive_apnea_index"]),
+                hypopnea_index=_float_or_none(row["hypopnea_index"]),
+                apnea_index=_float_or_none(row["apnea_index"]),
+                arousal_index=_float_or_none(row["arousal_index"]),
+                usage_hours=_float_or_none(row["usage_hours"]) or 0.0,
+                session_start_hour=_float_or_none(row["session_start_hour"]),
+                session_end_hour=_float_or_none(row["session_end_hour"]),
+                avg_pressure=_float_or_none(row["avg_pressure"]),
+                p95_pressure=_float_or_none(row["p95_pressure"]),
+                avg_leak=_float_or_none(row["avg_leak"]),
+                large_leak_minutes=_float_or_none(row["large_leak_minutes"]),
+                avg_flow_lim=_float_or_none(row["avg_flow_lim"]),
+                avg_tidal_vol=_float_or_none(row["avg_tidal_vol"]),
+                avg_min_vent=_float_or_none(row["avg_min_vent"]),
+                avg_resp_rate=_float_or_none(row["avg_resp_rate"]),
+                min_spo2=_float_or_none(row["min_spo2"]),
+                avg_spo2=_float_or_none(row["avg_spo2"]),
+                avg_pulse=_float_or_none(row["avg_pulse"]),
+                equipment_age_days=row["equipment_age_days"],
+            )
+            for row in rows
+        ]
     )
