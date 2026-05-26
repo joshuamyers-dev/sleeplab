@@ -1,12 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import type { AISummaryResponse } from '../api/client'
+import { api, type AISummaryResponse } from '../api/client'
 import { useAISummary } from '../hooks/useAISummary'
 import GlossaryText from './GlossaryText'
 import { Card, CardContent } from './ui/card'
 
 export default function AISummaryCard({ enabled }: { enabled: boolean }) {
-  const { data, isLoading } = useAISummary(enabled)
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
+  useEffect(() => {
+    api.getImportSettings()
+      .then((settings) => setAiConfigured(settings.llm_configured))
+      .catch(() => setAiConfigured(false))
+  }, [])
+  const { data, isLoading } = useAISummary(enabled && aiConfigured === true)
+  if (aiConfigured !== true) {
+    return null
+  }
   return <AIInsightsCard enabled={enabled} data={data} isLoading={isLoading} />
 }
 

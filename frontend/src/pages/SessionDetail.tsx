@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
@@ -13,6 +13,8 @@ import SpO2Chart from '../components/SpO2Chart'
 import SessionAICard from '../components/SessionAICard'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: getDisplayTz() })
@@ -72,6 +74,11 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(true)
   const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
   const [wearableData, setWearableData] = useState<WearableData | null>(null)
+  const [timezoneDraft, setTimezoneDraft] = useState('')
+  const [timezoneMessage, setTimezoneMessage] = useState<string | null>(null)
+  const [timezoneError, setTimezoneError] = useState<string | null>(null)
+  const [isTimezoneSubmitting, setIsTimezoneSubmitting] = useState(false)
+  const [isTimezoneEditorOpen, setIsTimezoneEditorOpen] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
   const [eventWindowLoading, setEventWindowLoading] = useState(false)
@@ -83,6 +90,9 @@ export default function SessionDetail() {
     setSpo2(null)
     setEquipment(null)
     setWearableData(null)
+    setTimezoneMessage(null)
+    setTimezoneError(null)
+    setIsTimezoneEditorOpen(false)
     setSelectedEventId(null)
     setEventWindow(null)
     setEventWindowLoading(false)
@@ -91,6 +101,7 @@ export default function SessionDetail() {
       api.getSessionByDate(sessionDate),
     ]).then(([s]) => {
       setSession(s)
+      setTimezoneDraft(s.machine_tz ?? '')
       return Promise.all([
         api.getEvents(s.id),
         api.getMetrics(s.id, 15),
@@ -128,7 +139,7 @@ export default function SessionDetail() {
   }, [session, sessionDate])
 
   useEffect(() => {
-    if (!selectedEventId) return
+    if (!session || !selectedEventId) return
     const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
     const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
     const cacheKey = `${selectedEventId}:${eventWindowMinutes}`
@@ -141,7 +152,7 @@ export default function SessionDetail() {
 
     let cancelled = false
     setEventWindowLoading(true)
-    api.getEventWindow(sessionId, selectedEventId, {
+    api.getEventWindow(session.id, selectedEventId, {
       before_seconds: preset.before,
       after_seconds: preset.after,
       waveform_downsample: waveformDownsample,
@@ -157,7 +168,7 @@ export default function SessionDetail() {
     return () => {
       cancelled = true
     }
-  }, [eventWindowMinutes, selectedEventId, sessionId])
+  }, [eventWindowMinutes, selectedEventId, session])
 
   function inspectEvent(event: EventRecord) {
     setSelectedEventId(event.id)
@@ -176,7 +187,7 @@ export default function SessionDetail() {
   }
 
   useEffect(() => {
-    if (selectedEventIndex < 0) return
+    if (!session || selectedEventIndex < 0) return
     const preset = EVENT_WINDOW_PRESETS[eventWindowMinutes] ?? EVENT_WINDOW_PRESETS[3]
     const waveformDownsample = EVENT_WINDOW_DOWNSAMPLE[eventWindowMinutes] ?? 2
     for (const neighborIndex of [selectedEventIndex - 1, selectedEventIndex + 1]) {
@@ -184,7 +195,7 @@ export default function SessionDetail() {
       if (!neighbor) continue
       const cacheKey = `${neighbor.id}:${eventWindowMinutes}`
       if (eventWindowCacheRef.current.has(cacheKey)) continue
-      api.getEventWindow(sessionId, neighbor.id, {
+      api.getEventWindow(session.id, neighbor.id, {
         before_seconds: preset.before,
         after_seconds: preset.after,
         waveform_downsample: waveformDownsample,
@@ -194,7 +205,40 @@ export default function SessionDetail() {
         // Prefetch is opportunistic; normal selection will retry if needed.
       })
     }
-  }, [eventWindowMinutes, events, selectedEventIndex, sessionId])
+  }, [eventWindowMinutes, events, selectedEventIndex, session])
+
+  async function handleTimezoneSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setTimezoneError(null)
+    setTimezoneMessage(null)
+    setIsTimezoneSubmitting(true)
+    try {
+      const updated = await api.updateSessionTimezone(session.id, timezoneDraft)
+      const [nextEvents, nextMetrics] = await Promise.all([
+        api.getEvents(updated.id),
+        api.getMetrics(updated.id, 15),
+      ])
+      setSession(updated)
+      setTimezoneDraft(updated.machine_tz ?? '')
+      setEvents(nextEvents)
+      setMetrics(nextMetrics)
+      setSelectedEventId(null)
+      setEventWindow(null)
+      eventWindowCacheRef.current.clear()
+      if (updated.has_spo2) {
+        api.getSessionSpo2(updated.id).then(setSpo2).catch(() => setSpo2(null))
+      } else {
+        setSpo2(null)
+      }
+      setTimezoneMessage('Session timezone updated.')
+      setIsTimezoneEditorOpen(false)
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : 'Could not update session timezone')
+    } finally {
+      setIsTimezoneSubmitting(false)
+    }
+  }
 
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
   if (!session || !metrics) return null
@@ -261,9 +305,46 @@ export default function SessionDetail() {
           <h1 className="mt-2 text-2xl font-extrabold text-[var(--foreground)] sm:text-3xl">
             {fmtDate(session.folder_date + 'T00:00:00')}
           </h1>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            {fmtTime(session.start_datetime)} – {fmtTime(endTime)}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--muted-foreground)]">
+            <span>{fmtTime(session.start_datetime)} – {fmtTime(endTime)}</span>
+            {session.machine_tz ? (
+              <span title="CPAP machine timezone used for import">· {session.machine_tz}</span>
+            ) : (
+              <span title="CPAP machine timezone was not recorded for this import">· timezone not recorded</span>
+            )}
+            <button
+              type="button"
+              className="ml-1 rounded-full border border-[var(--border)] px-2 py-0.5 text-xs font-bold text-[var(--accent)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent-hover)]"
+              onClick={() => {
+                setTimezoneDraft(session.machine_tz ?? '')
+                setTimezoneError(null)
+                setTimezoneMessage(null)
+                setIsTimezoneEditorOpen((current) => !current)
+              }}
+            >
+              {isTimezoneEditorOpen ? 'Cancel edit' : 'Edit'}
+            </button>
+          </div>
+
+          {isTimezoneEditorOpen ? (
+            <form className="mt-3 flex flex-col gap-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface-soft)] p-3 sm:flex-row sm:items-end" onSubmit={handleTimezoneSubmit}>
+              <div className="space-y-2 sm:min-w-72">
+                <Label htmlFor="sessionMachineTz">Correct machine timezone</Label>
+                <Input
+                  id="sessionMachineTz"
+                  value={timezoneDraft}
+                  onChange={(event) => setTimezoneDraft(event.target.value)}
+                  autoComplete="off"
+                  placeholder="America/New_York"
+                />
+              </div>
+              <Button type="submit" disabled={isTimezoneSubmitting || !timezoneDraft}>
+                {isTimezoneSubmitting ? 'Updating...' : 'Update timezone'}
+              </Button>
+            </form>
+          ) : null}
+          {timezoneMessage ? <p className="mt-2 text-sm font-medium text-[var(--olive-deep)]">{timezoneMessage}</p> : null}
+          {timezoneError ? <p className="mt-2 text-sm text-[var(--danger-text)]">{timezoneError}</p> : null}
 
           {/* Three primary stat pills */}
           <div className="mt-4 grid grid-cols-3 gap-3">

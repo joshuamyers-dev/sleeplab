@@ -106,6 +106,7 @@ export interface SessionSummary {
   p95_pressure: number | null
   avg_leak: number | null
   has_spo2: boolean
+  machine_tz: string | null
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -265,6 +266,16 @@ export interface ImportSettings {
   wearable_provider: string | null
   wearable_base_url: string | null
   wearable_api_key: string | null
+  machine_tz: string
+  display_tz: string
+  has_machine_tz: boolean
+  has_display_tz: boolean
+  llm_provider: string
+  llm_base_url: string | null
+  llm_model: string | null
+  llm_api_key: string | null
+  has_llm_api_key: boolean
+  llm_configured: boolean
 }
 
 export interface WearableData {
@@ -385,6 +396,8 @@ export const api = {
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
+  updateSessionTimezone: (id: string, machineTz: string) =>
+    put<SessionDetail>(`/sessions/${id}/timezone`, { machine_tz: machineTz }),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
   getEventWindow: (id: string, eventId: number, params?: { before_seconds?: number; after_seconds?: number; waveform_downsample?: number }) =>
     get<EventWindowResponse>(`/sessions/${id}/events/${eventId}/window`, params as Record<string, string | number> | undefined),

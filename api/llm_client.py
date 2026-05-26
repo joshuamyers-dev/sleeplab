@@ -31,39 +31,34 @@ LLM_API_KEY       required for custom provider
 LLM_MODEL         required for custom provider
 """
 
+from collections.abc import Mapping
 import os
+
 from openai import OpenAI
 
 
-def get_provider() -> str:
+def get_provider(settings: Mapping[str, str | None] | None = None) -> str:
     """Return the active provider name, auto-detecting when LLM_PROVIDER is unset."""
-    explicit = os.environ.get("LLM_PROVIDER", "").strip().lower()
-    if explicit:
-        return explicit
-    if os.environ.get("OPENAI_API_KEY"):
-        return "openai"
-    return "ollama"
+    return str((settings or get_llm_settings_from_env())["llm_provider"])
 
 
-def get_llm_client() -> OpenAI:
+def get_llm_client(settings: Mapping[str, str | None] | None = None) -> OpenAI:
     """Return an OpenAI-SDK client pointed at the configured backend."""
-    provider = get_provider()
+    config = dict(settings or get_llm_settings_from_env())
+    provider = get_provider(config)
 
     if provider == "openai":
-        return OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        return OpenAI(api_key=config.get("llm_api_key") or "")
 
     if provider == "ollama":
-        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-        return OpenAI(base_url=base_url, api_key="ollama")
+        return OpenAI(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key") or "ollama")
 
     if provider == "litellm":
-        base_url = os.environ.get("LITELLM_BASE_URL", "http://localhost:4000/v1")
-        api_key = os.environ.get("LITELLM_API_KEY", "litellm")
-        return OpenAI(base_url=base_url, api_key=api_key)
+        return OpenAI(base_url=config.get("llm_base_url"), api_key=config.get("llm_api_key") or "litellm")
 
     if provider == "custom":
-        base_url = os.environ.get("LLM_BASE_URL", "")
-        api_key = os.environ.get("LLM_API_KEY", "custom")
+        base_url = config.get("llm_base_url") or ""
+        api_key = config.get("llm_api_key") or "custom"
         if not base_url:
             raise ValueError("LLM_BASE_URL must be set when LLM_PROVIDER=custom")
         return OpenAI(base_url=base_url, api_key=api_key)
@@ -71,25 +66,51 @@ def get_llm_client() -> OpenAI:
     raise ValueError(f"Unknown LLM_PROVIDER: {provider!r}")
 
 
-def get_model() -> str:
+def get_model(settings: Mapping[str, str | None] | None = None) -> str:
     """Return the model name to use for the configured provider."""
-    provider = get_provider()
-
-    defaults = {
-        "openai":   ("OPENAI_MODEL",   "gpt-4o"),
-        "ollama":   ("OLLAMA_MODEL",   "llama3.1:8b"),
-        "litellm":  ("LITELLM_MODEL",  "gpt-4o-mini"),
-        "custom":   ("LLM_MODEL",      ""),
-    }
-    env_var, fallback = defaults.get(provider, ("LLM_MODEL", ""))
-    return os.environ.get(env_var, fallback)
+    return str((settings or get_llm_settings_from_env()).get("llm_model") or "")
 
 
-def is_configured() -> bool:
+def is_configured(settings: Mapping[str, str | None] | None = None) -> bool:
     """Return True if the backend has the minimum required configuration."""
-    provider = get_provider()
+    config = dict(settings or get_llm_settings_from_env())
+    provider = get_provider(config)
     if provider == "openai":
-        return bool(os.environ.get("OPENAI_API_KEY"))
+        return bool(config.get("llm_api_key"))
     if provider == "custom":
-        return bool(os.environ.get("LLM_BASE_URL")) and bool(os.environ.get("LLM_MODEL"))
+        return bool(config.get("llm_base_url")) and bool(config.get("llm_model"))
     return True  # ollama / litellm just need a reachable URL
+
+
+def get_llm_settings_from_env() -> dict[str, str | None]:
+    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    if not provider:
+        provider = "openai" if os.environ.get("OPENAI_API_KEY") else "ollama"
+
+    if provider == "openai":
+        return {
+            "llm_provider": provider,
+            "llm_base_url": "https://api.openai.com/v1",
+            "llm_api_key": os.environ.get("OPENAI_API_KEY") or None,
+            "llm_model": os.environ.get("OPENAI_MODEL", "gpt-4o"),
+        }
+    if provider == "ollama":
+        return {
+            "llm_provider": provider,
+            "llm_base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            "llm_api_key": "ollama",
+            "llm_model": os.environ.get("OLLAMA_MODEL", "llama3.1:8b"),
+        }
+    if provider == "litellm":
+        return {
+            "llm_provider": provider,
+            "llm_base_url": os.environ.get("LITELLM_BASE_URL", "http://localhost:4000/v1"),
+            "llm_api_key": os.environ.get("LITELLM_API_KEY", "litellm"),
+            "llm_model": os.environ.get("LITELLM_MODEL", "gpt-4o-mini"),
+        }
+    return {
+        "llm_provider": provider,
+        "llm_base_url": os.environ.get("LLM_BASE_URL") or None,
+        "llm_api_key": os.environ.get("LLM_API_KEY") or None,
+        "llm_model": os.environ.get("LLM_MODEL") or None,
+    }

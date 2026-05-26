@@ -32,9 +32,9 @@ from db import (
 AHI_EVENT_TYPES = {'Central Apnea', 'Obstructive Apnea', 'Hypopnea', 'Apnea'}
 
 
-def _machine_tz() -> ZoneInfo:
+def _machine_tz(name: str | None = None) -> ZoneInfo:
     """Return the ZoneInfo for MACHINE_TZ, falling back to UTC on invalid input."""
-    name = os.environ.get("MACHINE_TZ", "UTC")
+    name = name or os.environ.get("MACHINE_TZ", "UTC")
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, KeyError, ValueError):
@@ -42,9 +42,29 @@ def _machine_tz() -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def _localize(naive_dt: datetime) -> datetime:
+def _localize(naive_dt: datetime, machine_tz: ZoneInfo | None = None) -> datetime:
     """Attach MACHINE_TZ to a naive datetime from an EDF header."""
-    return naive_dt.replace(tzinfo=_machine_tz())
+    return naive_dt.replace(tzinfo=machine_tz or _machine_tz())
+
+
+def _machine_tz_for_user(conn, user_id: str) -> tuple[str, ZoneInfo]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT machine_tz FROM user_import_settings WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+    name = row[0] if row and row[0] else None
+    zone = _machine_tz(name)
+    return zone.key, zone
+
+
+def _machine_tz_for_session(conn, session_db_id: str) -> ZoneInfo:
+    with conn.cursor() as cur:
+        cur.execute("SELECT machine_tz FROM sessions WHERE id = %s", (session_db_id,))
+        row = cur.fetchone()
+    name = row[0] if row and row[0] else None
+    return _machine_tz(name)
 
 
 def discover_session_blocks(folder: Path) -> list:
@@ -155,6 +175,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
         return 0
 
     imported = 0
+    machine_tz_name, machine_tz = _machine_tz_for_user(conn, user_id)
     for block_idx, block in enumerate(blocks):
         pld_ts = block['pld_ts']
         session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
@@ -182,12 +203,12 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             # Get CSL start datetime for event absolute timestamps.
             # EDF timestamps are naive local machine time; attach MACHINE_TZ so
             # psycopg2 stores the correct UTC equivalent in TIMESTAMPTZ columns.
-            csl_start = _localize(pld_header.start_datetime)  # fallback
+            csl_start = _localize(pld_header.start_datetime, machine_tz)  # fallback
             if block['csl_path'] and block['csl_path'].exists():
                 csl_hdr = read_header(str(block['csl_path']))
-                csl_start = _localize(csl_hdr.start_datetime)
+                csl_start = _localize(csl_hdr.start_datetime, machine_tz)
 
-            pld_start = _localize(pld_header.start_datetime)
+            pld_start = _localize(pld_header.start_datetime, machine_tz)
             duration_s = int(pld_header.num_records * pld_header.duration_per_record)
 
             # Parse SA2/SAD (optional)
@@ -196,14 +217,14 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             spo2_start = None
             if block['spo2_path'] and block['spo2_path'].exists():
                 spo2_header, spo2_data = parse_sa2(block['spo2_path'])
-                spo2_start = _localize(spo2_header.start_datetime)
+                spo2_start = _localize(spo2_header.start_datetime, machine_tz)
 
             waveform = None
             waveform_header = None
             waveform_start = None
             if block['brp_path'] and block['brp_path'].exists():
                 waveform_header, waveform = parse_brp(block['brp_path'])
-                waveform_start = _localize(waveform_header.start_datetime)
+                waveform_start = _localize(waveform_header.start_datetime, machine_tz)
 
             summary = derive_summary(pld_channels, events, duration_s)
 
@@ -220,6 +241,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'mask_type':          None,
                 'humidity_level':     None,
                 'temperature_c':      None,
+                'machine_tz':         machine_tz_name,
                 'user_id':            user_id,
                 **summary,
             }
@@ -262,7 +284,7 @@ def backfill_waveform_for_block(conn, session_db_id: str, block: dict) -> bool:
         return False
 
     waveform_header, waveform = parse_brp(block['brp_path'])
-    waveform_start = _localize(waveform_header.start_datetime)
+    waveform_start = _localize(waveform_header.start_datetime, _machine_tz_for_session(conn, session_db_id))
     replace_session_waveform(
         conn,
         session_db_id,

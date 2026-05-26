@@ -32,8 +32,18 @@ const FLAG_LABELS = {
 export default function SessionAICard({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<SessionAISummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
+    api.getImportSettings()
+      .then((settings) => setAiConfigured(settings.llm_configured))
+      .catch(() => setAiConfigured(false))
+  }, [])
+
+  useEffect(() => {
+    if (aiConfigured !== true) {
+      return
+    }
     setLoading(true)
     setData(null)
     api
@@ -42,7 +52,11 @@ export default function SessionAICard({ sessionId }: { sessionId: string }) {
         setData(res)
       })
       .finally(() => setLoading(false))
-  }, [sessionId])
+  }, [sessionId, aiConfigured])
+
+  if (aiConfigured !== true) {
+    return null
+  }
 
   const flag = (data?.flag ?? 'watch') as keyof typeof FLAG_COLORS
   const colors = FLAG_COLORS[flag] ?? FLAG_COLORS.watch

@@ -8,14 +8,19 @@ import { Card, CardContent } from '../components/ui/card'
 
 export default function InsightsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
+  const [aiConfigured, setAiConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadSummary() {
       try {
-        const data = await api.getSummary()
+        const [data, settings] = await Promise.all([
+          api.getSummary(),
+          api.getImportSettings(),
+        ])
         setSummary(data)
+        setAiConfigured(settings.llm_configured)
         setError(null)
       } catch (err) {
         setError(String(err))
@@ -53,13 +58,13 @@ export default function InsightsPage() {
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Imported nights available for AI review.</p>
           </CardContent>
         </Card>
-        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.08),_transparent_32%),var(--surface-strong)]">
+        {aiConfigured ? <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.08),_transparent_32%),var(--surface-strong)]">
           <CardContent className="px-6 pb-6 pt-7">
             <p className="text-sm font-bold text-[var(--foreground)]">AI summary status</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{summary.nights_with_data > 0 ? 'Ready' : 'Waiting'}</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Insights run once imported therapy data is available.</p>
           </CardContent>
-        </Card>
+        </Card> : null}
       </div>
 
       <AISummaryCard enabled={summary.nights_with_data > 0} />

@@ -548,6 +548,7 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
         "mask_type":               mask_type,
         "humidity_level":          humidity_level,
         "temperature_c":           temperature_c,
+        "machine_tz":              "UTC",
         "user_id":                 user_id,
     }
 
