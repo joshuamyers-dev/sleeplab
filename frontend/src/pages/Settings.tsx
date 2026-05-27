@@ -55,6 +55,7 @@ export default function SettingsPage() {
   const [sleephqSecretDirty, setSleephqSecretDirty] = useState(false)
   const [sleephqTeamId, setSleephqTeamId] = useState('')
   const [sleephqMachineId, setSleephqMachineId] = useState('')
+  const [sleephqLookbackDays, setSleephqLookbackDays] = useState(30)
   const [sleephqMessage, setSleephqMessage] = useState<string | null>(null)
   const [sleephqError, setSleephqError] = useState<string | null>(null)
   const [isSleephqSubmitting, setIsSleephqSubmitting] = useState(false)
@@ -115,6 +116,7 @@ export default function SettingsPage() {
       setSleephqSecretSaved(settings.has_client_secret)
       setSleephqTeamId(settings.sleephq_team_id != null ? String(settings.sleephq_team_id) : '')
       setSleephqMachineId(settings.sleephq_machine_id != null ? String(settings.sleephq_machine_id) : '')
+      setSleephqLookbackDays(settings.lookback_days ?? 30)
       setLocalPath(settings.local_datalog_path ?? '')
       setLocalFrequency(settings.local_import_frequency ?? 'daily')
       setLastImportAt(settings.last_local_import_at)
@@ -306,6 +308,7 @@ export default function SettingsPage() {
         sleephq_client_secret: sleephqSecretDirty ? (sleephqClientSecret || null) : null,
         sleephq_team_id: sleephqTeamId ? Number(sleephqTeamId) : null,
         sleephq_machine_id: sleephqMachineId ? Number(sleephqMachineId) : null,
+        lookback_days: sleephqLookbackDays,
       })
       setSleephqMessage('SleepHQ settings saved.')
       if (sleephqSecretDirty && sleephqClientSecret) {
@@ -468,7 +471,7 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-3">
                 <Label htmlFor="sleephqTeamId">Team ID</Label>
                 <Input
@@ -487,6 +490,17 @@ export default function SettingsPage() {
                   onChange={(event) => setSleephqMachineId(event.target.value)}
                   inputMode="numeric"
                   placeholder="Optional — auto-resolved if blank"
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="sleephqLookbackDays">Lookback days</Label>
+                <Input
+                  id="sleephqLookbackDays"
+                  type="number"
+                  value={sleephqLookbackDays}
+                  onChange={(event) => setSleephqLookbackDays(Number(event.target.value))}
+                  min={1}
+                  placeholder="30"
                 />
               </div>
             </div>
