@@ -5,7 +5,8 @@
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
     ["@semantic-release/exec", {
-      "prepareCmd": "CALVER=$(date +%Y.%-m.%-d) && echo \"$CALVER [${nextRelease.version}]\" > VERSION && sed -i 's/^version = \".*\"/version = \"'${nextRelease.version}'\"/' pyproject.toml && npm version ${nextRelease.version} --no-git-tag-version --allow-same-version && cd frontend && npm version ${nextRelease.version} --no-git-tag-version --allow-same-version && cd .. && sed -i 's/^\\(\\*\\*Version:\\*\\* \\).*/\\1'${nextRelease.version}'/' NOTICE.md"
+      "prepareCmd": "CALVER=$(date +%Y.%-m.%-d) && echo \"$CALVER [${nextRelease.version}]\" > VERSION && sed -i 's/^version = \".*\"/version = \"'${nextRelease.version}'\"/' pyproject.toml && npm version ${nextRelease.version} --no-git-tag-version --allow-same-version && cd frontend && npm version ${nextRelease.version} --no-git-tag-version --allow-same-version && cd .. && sed -i 's/^\\(\\*\\*Version:\\*\\* \\).*/\\1'${nextRelease.version}'/' NOTICE.md",
+      "successCmd": "echo \"new_release_published=true\" >> \"$GITHUB_OUTPUT\" && echo \"new_release_version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\""
     }],
     ["@semantic-release/git", {
       "assets": [
