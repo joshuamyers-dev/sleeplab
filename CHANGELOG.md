@@ -1,3 +1,23 @@
+# [1.1.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.0.1...v1.1.0) (2026-05-27)
+
+
+### Bug Fixes
+
+* adjust semantic release schedule ([534ee8d](https://github.com/joshuamyers-dev/sleeplab/commit/534ee8d1cd9a4b28484cb7e499f8c97cf006ce37))
+* **ci:** add manual workflow option for semantic releases ([a582d1a](https://github.com/joshuamyers-dev/sleeplab/commit/a582d1a5a70a3aea6b69a6140de47f85b2777f95))
+* **deps:** bump openai from 1.109.1 to 2.38.0 ([#84](https://github.com/joshuamyers-dev/sleeplab/issues/84)) ([0ca0e41](https://github.com/joshuamyers-dev/sleeplab/commit/0ca0e41f7515c87a8c427ccfd3246bc8519d61bb))
+* **deps:** bump pyjwt from 2.10.1 to 2.13.0 ([#83](https://github.com/joshuamyers-dev/sleeplab/issues/83)) ([95586ff](https://github.com/joshuamyers-dev/sleeplab/commit/95586ff70b568fbe36042e27636402b6e848b442))
+* **deps:** bump sqlalchemy from 2.0.46 to 2.0.50 ([#88](https://github.com/joshuamyers-dev/sleeplab/issues/88)) ([a1377ea](https://github.com/joshuamyers-dev/sleeplab/commit/a1377eac2accb025692f2876a6dbeb3ca0d0e204))
+* **frontend:** top padding on cards ([de16099](https://github.com/joshuamyers-dev/sleeplab/commit/de160992d53eed40126c23b943e7ae79a804cb3e))
+* sync frontend lockfile for vitest ([11fb215](https://github.com/joshuamyers-dev/sleeplab/commit/11fb215c55de5868eae6f116f0854970767ddf44))
+
+
+### Features
+
+* add O2 ring import ([af81dda](https://github.com/joshuamyers-dev/sleeplab/commit/af81ddae7a8d78fbad295b2a02d41c92f09d5a85))
+* add O2 ring import issue tracking ([#77](https://github.com/joshuamyers-dev/sleeplab/issues/77)) ([59ac83f](https://github.com/joshuamyers-dev/sleeplab/commit/59ac83fe8d413e39524f4cb80d1aa9adc5c877a6))
+* improve AI analysis prompts and caching ([6142875](https://github.com/joshuamyers-dev/sleeplab/commit/6142875b42f5a32dcfc3eed8c8b19234e00477ff))
+
 ## [1.0.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.0.0...v1.0.1) (2026-05-26)
 
 
