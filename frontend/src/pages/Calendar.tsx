@@ -70,14 +70,14 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_32%),var(--surface-strong)]">
-          <CardContent className="px-6 pb-6 pt-7">
+          <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Nights with data</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{uniqueNights}</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Recorded sleep sessions available in your calendar.</p>
           </CardContent>
         </Card>
         <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.08),_transparent_32%),var(--surface-strong)]">
-          <CardContent className="px-6 pb-6 pt-7">
+          <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Current streak</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{streak}</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Consecutive nights with imported therapy data.</p>

@@ -39,7 +39,7 @@ export function AIInsightsCard({
 
   return (
     <Card className="overflow-hidden border-[var(--border)] bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.10),_transparent_28%),radial-gradient(circle_at_90%_18%,_rgba(106,161,54,0.10),_transparent_20%),var(--surface-strong)]">
-      <CardContent className="p-6 pt-6">
+      <CardContent className="!p-6 sm:!p-8">
         <div className="flex min-h-10 items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />

@@ -441,7 +441,7 @@ function TrendAICard() {
 
   return (
     <Card className="overflow-hidden border-[var(--border)] bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.10),_transparent_28%),radial-gradient(circle_at_90%_18%,_rgba(106,161,54,0.10),_transparent_20%),var(--surface-strong)]">
-      <CardContent className="p-6 pt-6">
+      <CardContent className="!p-6 sm:!p-8">
         <div className="flex min-h-10 items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className={`inline-block h-2 w-2 rounded-full ${loading ? 'bg-[var(--accent)] animate-pulse' : colors.dot}`} />
@@ -899,21 +899,21 @@ export default function TrendsPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card id="ahi-summary" className="bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_32%),var(--surface-strong)]">
-          <CardContent className="px-6 pb-6 pt-7">
+          <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Average AHI</p>
             <p className={`mt-2 text-4xl font-semibold ${ahiTone(summary.avg_ahi)}`}>{summary.avg_ahi?.toFixed(1) ?? '—'}</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Average breathing events per hour.</p>
           </CardContent>
         </Card>
         <Card id="usage-trend" className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.08),_transparent_32%),var(--surface-strong)]">
-          <CardContent className="px-6 pb-6 pt-7">
+          <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Compliance</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{summary.compliance_pct}%</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">How consistently therapy was used.</p>
           </CardContent>
         </Card>
         <Card id="pressure-trend" className="bg-[radial-gradient(circle_at_top_left,_rgba(233,120,75,0.08),_transparent_32%),var(--surface-strong)]">
-          <CardContent className="px-6 pb-6 pt-7">
+          <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Average Pressure</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{summary.avg_pressure?.toFixed(1) ?? '—'}</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Typical treatment pressure across recent nights.</p>
@@ -1003,7 +1003,7 @@ export default function TrendsPage() {
       )}
 
       <Card id="event-breakdown">
-        <CardContent className="px-6 pb-6 pt-7">
+        <CardContent className="!p-6 sm:!p-8">
           <p className="text-sm font-bold text-[var(--foreground)]">Respiratory event breakdown</p>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">A simple count of the breathing-event types found across your imported nights.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
