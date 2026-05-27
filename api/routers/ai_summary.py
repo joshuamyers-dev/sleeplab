@@ -1,6 +1,8 @@
+import hashlib
 import json
+from collections.abc import Mapping
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -9,28 +11,53 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..llm_client import get_llm_client, get_model, is_configured
+from ..llm_client import get_llm_client, get_model, get_provider, is_configured
 from ..settings_store import get_llm_settings, has_explicit_llm_settings
 
 router = APIRouter()
 
-SYSTEM_PROMPT = (
-    "You are a helpful sleep therapy assistant. The user has an APAP "
-    "(automatic positive airway pressure) machine and you are reviewing "
-    "their therapy data. Return valid JSON only. The JSON must contain these keys: "
-    "insights, going_well, whats_not, recommended_changes, disclaimer. "
-    "`insights` must be exactly two sentences in direct, conversational plain English for a non-expert. "
-    "It must focus on the most recent use if there is one, explain what it likely means for their sleep or expected outcome, "
-    "and if there has been no recent use it must say that clearly and explain why that matters. "
-    "Avoid jargon where possible, and if you use a term like AHI or leak, explain it in simple words in the same sentence. "
-    "`going_well`, `whats_not`, and `recommended_changes` must each be arrays of 2 to 4 short bullet strings. "
-    "Each item in `recommended_changes` must be specific and practical. When the data supports it, explicitly name the setting to review, "
-    "such as minimum pressure, maximum pressure, EPR, ramp, humidity, or mask fit, and state the direction to discuss, like raise, lower, shorten, turn on, or check. "
-    "If the data does not support a settings change, say that clearly instead of guessing. Be encouraging but honest. Do not diagnose or replace medical advice."
-)
+PROMPT_VERSION = "cpap-pattern-analysis-v1"
+
+CPAP_ANALYST_SYSTEM_PROMPT = """
+You are a CPAP therapy data analysis assistant. You help users understand PAP therapy data using OSCAR-style reasoning and practical pattern recognition.
+
+You are not a physician and must not diagnose, prescribe, or tell the user to change treatment settings directly.
+
+Your job is to:
+- Explain therapy quality in plain English
+- Identify meaningful patterns across pressure, leaks, events, flow limitation, oxygen data, and usage
+- Separate high-confidence observations from uncertain possibilities
+- Suggest conservative items the user may want to review, test, or discuss with a clinician
+- Avoid generic sleep hygiene advice unless directly supported by the data
+- Never invent data that is not present
+
+Prioritize event clustering, leak impact, pressure behavior, flow limitation patterns, central vs obstructive balance, possible positional or REM-related patterns, therapy consistency over time, and missing data or uncertainty.
+
+Return valid JSON only with these keys:
+headline: one concise sentence
+therapy_quality: one short paragraph
+high_confidence_observations: array of 2-5 strings
+possible_patterns: array of 1-4 strings
+things_to_review: array of 1-4 conservative strings
+missing_or_uncertain: array of 1-4 strings
+flag: one of "good", "watch", "alert"
+
+Use "things_to_review" for review or clinician discussion items, not direct instructions to change settings.
+Avoid wording that says a setting "needs adjustment" or that the user should change a setting. Prefer "review whether..." or "discuss whether..." phrasing.
+Do not mention advanced mode-specific settings such as backup rate, ASV, bilevel-ST, or trigger/cycle settings unless the supplied data explicitly shows that therapy mode or setting.
+Do not assume APAP or auto-adjusting therapy. Use PAP/CPAP language unless the supplied data explicitly identifies an auto-adjusting mode.
+""".strip()
 
 
 class AISummaryResponse(BaseModel):
+    headline: Optional[str] = None
+    therapy_quality: Optional[str] = None
+    high_confidence_observations: Optional[List[str]] = None
+    possible_patterns: Optional[List[str]] = None
+    things_to_review: Optional[List[str]] = None
+    missing_or_uncertain: Optional[List[str]] = None
+    flag: Optional[str] = None
+    cached: bool = False
     insights: Optional[str] = None
     going_well: Optional[List[str]] = None
     whats_not: Optional[List[str]] = None
@@ -39,9 +66,38 @@ class AISummaryResponse(BaseModel):
     error: Optional[str] = None
 
 
+class SessionAISummaryResponse(BaseModel):
+    headline: Optional[str] = None
+    therapy_quality: Optional[str] = None
+    high_confidence_observations: Optional[List[str]] = None
+    possible_patterns: Optional[List[str]] = None
+    things_to_review: Optional[List[str]] = None
+    missing_or_uncertain: Optional[List[str]] = None
+    observations: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
+    flag: Optional[str] = None
+    cached: bool = False
+    error: Optional[str] = None
+
+
+class TrendAISummaryResponse(BaseModel):
+    headline: Optional[str] = None
+    therapy_quality: Optional[str] = None
+    high_confidence_observations: Optional[List[str]] = None
+    possible_patterns: Optional[List[str]] = None
+    things_to_review: Optional[List[str]] = None
+    missing_or_uncertain: Optional[List[str]] = None
+    anomalies: Optional[List[str]] = None
+    trend_direction: Optional[str] = None
+    flag: Optional[str] = None
+    cached: bool = False
+    error: Optional[str] = None
+
+
 @router.get("/ai-summary", response_model=AISummaryResponse)
 def get_ai_summary(
     days: int = Query(30, ge=1, le=365),
+    force: bool = Query(False),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -49,149 +105,523 @@ def get_ai_summary(
     if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return AISummaryResponse(error="LLM backend not configured")
 
-    start_date = date.today() - timedelta(days=days - 1)
-    row = db.execute(
-        text(
-            """
-            WITH primary_blocks AS (
-                SELECT DISTINCT ON (folder_date)
-                    folder_date,
-                    ahi,
-                    avg_pressure,
-                    avg_leak,
-                    central_apnea_count,
-                    obstructive_apnea_count,
-                    hypopnea_count,
-                    apnea_count,
-                    duration_seconds
-                FROM sessions
-                WHERE user_id = CAST(:uid AS uuid)
-                  AND folder_date >= :start_date
-                ORDER BY folder_date, duration_seconds DESC
-            )
-            SELECT
-                COUNT(*) AS nights,
-                AVG(ahi) AS avg_ahi,
-                MIN(ahi) AS min_ahi,
-                MAX(ahi) AS max_ahi,
-                COALESCE(SUM(central_apnea_count), 0) AS ca,
-                COALESCE(SUM(obstructive_apnea_count), 0) AS oa,
-                COALESCE(SUM(hypopnea_count), 0) AS h,
-                COALESCE(SUM(apnea_count), 0) AS apnea,
-                AVG(avg_pressure) AS avg_pressure,
-                AVG(avg_leak) AS avg_leak,
-                COALESCE(SUM(CASE WHEN ahi < 5 THEN 1 ELSE 0 END), 0) AS nights_normal,
-                COALESCE(SUM(CASE WHEN ahi >= 5 AND ahi < 15 THEN 1 ELSE 0 END), 0) AS nights_mild,
-                COALESCE(SUM(CASE WHEN ahi >= 15 AND ahi < 30 THEN 1 ELSE 0 END), 0) AS nights_moderate,
-                COALESCE(SUM(CASE WHEN ahi >= 30 THEN 1 ELSE 0 END), 0) AS nights_severe
-            FROM primary_blocks
-            """
+    context = _build_general_context(db, current_user["id"], days)
+    return _cached_or_generated(
+        db=db,
+        user_id=current_user["id"],
+        analysis_type="general",
+        cache_key=f"days:{days}",
+        context=context,
+        force=force,
+        response_model=AISummaryResponse,
+        llm_settings=llm_settings,
+        prompt=(
+            "Analyze this multi-night PAP therapy summary. Focus on practical CPAP pattern recognition, "
+            "not generic wellness advice. Mention absent data under missing_or_uncertain.\n\n"
+            f"{_json_for_prompt(context)}"
         ),
-        {"uid": current_user["id"], "start_date": start_date},
-    ).mappings().first()
-
-    nights = int(row["nights"] or 0)
-    compliance_pct = round((nights / days) * 100, 1) if days > 0 else 0.0
-
-    stats_payload = {
-        "days": days,
-        "nights": nights,
-        "total_possible": days,
-        "compliance_pct": compliance_pct,
-        "avg_ahi": _fmt_float(row["avg_ahi"]),
-        "min_ahi": _fmt_float(row["min_ahi"]),
-        "max_ahi": _fmt_float(row["max_ahi"]),
-        "ca": int(row["ca"] or 0),
-        "oa": int(row["oa"] or 0),
-        "h": int(row["h"] or 0),
-        "apnea": int(row["apnea"] or 0),
-        "avg_pressure": _fmt_float(row["avg_pressure"]),
-        "avg_leak": _fmt_float(row["avg_leak"]),
-        "nights_normal": int(row["nights_normal"] or 0),
-        "nights_mild": int(row["nights_mild"] or 0),
-        "nights_moderate": int(row["nights_moderate"] or 0),
-        "nights_severe": int(row["nights_severe"] or 0),
-    }
-
-    latest_row = db.execute(
-        text(
-            """
-            SELECT
-                folder_date,
-                ahi,
-                avg_pressure,
-                avg_leak,
-                central_apnea_count,
-                obstructive_apnea_count,
-                hypopnea_count,
-                apnea_count,
-                duration_seconds
-            FROM sessions
-            WHERE user_id = CAST(:uid AS uuid)
-            ORDER BY folder_date DESC, duration_seconds DESC
-            LIMIT 1
-            """
-        ),
-        {"uid": current_user["id"]},
-    ).mappings().first()
-    latest_days_ago = (date.today() - latest_row["folder_date"]).days if latest_row else None
-
-    user_prompt = (
-        f"Here is the sleep therapy data for the last {days} days:\n"
-        f"- Nights with data: {stats_payload['nights']} / {stats_payload['total_possible']}\n"
-        f"- Compliance: {stats_payload['compliance_pct']}%\n"
-        f"- Average AHI: {stats_payload['avg_ahi']} events/hour\n"
-        f"- AHI range: {stats_payload['min_ahi']} - {stats_payload['max_ahi']}\n"
-        f"- Event breakdown: {stats_payload['ca']} central apneas, {stats_payload['oa']} obstructive apneas, "
-        f"{stats_payload['h']} hypopneas, {stats_payload['apnea']} unclassified apneas\n"
-        f"- Average pressure: {stats_payload['avg_pressure']} cmH2O\n"
-        f"- Average leak rate: {stats_payload['avg_leak']} L/min\n"
-        f"- Nights with AHI < 5 (normal): {stats_payload['nights_normal']}\n"
-        f"- Nights with AHI 5-15 (mild): {stats_payload['nights_mild']}\n"
-        f"- Nights with AHI 15-30 (moderate): {stats_payload['nights_moderate']}\n"
-        f"- Nights with AHI >= 30 (severe): {stats_payload['nights_severe']}\n"
-        f"- Most recent reading date: {latest_row['folder_date'] if latest_row else 'n/a'}\n"
-        f"- Days since most recent reading: {latest_days_ago if latest_days_ago is not None else 'n/a'}\n"
-        f"- Most recent reading AHI: {_fmt_float(latest_row['ahi']) if latest_row else 'n/a'}\n"
-        f"- Most recent reading average pressure: {_fmt_float(latest_row['avg_pressure']) if latest_row else 'n/a'}\n"
-        f"- Most recent reading average leak: {_fmt_float(latest_row['avg_leak']) if latest_row else 'n/a'}\n"
-        f"- Most recent reading event counts: "
-        f"{int(latest_row['central_apnea_count'] or 0) if latest_row else 0} central, "
-        f"{int(latest_row['obstructive_apnea_count'] or 0) if latest_row else 0} obstructive, "
-        f"{int(latest_row['hypopnea_count'] or 0) if latest_row else 0} hypopnea, "
-        f"{int(latest_row['apnea_count'] or 0) if latest_row else 0} unclassified\n\n"
-        "If the most recent reading is more than 7 days old, treat that as no recent use and say so clearly.\n"
-        "The disclaimer must clearly say this is AI guidance and the user should still speak with their doctor, sleep specialist, or GP before making important treatment changes."
+        enrich=_enrich_general_payload,
     )
+
+
+@router.get("/sessions/{session_id}/ai-summary", response_model=SessionAISummaryResponse)
+def get_session_ai_summary(
+    session_id: str,
+    force: bool = Query(False),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    llm_settings = get_llm_settings(db, current_user["id"])
+    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
+        return SessionAISummaryResponse(error="LLM backend not configured")
+
+    context = _build_session_context(db, current_user["id"], session_id)
+    if context is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return _cached_or_generated(
+        db=db,
+        user_id=current_user["id"],
+        analysis_type="session",
+        cache_key=f"session:{session_id}",
+        context=context,
+        force=force,
+        response_model=SessionAISummaryResponse,
+        llm_settings=llm_settings,
+        prompt=(
+            "Analyze this single PAP therapy session. Look for event clustering, leak impact, pressure response, "
+            "flow limitation, oxygen data if present, and central-vs-obstructive balance. Do not invent unavailable "
+            "waveform interpretation.\n\n"
+            f"{_json_for_prompt(context)}"
+        ),
+        enrich=_enrich_session_payload,
+    )
+
+
+@router.get("/trend-ai", response_model=TrendAISummaryResponse)
+def get_trend_ai_summary(
+    force: bool = Query(False),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    llm_settings = get_llm_settings(db, current_user["id"])
+    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
+        return TrendAISummaryResponse(error="LLM backend not configured")
+
+    context = _build_trend_context(db, current_user["id"])
+    if not context["nights"]:
+        return TrendAISummaryResponse(error="No session data available.")
+
+    return _cached_or_generated(
+        db=db,
+        user_id=current_user["id"],
+        analysis_type="trend",
+        cache_key="last-30-primary-nights",
+        context=context,
+        force=force,
+        response_model=TrendAISummaryResponse,
+        llm_settings=llm_settings,
+        prompt=(
+            "Analyze this PAP therapy trend. Focus on whether the recent pattern is stable, improving, worsening, "
+            "or variable, and explain what relationships between AHI, event type, pressure, leak, flow limitation, "
+            "and usage are actually supported by the data.\n\n"
+            f"{_json_for_prompt(context)}"
+        ),
+        enrich=_enrich_trend_payload,
+    )
+
+
+def _cached_or_generated(
+    *,
+    db: Session,
+    user_id: str,
+    analysis_type: str,
+    cache_key: str,
+    context: Dict[str, Any],
+    force: bool,
+    response_model: type[BaseModel],
+    llm_settings: Mapping[str, str | None],
+    prompt: str,
+    enrich,
+):
+    settings_fp = _settings_fingerprint(llm_settings)
+    input_fp = _fingerprint({"prompt_version": PROMPT_VERSION, "context": context})
+
+    if not force:
+        cached = _read_cache(db, user_id, analysis_type, cache_key, input_fp, settings_fp)
+        if cached is not None:
+            cached["cached"] = True
+            return response_model.model_validate(cached)
 
     try:
         client = get_llm_client(llm_settings)
         response = client.chat.completions.create(
             model=get_model(llm_settings),
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
+                {"role": "system", "content": CPAP_ANALYST_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
             ],
         )
         payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
-        return AISummaryResponse(
-            insights=payload.get("insights"),
-            going_well=_ensure_list(payload.get("going_well")),
-            whats_not=_ensure_list(payload.get("whats_not")),
-            recommended_changes=_ensure_list(payload.get("recommended_changes")),
-            disclaimer=payload.get("disclaimer"),
-        )
+        payload = enrich(_normalize_structured_payload(payload))
+        _write_cache(db, user_id, analysis_type, cache_key, input_fp, settings_fp, payload)
+        return response_model.model_validate(payload)
     except Exception as exc:
-        return AISummaryResponse(error=f"AI summary unavailable: {exc}")
+        return response_model(error=f"AI summary unavailable: {exc}")
 
 
-def _fmt_float(value: object) -> str:
-    if value is None:
-        return "n/a"
-    return f"{float(value):.2f}"
+def _build_general_context(db: Session, user_id: str, days: int) -> Dict[str, Any]:
+    start_date = date.today() - timedelta(days=days - 1)
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (folder_date)
+                id::text AS id, folder_date, duration_seconds, ahi, avg_pressure, p95_pressure,
+                avg_leak, avg_flow_lim, central_apnea_count, obstructive_apnea_count,
+                hypopnea_count, apnea_count, total_ahi_events, has_spo2, avg_spo2,
+                min_spo2, updated_at
+            FROM sessions
+            WHERE user_id = CAST(:uid AS uuid)
+              AND folder_date >= :start_date
+              AND duration_seconds >= 600
+            ORDER BY folder_date DESC, duration_seconds DESC
+            """
+        ),
+        {"uid": user_id, "start_date": start_date},
+    ).mappings().all()
+
+    nights = [_night_dict(r) for r in rows]
+    ahi_values = [n["ahi"] for n in nights if n["ahi"] is not None]
+    pressure_values = [n["avg_pressure"] for n in nights if n["avg_pressure"] is not None]
+    leak_values = [n["avg_leak_lpm"] for n in nights if n["avg_leak_lpm"] is not None]
+
+    return {
+        "analysis_window_days": days,
+        "nights_with_data": len(nights),
+        "possible_nights": days,
+        "compliance_pct": round((len(nights) / days) * 100, 1) if days else 0,
+        "latest_night": nights[0] if nights else None,
+        "days_since_latest": (date.today() - rows[0]["folder_date"]).days if rows else None,
+        "averages": {
+            "ahi": _avg(ahi_values),
+            "pressure_cm_h2o": _avg(pressure_values),
+            "leak_lpm": _avg(leak_values),
+        },
+        "ahi_distribution": {
+            "under_5": sum(1 for n in nights if n["ahi"] is not None and n["ahi"] < 5),
+            "5_to_15": sum(1 for n in nights if n["ahi"] is not None and 5 <= n["ahi"] < 15),
+            "15_to_30": sum(1 for n in nights if n["ahi"] is not None and 15 <= n["ahi"] < 30),
+            "30_plus": sum(1 for n in nights if n["ahi"] is not None and n["ahi"] >= 30),
+        },
+        "event_totals": _event_totals(nights),
+        "recent_nights_newest_first": nights[:14],
+        "missing_or_limited_data": _missing_general(nights),
+        "data_marker": _data_marker(rows),
+    }
 
 
-def _parse_ai_payload(raw_text: str) -> Dict:
+def _build_trend_context(db: Session, user_id: str) -> Dict[str, Any]:
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (folder_date)
+                id::text AS id, folder_date, duration_seconds, ahi, avg_pressure, p95_pressure,
+                avg_leak, avg_flow_lim, central_apnea_count, obstructive_apnea_count,
+                hypopnea_count, apnea_count, total_ahi_events, has_spo2, min_spo2,
+                updated_at
+            FROM sessions
+            WHERE user_id = CAST(:uid AS uuid)
+              AND duration_seconds >= 600
+            ORDER BY folder_date DESC, duration_seconds DESC
+            LIMIT 30
+            """
+        ),
+        {"uid": user_id},
+    ).mappings().all()
+
+    nights = [_night_dict(r) for r in rows]
+    recent_7 = [n for n in nights[:7] if n["ahi"] is not None]
+    prior_7 = [n for n in nights[7:14] if n["ahi"] is not None]
+    recent_avg = _avg([n["ahi"] for n in recent_7])
+    prior_avg = _avg([n["ahi"] for n in prior_7])
+
+    return {
+        "nights": list(reversed(nights)),
+        "recent_7_avg_ahi": recent_avg,
+        "prior_7_avg_ahi": prior_avg,
+        "recent_vs_prior_delta": (
+            round(recent_avg - prior_avg, 2)
+            if recent_avg is not None and prior_avg is not None
+            else None
+        ),
+        "rising_ahi_streak": _has_rising_streak(nights),
+        "event_totals": _event_totals(nights),
+        "missing_or_limited_data": _missing_general(nights),
+        "data_marker": _data_marker(rows),
+    }
+
+
+def _build_session_context(db: Session, user_id: str, session_id: str) -> Optional[Dict[str, Any]]:
+    row = db.execute(
+        text(
+            """
+            WITH night AS (
+                SELECT folder_date, user_id
+                FROM sessions
+                WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)
+            )
+            SELECT
+                (array_agg(s.id::text ORDER BY s.duration_seconds DESC))[1] AS id,
+                s.folder_date,
+                MIN(s.start_datetime) AS start_datetime,
+                SUM(s.duration_seconds) AS duration_seconds,
+                SUM(s.total_ahi_events) AS total_ahi_events,
+                SUM(s.central_apnea_count) AS central_apnea_count,
+                SUM(s.obstructive_apnea_count) AS obstructive_apnea_count,
+                SUM(s.hypopnea_count) AS hypopnea_count,
+                SUM(s.apnea_count) AS apnea_count,
+                SUM(s.arousal_count) AS arousal_count,
+                AVG(s.avg_pressure) AS avg_pressure,
+                MAX(s.p95_pressure) AS p95_pressure,
+                AVG(s.avg_leak) AS avg_leak,
+                AVG(s.avg_flow_lim) AS avg_flow_lim,
+                BOOL_OR(s.has_spo2) AS has_spo2,
+                AVG(s.avg_spo2) AS avg_spo2,
+                MIN(s.min_spo2) AS min_spo2,
+                (array_agg(s.therapy_mode ORDER BY s.duration_seconds DESC))[1] AS therapy_mode,
+                (array_agg(s.mask_type ORDER BY s.duration_seconds DESC))[1] AS mask_type,
+                (array_agg(s.humidity_level ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
+                (array_agg(s.temperature_c ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
+                MAX(s.updated_at) AS updated_at,
+                CASE WHEN SUM(s.duration_seconds) > 0
+                     THEN ROUND((SUM(s.total_ahi_events) / (SUM(s.duration_seconds) / 3600.0))::numeric, 2)
+                     ELSE 0 END AS ahi
+            FROM sessions s
+            JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
+            WHERE s.duration_seconds >= 600
+            GROUP BY s.folder_date
+            """
+        ),
+        {"id": session_id, "uid": user_id},
+    ).mappings().first()
+    if not row:
+        return None
+
+    events = db.execute(
+        text(
+            """
+            SELECT se.event_type, se.onset_seconds, se.duration_seconds
+            FROM session_events se
+            JOIN sessions s ON se.session_id = s.id
+            WHERE s.folder_date = :folder_date
+              AND s.user_id = CAST(:uid AS uuid)
+            ORDER BY se.onset_seconds
+            """
+        ),
+        {"folder_date": row["folder_date"], "uid": user_id},
+    ).mappings().all()
+    metrics = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) AS samples,
+                AVG(leak) AS avg_leak,
+                MAX(leak) AS max_leak,
+                AVG(flow_lim) AS avg_flow_lim,
+                MAX(flow_lim) AS max_flow_lim,
+                MIN(pressure) AS min_pressure,
+                MAX(pressure) AS max_pressure,
+                percentile_cont(0.95) WITHIN GROUP (ORDER BY leak) AS p95_leak
+            FROM session_metrics
+            WHERE session_id = CAST(:sid AS uuid)
+            """
+        ),
+        {"sid": row["id"]},
+    ).mappings().first()
+
+    return {
+        "session_id": session_id,
+        "folder_date": row["folder_date"].isoformat(),
+        "duration_hours": round(int(row["duration_seconds"] or 0) / 3600, 2),
+        "ahi": _float(row["ahi"]),
+        "event_counts": {
+            "central": int(row["central_apnea_count"] or 0),
+            "obstructive": int(row["obstructive_apnea_count"] or 0),
+            "hypopnea": int(row["hypopnea_count"] or 0),
+            "unclassified_apnea": int(row["apnea_count"] or 0),
+            "arousal": int(row["arousal_count"] or 0),
+            "total_ahi_events": int(row["total_ahi_events"] or 0),
+        },
+        "event_clustering": _event_cluster_summary(events, int(row["duration_seconds"] or 0)),
+        "pressure": {
+            "avg_cm_h2o": _float(row["avg_pressure"]),
+            "p95_cm_h2o": _float(row["p95_pressure"]),
+            "min_sample_cm_h2o": _float(metrics["min_pressure"] if metrics else None),
+            "max_sample_cm_h2o": _float(metrics["max_pressure"] if metrics else None),
+        },
+        "leak": {
+            "avg_lpm": _lps_to_lpm(row["avg_leak"]),
+            "sample_avg_lpm": _lps_to_lpm(metrics["avg_leak"] if metrics else None),
+            "p95_lpm": _lps_to_lpm(metrics["p95_leak"] if metrics else None),
+            "max_lpm": _lps_to_lpm(metrics["max_leak"] if metrics else None),
+            "large_leak_reference_lpm": 24,
+        },
+        "flow_limitation": {
+            "avg": _float(row["avg_flow_lim"]),
+            "sample_avg": _float(metrics["avg_flow_lim"] if metrics else None),
+            "max": _float(metrics["max_flow_lim"] if metrics else None),
+        },
+        "oxygen": {
+            "available": bool(row["has_spo2"]),
+            "avg_spo2": _float(row["avg_spo2"]),
+            "min_spo2": _float(row["min_spo2"]),
+        },
+        "machine_context": {
+            "therapy_mode": row["therapy_mode"],
+            "mask_type": row["mask_type"],
+            "humidity_level": row["humidity_level"],
+            "temperature_c": _float(row["temperature_c"]),
+        },
+        "missing_or_limited_data": _missing_session(row, metrics),
+        "data_marker": _data_marker([row]),
+    }
+
+
+def _night_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "date": row["folder_date"].isoformat(),
+        "duration_hours": round(int(row["duration_seconds"] or 0) / 3600, 2),
+        "ahi": _float(row["ahi"]),
+        "avg_pressure": _float(row["avg_pressure"]),
+        "p95_pressure": _float(row["p95_pressure"]),
+        "avg_leak_lpm": _lps_to_lpm(row["avg_leak"]),
+        "avg_flow_lim": _float(row["avg_flow_lim"]),
+        "event_counts": {
+            "central": int(row["central_apnea_count"] or 0),
+            "obstructive": int(row["obstructive_apnea_count"] or 0),
+            "hypopnea": int(row["hypopnea_count"] or 0),
+            "unclassified_apnea": int(row["apnea_count"] or 0),
+            "total_ahi_events": int(row["total_ahi_events"] or 0),
+        },
+        "oxygen_available": bool(row.get("has_spo2", False)),
+        "min_spo2": _float(row.get("min_spo2")),
+        "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+    }
+
+
+def _event_cluster_summary(events: List[Mapping[str, Any]], duration_seconds: int) -> Dict[str, Any]:
+    by_type: Dict[str, int] = {}
+    onsets = []
+    for event in events:
+        by_type[event["event_type"]] = by_type.get(event["event_type"], 0) + 1
+        onsets.append(float(event["onset_seconds"]))
+
+    cluster_windows = 0
+    for onset in onsets:
+        if sum(1 for other in onsets if onset <= other <= onset + 600) >= 3:
+            cluster_windows += 1
+
+    first_half = sum(1 for onset in onsets if onset <= duration_seconds / 2)
+    return {
+        "total_events_with_timestamps": len(onsets),
+        "event_types": by_type,
+        "ten_minute_windows_with_3_plus_events": cluster_windows,
+        "first_half_events": first_half,
+        "second_half_events": len(onsets) - first_half,
+    }
+
+
+def _enrich_general_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    payload["insights"] = payload.get("therapy_quality") or payload.get("headline")
+    payload["going_well"] = payload.get("high_confidence_observations", [])[:3]
+    payload["whats_not"] = (payload.get("possible_patterns", []) + payload.get("missing_or_uncertain", []))[:3]
+    payload["recommended_changes"] = payload.get("things_to_review", [])[:3]
+    payload["disclaimer"] = "AI-generated pattern review, not medical advice. Discuss important treatment questions with a clinician."
+    return payload
+
+
+def _enrich_session_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    payload["observations"] = payload.get("high_confidence_observations", [])
+    payload["recommendations"] = payload.get("things_to_review", [])
+    return payload
+
+
+def _enrich_trend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    payload["anomalies"] = payload.get("possible_patterns", [])
+    headline = " ".join(str(payload.get("headline", "")).lower().split())
+    if "improv" in headline:
+        payload["trend_direction"] = "improving"
+    elif "worsen" in headline or "rising" in headline or "higher" in headline:
+        payload["trend_direction"] = "worsening"
+    elif "variable" in headline or "mixed" in headline:
+        payload["trend_direction"] = "variable"
+    else:
+        payload["trend_direction"] = "stable"
+    return payload
+
+
+def _normalize_structured_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    flag = str(payload.get("flag") or "watch").lower()
+    if flag not in {"good", "watch", "alert"}:
+        flag = "watch"
+    return {
+        "headline": str(payload.get("headline") or "").strip(),
+        "therapy_quality": str(payload.get("therapy_quality") or "").strip(),
+        "high_confidence_observations": _ensure_list(payload.get("high_confidence_observations")),
+        "possible_patterns": _ensure_list(payload.get("possible_patterns")),
+        "things_to_review": _ensure_list(payload.get("things_to_review")),
+        "missing_or_uncertain": _ensure_list(payload.get("missing_or_uncertain")),
+        "flag": flag,
+        "cached": False,
+    }
+
+
+def _read_cache(
+    db: Session,
+    user_id: str,
+    analysis_type: str,
+    cache_key: str,
+    input_fingerprint: str,
+    settings_fingerprint: str,
+) -> Optional[Dict[str, Any]]:
+    row = db.execute(
+        text(
+            """
+            SELECT response_payload
+            FROM ai_analysis_cache
+            WHERE user_id = CAST(:uid AS uuid)
+              AND analysis_type = :analysis_type
+              AND cache_key = :cache_key
+              AND input_fingerprint = :input_fingerprint
+              AND settings_fingerprint = :settings_fingerprint
+            """
+        ),
+        {
+            "uid": user_id,
+            "analysis_type": analysis_type,
+            "cache_key": cache_key,
+            "input_fingerprint": input_fingerprint,
+            "settings_fingerprint": settings_fingerprint,
+        },
+    ).mappings().first()
+    return dict(row["response_payload"]) if row else None
+
+
+def _write_cache(
+    db: Session,
+    user_id: str,
+    analysis_type: str,
+    cache_key: str,
+    input_fingerprint: str,
+    settings_fingerprint: str,
+    payload: Dict[str, Any],
+) -> None:
+    db.execute(
+        text(
+            """
+            INSERT INTO ai_analysis_cache
+                (user_id, analysis_type, cache_key, input_fingerprint, settings_fingerprint, response_payload)
+            VALUES
+                (CAST(:uid AS uuid), :analysis_type, :cache_key, :input_fingerprint, :settings_fingerprint, CAST(:payload AS jsonb))
+            ON CONFLICT (user_id, analysis_type, cache_key) DO UPDATE SET
+                input_fingerprint = EXCLUDED.input_fingerprint,
+                settings_fingerprint = EXCLUDED.settings_fingerprint,
+                response_payload = EXCLUDED.response_payload,
+                updated_at = NOW()
+            """
+        ),
+        {
+            "uid": user_id,
+            "analysis_type": analysis_type,
+            "cache_key": cache_key,
+            "input_fingerprint": input_fingerprint,
+            "settings_fingerprint": settings_fingerprint,
+            "payload": json.dumps(payload),
+        },
+    )
+    db.commit()
+
+
+def _settings_fingerprint(llm_settings: Mapping[str, str | None]) -> str:
+    return _fingerprint(
+        {
+            "provider": get_provider(llm_settings),
+            "model": get_model(llm_settings),
+            "base_url": llm_settings.get("llm_base_url"),
+            "prompt_version": PROMPT_VERSION,
+        }
+    )
+
+
+def _fingerprint(value: Dict[str, Any]) -> str:
+    return hashlib.sha256(_json_for_prompt(value).encode("utf-8")).hexdigest()
+
+
+def _json_for_prompt(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+
+
+def _parse_ai_payload(raw_text: str) -> Dict[str, Any]:
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
@@ -210,7 +640,7 @@ def _parse_ai_payload(raw_text: str) -> Dict:
         end = cleaned.rfind("}")
         if start == -1 or end == -1 or end <= start:
             raise
-        return json.loads(cleaned[start:end + 1])
+        return json.loads(cleaned[start : end + 1])
 
 
 def _ensure_list(value: object) -> List[str]:
@@ -223,184 +653,57 @@ def _ensure_list(value: object) -> List[str]:
     return [str(value).strip()]
 
 
-SESSION_AI_SYSTEM_PROMPT = (
-    "You are a helpful sleep therapy assistant reviewing a single night of CPAP therapy data. "
-    "Return valid JSON only with these keys: headline, observations, recommendations, flag. "
-    "`headline` must be exactly one sentence in plain, non-medical English that describes the most notable aspect of this night. "
-    "Start with words like 'Good night', 'Rough night', 'Solid session', etc. based on the data. "
-    "`observations` must be an array of 2-4 short strings, each explaining one data point in plain English. "
-    "Where relevant, note if a value is above or below the typical target. "
-    "`recommendations` must be an array of 1-3 short, practical strings. "
-    "Each recommendation must be specific and actionable — if the data supports it, name the setting to review "
-    "(e.g. minimum pressure, EPR, mask fit, humidity) and state what direction to discuss with their care team. "
-    "If no changes are warranted, return a single item such as 'Keep doing what you are doing — this session looks well-controlled.' "
-    "`flag` must be one of: 'good', 'watch', 'alert'. "
-    "Use 'good' when AHI < 5 and no obvious issues. "
-    "Use 'watch' when AHI is 5-15 or there are moderate leak concerns. "
-    "Use 'alert' when AHI >= 15 or there are severe leaks. "
-    "Do not diagnose. Do not replace medical advice."
-)
+def _event_totals(nights: List[Dict[str, Any]]) -> Dict[str, int]:
+    totals = {"central": 0, "obstructive": 0, "hypopnea": 0, "unclassified_apnea": 0, "total_ahi_events": 0}
+    for night in nights:
+        for key in totals:
+            totals[key] += int(night["event_counts"].get(key, 0))
+    return totals
 
 
-class SessionAISummaryResponse(BaseModel):
-    headline: Optional[str] = None
-    observations: Optional[List[str]] = None
-    recommendations: Optional[List[str]] = None
-    flag: Optional[str] = None
-    error: Optional[str] = None
+def _missing_general(nights: List[Dict[str, Any]]) -> List[str]:
+    missing = []
+    if not nights:
+        return ["No imported PAP sessions were available for this analysis window."]
+    if not any(n["avg_flow_lim"] is not None for n in nights):
+        missing.append("Flow limitation data is not available in the analyzed nights.")
+    if not any(n["oxygen_available"] for n in nights):
+        missing.append("Oxygen data is not available, so desaturation patterns cannot be assessed.")
+    missing.append("The summary uses nightly aggregates and cannot confirm breath-by-breath waveform shapes.")
+    return missing
 
 
-@router.get("/sessions/{session_id}/ai-summary", response_model=SessionAISummaryResponse)
-def get_session_ai_summary(
-    session_id: str,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    llm_settings = get_llm_settings(db, current_user["id"])
-    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
-        return SessionAISummaryResponse(error="LLM backend not configured")
-
-    row = db.execute(
-        text(
-            "SELECT id::text AS id, folder_date, ahi, total_ahi_events, "
-            "central_apnea_count, obstructive_apnea_count, hypopnea_count, apnea_count, "
-            "avg_pressure, p95_pressure, avg_leak, avg_resp_rate, avg_tidal_vol, "
-            "avg_spo2, min_spo2, duration_seconds "
-            "FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"
-        ),
-        {"id": session_id, "uid": current_user["id"]},
-    ).mappings().first()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    hours = int(row["duration_seconds"] or 0) // 3600
-    mins = (int(row["duration_seconds"] or 0) % 3600) // 60
-    leak_mlps = round(float(row["avg_leak"]) * 1000, 1) if row["avg_leak"] is not None else None
-
-    user_prompt = (
-        f"Session date: {row['folder_date']}\n"
-        f"Duration: {hours}h {mins}m\n"
-        f"AHI: {_fmt_float(row['ahi'])} events/hour\n"
-        f"Total events: {row['total_ahi_events']} "
-        f"(CA {row['central_apnea_count']}, OA {row['obstructive_apnea_count']}, "
-        f"H {row['hypopnea_count']}, unclassified {row['apnea_count']})\n"
-        f"Average pressure: {_fmt_float(row['avg_pressure'])} cmH2O\n"
-        f"95th percentile pressure: {_fmt_float(row['p95_pressure'])} cmH2O\n"
-        f"Average leak: {f'{leak_mlps} mL/s' if leak_mlps is not None else 'n/a'}\n"
-        f"Average respiratory rate: {_fmt_float(row['avg_resp_rate'])} breaths/min\n"
-        f"Average tidal volume: {_fmt_float(row['avg_tidal_vol'])} L\n"
-        f"Average SpO2: {_fmt_float(row['avg_spo2'])}%\n"
-        f"Minimum SpO2: {_fmt_float(row['min_spo2'])}%\n\n"
-        "Typical targets: AHI < 5 is good control. Leak < 24 L/min (12 mL/s) is acceptable. "
-        "SpO2 should ideally stay above 90%. "
-        "Give a plain-English summary a patient can understand without medical training."
-    )
-
-    try:
-        client = get_llm_client(llm_settings)
-        response = client.chat.completions.create(
-            model=get_model(llm_settings),
-            messages=[
-                {"role": "system", "content": SESSION_AI_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
-        return SessionAISummaryResponse(
-            headline=payload.get("headline"),
-            observations=_ensure_list(payload.get("observations")),
-            recommendations=_ensure_list(payload.get("recommendations")),
-            flag=payload.get("flag", "watch"),
-        )
-    except Exception as exc:
-        return SessionAISummaryResponse(error=f"AI summary unavailable: {exc}")
+def _missing_session(row: Mapping[str, Any], metrics: Mapping[str, Any] | None) -> List[str]:
+    missing = []
+    if not row["has_spo2"]:
+        missing.append("No oximetry data is attached to this session.")
+    if row["avg_flow_lim"] is None and (not metrics or metrics["avg_flow_lim"] is None):
+        missing.append("Flow limitation samples are not available for this session.")
+    if not metrics or int(metrics["samples"] or 0) == 0:
+        missing.append("Detailed pressure/leak time-series samples are not available.")
+    return missing or ["Waveform-level interpretation is limited to the imported summary and event data."]
 
 
-TREND_AI_SYSTEM_PROMPT = (
-    "You are a helpful sleep therapy assistant reviewing a patient's AHI trend data over multiple nights. "
-    "Return valid JSON only with these keys: headline, anomalies, trend_direction, flag. "
-    "`headline` must be one sentence summarising the overall trend pattern in plain English. "
-    "`anomalies` must be an array of 1-3 strings, each describing a notable pattern or change detected. "
-    "If no anomalies exist, return an array with one string like 'No major changes detected recently.' "
-    "`trend_direction` must be one of: 'improving', 'stable', 'worsening', 'variable'. "
-    "`flag` must be one of: 'good', 'watch', 'alert'. "
-    "Use 'good' when the trend is stable or improving and recent AHI averages are under 5. "
-    "Use 'watch' when AHI is creeping up or variable. "
-    "Use 'alert' when AHI has risen sharply or recent nights average above 15. "
-    "Do not diagnose. Do not replace medical advice."
-)
+def _has_rising_streak(nights: List[Dict[str, Any]]) -> bool:
+    newest_first = [n["ahi"] for n in nights[:3] if n["ahi"] is not None]
+    return len(newest_first) == 3 and newest_first[0] > newest_first[1] > newest_first[2]
 
 
-class TrendAISummaryResponse(BaseModel):
-    headline: Optional[str] = None
-    anomalies: Optional[List[str]] = None
-    trend_direction: Optional[str] = None
-    flag: Optional[str] = None
-    error: Optional[str] = None
+def _data_marker(rows: List[Mapping[str, Any]]) -> Dict[str, Any]:
+    return {
+        "row_count": len(rows),
+        "latest_updated_at": max((r["updated_at"] for r in rows if r.get("updated_at")), default=None),
+        "latest_folder_date": max((r["folder_date"] for r in rows if r.get("folder_date")), default=None),
+    }
 
 
-@router.get("/trend-ai", response_model=TrendAISummaryResponse)
-def get_trend_ai_summary(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    llm_settings = get_llm_settings(db, current_user["id"])
-    if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
-        return TrendAISummaryResponse(error="LLM backend not configured")
+def _avg(values: List[float]) -> Optional[float]:
+    return round(sum(values) / len(values), 2) if values else None
 
-    rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT ON (folder_date)
-                folder_date, ahi, duration_seconds
-            FROM sessions
-            WHERE user_id = CAST(:uid AS uuid)
-            ORDER BY folder_date DESC, duration_seconds DESC
-            LIMIT 30
-            """
-        ),
-        {"uid": current_user["id"]},
-    ).mappings().all()
 
-    if not rows:
-        return TrendAISummaryResponse(error="No session data available.")
+def _float(value: object) -> Optional[float]:
+    return round(float(value), 4) if value is not None else None
 
-    # Build a compact representation of the last 30 nights for the prompt
-    nights_text = "\n".join(
-        f"  {r['folder_date']}: AHI {_fmt_float(r['ahi'])}"
-        for r in reversed(rows)
-    )
 
-    recent_7 = [r for r in rows[:7] if r["ahi"] is not None]
-    prev_7 = [r for r in rows[7:14] if r["ahi"] is not None]
-    avg_recent = round(sum(float(r["ahi"]) for r in recent_7) / len(recent_7), 2) if recent_7 else None
-    avg_prev = round(sum(float(r["ahi"]) for r in prev_7) / len(prev_7), 2) if prev_7 else None
-
-    user_prompt = (
-        f"Last {len(rows)} nights of AHI data (oldest to newest):\n{nights_text}\n\n"
-        f"Average AHI last 7 nights: {avg_recent if avg_recent is not None else 'n/a'}\n"
-        f"Average AHI prior 7 nights: {avg_prev if avg_prev is not None else 'n/a'}\n\n"
-        "Identify whether AHI is trending up, down, or staying stable. "
-        "Flag if AHI has risen 3+ nights in a row, or if recent nights are significantly worse than the prior week. "
-        "Be brief and plain. Do not diagnose."
-    )
-
-    try:
-        client = get_llm_client(llm_settings)
-        response = client.chat.completions.create(
-            model=get_model(llm_settings),
-            messages=[
-                {"role": "system", "content": TREND_AI_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        payload = _parse_ai_payload((response.choices[0].message.content or "").strip())
-        return TrendAISummaryResponse(
-            headline=payload.get("headline"),
-            anomalies=_ensure_list(payload.get("anomalies")),
-            trend_direction=payload.get("trend_direction", "stable"),
-            flag=payload.get("flag", "watch"),
-        )
-    except Exception as exc:
-        return TrendAISummaryResponse(error=f"AI summary unavailable: {exc}")
+def _lps_to_lpm(value: object) -> Optional[float]:
+    return round(float(value) * 60, 2) if value is not None else None

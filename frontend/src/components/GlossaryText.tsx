@@ -1,10 +1,17 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 type GlossaryEntry = {
   title: string
   definition: string
   aliases: string[]
+}
+
+type ActiveGlossary = {
+  entry: GlossaryEntry
+  x: number
+  y: number
+  placement: 'top' | 'bottom'
 }
 
 const GLOSSARY: GlossaryEntry[] = [
@@ -98,9 +105,47 @@ export default function GlossaryText({
   text: string
   className?: string
 }) {
-  const [activeEntry, setActiveEntry] = useState<GlossaryEntry | null>(null)
+  const [activeGlossary, setActiveGlossary] = useState<ActiveGlossary | null>(null)
 
   const fragments = useMemo(() => splitByGlossary(text), [text])
+
+  useEffect(() => {
+    if (!activeGlossary) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveGlossary(null)
+      }
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('[data-glossary-popover], [data-glossary-trigger]')) {
+        return
+      }
+      setActiveGlossary(null)
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [activeGlossary])
+
+  function openGlossary(entry: GlossaryEntry, element: HTMLElement) {
+    const rect = element.getBoundingClientRect()
+    const hasRoomAbove = rect.top > 150
+    setActiveGlossary({
+      entry,
+      x: rect.left + rect.width / 2,
+      y: hasRoomAbove ? rect.top - 10 : rect.bottom + 10,
+      placement: hasRoomAbove ? 'top' : 'bottom',
+    })
+  }
 
   return (
     <>
@@ -114,51 +159,43 @@ export default function GlossaryText({
             <button
               key={`${fragment.alias}-${index}`}
               type="button"
-              className="cursor-pointer font-bold text-inherit underline decoration-[var(--accent)] decoration-2 underline-offset-3 transition hover:text-[var(--accent-hover)]"
-              onClick={() => setActiveEntry(fragment.entry)}
+              data-glossary-trigger
+              className="cursor-help text-inherit underline decoration-[var(--accent)]/50 decoration-dotted decoration-1 underline-offset-4 transition hover:text-[var(--accent-hover)] hover:decoration-[var(--accent-hover)]"
+              aria-label={`Show definition for ${fragment.entry.title}`}
+              aria-expanded={activeGlossary?.entry.title === fragment.entry.title}
+              onClick={(event) => {
+                if (activeGlossary?.entry.title === fragment.entry.title) {
+                  setActiveGlossary(null)
+                } else {
+                  openGlossary(fragment.entry, event.currentTarget)
+                }
+              }}
             >
               {fragment.alias}
             </button>
           )
         })}
       </span>
-      {activeEntry ? createPortal(
-        <>
-          <div
-            className="motion-overlay-in fixed inset-0 z-[10000]"
-            style={{
-              background: 'var(--modal-backdrop)',
-              animation: 'modal-overlay-in 150ms ease-out',
-            }}
-            aria-hidden="true"
-            data-state="open"
-            onClick={() => setActiveEntry(null)}
-          />
-          <div className="pointer-events-none fixed inset-0 z-[10001] flex items-center justify-center px-4">
-            <div
-              className="motion-panel-in pointer-events-auto w-full max-w-md rounded-[30px] border border-[var(--modal-ring)] bg-[var(--modal-surface)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.34)] ring-1 ring-[var(--modal-ring)]"
-              style={{
-                animation: 'modal-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1)',
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">Definition</p>
-                  <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">{activeEntry.title}</h3>
-                </div>
-                <button
-                  type="button"
-                  className="text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]"
-                  onClick={() => setActiveEntry(null)}
-                >
-                  Close
-                </button>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">{activeEntry.definition}</p>
-            </div>
-          </div>
-        </>,
+      {activeGlossary ? createPortal(
+        <div
+          data-glossary-popover
+          role="tooltip"
+          className="fixed z-[10001] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[14px] border border-[var(--modal-ring)] bg-[var(--modal-surface)] px-4 py-3 text-left shadow-[0_18px_48px_rgba(0,0,0,0.20)] ring-1 ring-[var(--modal-ring)]"
+          style={{
+            left: `${Math.min(Math.max(activeGlossary.x, 176), window.innerWidth - 176)}px`,
+            top: `${activeGlossary.y}px`,
+            transform: activeGlossary.placement === 'top'
+              ? 'translate(-50%, -100%)'
+              : 'translate(-50%, 0)',
+          }}
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
+            {activeGlossary.entry.title}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+            {activeGlossary.entry.definition}
+          </p>
+        </div>,
         document.body,
       ) : null}
     </>
@@ -167,6 +204,7 @@ export default function GlossaryText({
 
 function splitByGlossary(text: string): Array<string | { alias: string; entry: GlossaryEntry }> {
   const fragments: Array<string | { alias: string; entry: GlossaryEntry }> = []
+  const seenEntries = new Set<string>()
   let lastIndex = 0
 
   text.replace(GLOSSARY_PATTERN, (match, _group, offset: number) => {
@@ -176,7 +214,12 @@ function splitByGlossary(text: string): Array<string | { alias: string; entry: G
 
     const entry = ALIAS_LOOKUP.get(match.toLowerCase())
     if (entry) {
-      fragments.push({ alias: match, entry })
+      if (seenEntries.has(entry.title)) {
+        fragments.push(match)
+      } else {
+        seenEntries.add(entry.title)
+        fragments.push({ alias: match, entry })
+      }
     } else {
       fragments.push(match)
     }

@@ -28,7 +28,6 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { Button } from './components/ui/button'
 import {
   IMPORT_SYNC_STORAGE_KEY,
-  clearCachedAISummary,
   notifyImportCompleted,
 } from './lib/aiSummaryCache'
 
@@ -178,7 +177,6 @@ function AppLayout() {
           window.sessionStorage.setItem(IMPORT_SYNC_STORAGE_KEY, 'true')
         } else {
           if (hadBeenSyncing && user) {
-            clearCachedAISummary(user.user_id)
             notifyImportCompleted()
           }
           wasSyncingRef.current = false

@@ -412,6 +412,7 @@ function TrendAICard() {
   const [data, setData] = useState<TrendAISummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
+  const [refreshState, setRefreshState] = useState({ token: 0, force: false })
 
   useEffect(() => {
     api.getImportSettings()
@@ -423,11 +424,12 @@ function TrendAICard() {
     if (aiConfigured !== true) {
       return
     }
+    setLoading(true)
     api
-      .getTrendAISummary()
+      .getTrendAISummary(refreshState.force)
       .then(setData)
       .finally(() => setLoading(false))
-  }, [aiConfigured])
+  }, [aiConfigured, refreshState])
 
   if (aiConfigured !== true) {
     return null
@@ -440,14 +442,25 @@ function TrendAICard() {
   return (
     <Card className="overflow-hidden border-[var(--border)] bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.10),_transparent_28%),radial-gradient(circle_at_90%_18%,_rgba(106,161,54,0.10),_transparent_20%),var(--surface-strong)]">
       <CardContent className="p-6 pt-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex min-h-10 items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className={`inline-block h-2 w-2 rounded-full ${loading ? 'bg-[var(--accent)] animate-pulse' : colors.dot}`} />
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">AI Trend Analysis</p>
           </div>
           {!loading && data && !data.error && directionLabel && (
-            <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${colors.badge}`}>
-              {directionLabel}
+            <div className="flex shrink-0 items-center gap-2">
+              <div className={`rounded-full px-3 py-1 text-xs font-bold ${colors.badge}`}>
+                {data.cached ? 'Cached' : directionLabel}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => setRefreshState((current) => ({ token: current.token + 1, force: true }))}
+              >
+                Regenerate
+              </Button>
             </div>
           )}
         </div>
@@ -465,14 +478,53 @@ function TrendAICard() {
             <p className="mt-3 text-lg font-extrabold leading-7 text-[var(--foreground)]">
               <GlossaryText text={data.headline} />
             </p>
-            {data.anomalies && data.anomalies.length > 0 && (
+            {data.therapy_quality && (
+              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                <GlossaryText text={data.therapy_quality} />
+              </p>
+            )}
+            {(data.high_confidence_observations ?? data.anomalies) && (
               <ul className={`mt-4 space-y-2 border-l-2 pl-3 ${colors.border}`}>
-                {data.anomalies.map((item) => (
+                {(data.high_confidence_observations ?? data.anomalies ?? []).map((item) => (
                   <li key={item} className="text-sm leading-6 text-[var(--muted-foreground)]">
                     <GlossaryText text={item} />
                   </li>
                 ))}
               </ul>
+            )}
+            {data.possible_patterns && data.possible_patterns.length > 0 && (
+              <ul className={`mt-4 space-y-2 border-l-2 pl-3 ${colors.border}`}>
+                {data.possible_patterns.map((item) => (
+                  <li key={item} className="text-sm leading-6 text-[var(--muted-foreground)]">
+                    <GlossaryText text={item} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {data.things_to_review && data.things_to_review.length > 0 && (
+              <div className="mt-5">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Review</p>
+                <ul className="mt-2 space-y-2">
+                  {data.things_to_review.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-[var(--foreground)]">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                      <GlossaryText text={item} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {data.missing_or_uncertain && data.missing_or_uncertain.length > 0 && (
+              <div className="mt-5 border-l-2 border-[var(--border)] pl-3">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Uncertain</p>
+                <ul className="mt-2 space-y-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
+                  {data.missing_or_uncertain.map((item) => (
+                    <li key={item}>
+                      <GlossaryText text={item} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             <p className="mt-5 text-xs text-[var(--muted-foreground)]">
               AI-generated. Not medical advice. Discuss any concerns with your doctor or sleep specialist.

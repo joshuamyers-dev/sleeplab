@@ -457,7 +457,6 @@ async function collectEdfFiles(
 ): Promise<SelectedImportFile[]> {
   const entries: SelectedImportFile[] = []
 
-  // @ts-expect-error File System Access API iterator is not fully typed in all TS lib versions.
   for await (const [name, handle] of directoryHandle.entries()) {
     if (handle.kind === 'file') {
       if (!name.toLowerCase().endsWith('.edf')) {

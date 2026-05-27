@@ -80,6 +80,14 @@ export interface OximeterImportResponse {
 }
 
 export interface AISummaryResponse {
+  headline?: string | null
+  therapy_quality?: string | null
+  high_confidence_observations?: string[] | null
+  possible_patterns?: string[] | null
+  things_to_review?: string[] | null
+  missing_or_uncertain?: string[] | null
+  flag?: 'good' | 'watch' | 'alert' | null
+  cached?: boolean
   insights?: string | null
   going_well?: string[] | null
   whats_not?: string[] | null
@@ -90,17 +98,29 @@ export interface AISummaryResponse {
 
 export interface SessionAISummaryResponse {
   headline?: string | null
+  therapy_quality?: string | null
+  high_confidence_observations?: string[] | null
+  possible_patterns?: string[] | null
+  things_to_review?: string[] | null
+  missing_or_uncertain?: string[] | null
   observations?: string[] | null
   recommendations?: string[] | null
   flag?: 'good' | 'watch' | 'alert' | null
+  cached?: boolean
   error?: string | null
 }
 
 export interface TrendAISummaryResponse {
   headline?: string | null
+  therapy_quality?: string | null
+  high_confidence_observations?: string[] | null
+  possible_patterns?: string[] | null
+  things_to_review?: string[] | null
+  missing_or_uncertain?: string[] | null
   anomalies?: string[] | null
   trend_direction?: 'improving' | 'stable' | 'worsening' | 'variable' | null
   flag?: 'good' | 'watch' | 'alert' | null
+  cached?: boolean
   error?: string | null
 }
 
@@ -333,7 +353,7 @@ function clearStoredToken() {
   window.localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
 
-async function request<T>(path: string, init?: RequestInit, params?: Record<string, string | number>) {
+async function request<T>(path: string, init?: RequestInit, params?: Record<string, string | number | boolean>) {
   const qs = params
     ? '?' + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString()
     : ''
@@ -377,7 +397,7 @@ async function request<T>(path: string, init?: RequestInit, params?: Record<stri
   return response.json() as Promise<T>
 }
 
-function get<T>(path: string, params?: Record<string, string | number>) {
+function get<T>(path: string, params?: Record<string, string | number | boolean>) {
   return request<T>(path, undefined, params)
 }
 
@@ -406,9 +426,10 @@ export const api = {
   getVersion: () => get<VersionResponse>('/version'),
   getSummary: () => get<SummaryStats>('/stats/summary'),
   getOverviewStats: (days = 180) => get<OverviewStats>('/stats/overview', { days }),
-  getAISummary: (days = 30) => get<AISummaryResponse>('/stats/ai-summary', { days }),
-  getSessionAISummary: (sessionId: string) => get<SessionAISummaryResponse>(`/stats/sessions/${sessionId}/ai-summary`),
-  getTrendAISummary: () => get<TrendAISummaryResponse>('/stats/trend-ai'),
+  getAISummary: (days = 30, force = false) => get<AISummaryResponse>('/stats/ai-summary', { days, force }),
+  getSessionAISummary: (sessionId: string, force = false) =>
+    get<SessionAISummaryResponse>(`/stats/sessions/${sessionId}/ai-summary`, { force }),
+  getTrendAISummary: (force = false) => get<TrendAISummaryResponse>('/stats/trend-ai', { force }),
   getSessions: (params?: { per_page?: number; date_from?: string; date_to?: string }) =>
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
