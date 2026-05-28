@@ -79,7 +79,8 @@ services:
 
       # --- Optional: SleepHQ cloud import ------------------------------------
       # Set to "true" and the sleephq-client package will be installed at startup.
-      # Requires SLEEPHQ_API_KEY and SLEEPHQ_BASE_URL in your .env.
+      # Requires SLEEPHQ_CLIENT_ID and SLEEPHQ_CLIENT_SECRET in your .env.
+      # SLEEPHQ_TEAM_ID is optional and auto-resolved if omitted.
       SLEEPHQ_ENABLED: ${SLEEPHQ_ENABLED:-false}
 
       # --- Optional: Import webhook ------------------------------------------
