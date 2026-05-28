@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.2.0...v1.2.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* **release:** expose semantic release outputs ([3239e8f](https://github.com/joshuamyers-dev/sleeplab/commit/3239e8f1386049ae262dae356b23629cf26ef3d6))
+
 # [1.2.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.1.0...v1.2.0) (2026-05-28)
 
 
