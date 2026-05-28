@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+import os
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from ..auth import create_access_token, get_current_user, hash_password, verify_password
 from ..database import get_db
-from ..auth import hash_password, verify_password, create_access_token, get_current_user
 
 router = APIRouter()
 
@@ -55,8 +57,15 @@ def _serialize_user(row: dict) -> UserResponse:
     )
 
 
+def is_registration_disabled() -> bool:
+    return os.environ.get("DISABLE_USER_REGISTRATION", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 @router.post("/register", response_model=AuthResponse, status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
+    if is_registration_disabled():
+        raise HTTPException(status_code=403, detail="User registration is disabled")
+
     email = body.email.lower().strip()
 
     existing = db.execute(

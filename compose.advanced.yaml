@@ -65,6 +65,10 @@ services:
       # Generate a strong key:  openssl rand -hex 32
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
 
+      # --- Registration ------------------------------------------------------
+      # Set to "true" to hide account creation and block POST /auth/register.
+      DISABLE_USER_REGISTRATION: ${DISABLE_USER_REGISTRATION:-false}
+
       # --- API / Networking --------------------------------------------------
       # Public URL of the SleepLab instance (used by the frontend config.js).
       # Set this to your domain or IP if accessing from another device.

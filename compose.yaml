@@ -26,6 +26,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://cpap:cpap@postgres:5432/cpap
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DISABLE_USER_REGISTRATION: ${DISABLE_USER_REGISTRATION:-false}
     ports:
       - "8080:8080"
     healthcheck:

@@ -20,7 +20,10 @@ import os
 from pathlib import Path
 
 template = Path("/app/docker/runtime-config.template.js").read_text()
-print(template.replace("${API_URL}", os.environ.get("API_URL", "http://127.0.0.1:8000")))
+config = template
+config = config.replace("${API_URL}", os.environ.get("API_URL", "http://127.0.0.1:8000"))
+config = config.replace("${DISABLE_USER_REGISTRATION}", os.environ.get("DISABLE_USER_REGISTRATION", "false"))
+print(config)
 PY
 
 nginx -c /app/docker/nginx.conf -g 'daemon off;' &
