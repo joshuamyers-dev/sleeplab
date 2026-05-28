@@ -1,7 +1,27 @@
 from fastapi.testclient import TestClient
 
+from api.routers import auth
+
+
+class TestRegistrationSettings:
+    def test_registration_disabled_flag_accepts_true(self, monkeypatch):
+        monkeypatch.setenv("DISABLE_USER_REGISTRATION", "true")
+
+        assert auth.is_registration_disabled() is True
+
 
 class TestRegister:
+    def test_register_disabled(self, client: TestClient, monkeypatch):
+        monkeypatch.setenv("DISABLE_USER_REGISTRATION", "true")
+
+        resp = client.post("/auth/register", json={
+            "email": "disabled@example.com",
+            "password": "StrongPass1!",
+        })
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "User registration is disabled"
+
     def test_register_success(self, client: TestClient):
         resp = client.post("/auth/register", json={
             "email": "newuser@example.com",

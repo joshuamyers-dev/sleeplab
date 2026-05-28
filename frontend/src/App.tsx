@@ -26,6 +26,7 @@ import SettingsPage from './pages/Settings'
 import TrendsPage from './pages/Trends'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Button } from './components/ui/button'
+import { getIsUserRegistrationDisabled } from './config'
 import {
   IMPORT_SYNC_STORAGE_KEY,
   notifyImportCompleted,
@@ -76,6 +77,7 @@ function AppLayout() {
   const { user, logout, isLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const isRegistrationDisabled = getIsUserRegistrationDisabled()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeMode>('light')
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -215,7 +217,7 @@ function AppLayout() {
     <Routes>
       <Route path="/" element={<RootRoute />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/register" element={isRegistrationDisabled ? <Navigate to="/login" replace /> : <Register />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/trends" element={<ProtectedRoute><TrendsPage /></ProtectedRoute>} />
@@ -334,7 +336,9 @@ function AppLayout() {
                 ) : (
                   <>
                     <Link className="text-sm font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/login">Login</Link>
-                    <Button onClick={() => navigate('/register')}>Create account</Button>
+                    {!isRegistrationDisabled ? (
+                      <Button onClick={() => navigate('/register')}>Create account</Button>
+                    ) : null}
                   </>
                 )}
               </div>

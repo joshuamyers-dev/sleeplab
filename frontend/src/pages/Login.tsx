@@ -5,11 +5,13 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { getIsUserRegistrationDisabled } from '../config'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const navigate = useNavigate()
   const { login, user, isLoading } = useAuth()
+  const isRegistrationDisabled = getIsUserRegistrationDisabled()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -55,9 +57,11 @@ export default function Login() {
               {isSubmitting ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
-          <p className="mt-4 text-sm text-[var(--muted-foreground)]">
-            Need an account? <Link className="font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/register">Create one</Link>
-          </p>
+          {!isRegistrationDisabled ? (
+            <p className="mt-4 text-sm text-[var(--muted-foreground)]">
+              Need an account? <Link className="font-bold text-[var(--accent)] transition hover:text-[var(--accent-hover)]" to="/register">Create one</Link>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

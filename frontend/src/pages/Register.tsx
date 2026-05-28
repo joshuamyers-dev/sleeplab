@@ -5,11 +5,13 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { getIsUserRegistrationDisabled } from '../config'
 import { useAuth } from '../context/AuthContext'
 
 export default function Register() {
   const navigate = useNavigate()
   const { register, user, isLoading } = useAuth()
+  const isRegistrationDisabled = getIsUserRegistrationDisabled()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -18,6 +20,10 @@ export default function Register() {
 
   if (!isLoading && user) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (isRegistrationDisabled) {
+    return <Navigate to="/login" replace />
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
