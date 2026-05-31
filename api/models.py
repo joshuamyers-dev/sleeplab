@@ -1,4 +1,4 @@
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 from typing import Dict, List, Literal, Optional
 from datetime import datetime, date
 
@@ -35,6 +35,7 @@ class SessionDetail(SessionSummary):
     pld_start_datetime: datetime
     device_serial: Optional[str]
     note: str | None = None
+    tags: list[str] = Field(default_factory=list)
     avg_resp_rate: Optional[float]
     avg_tidal_vol: Optional[float]
     avg_min_vent: Optional[float]

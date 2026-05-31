@@ -22,6 +22,22 @@ class SessionNoteUpdate(BaseModel):
     note: str | None = None
 
 
+ALLOWED_SESSION_TAGS = {
+    "Travel",
+    "Alcohol",
+    "Sick",
+    "New mask",
+    "Mouth tape",
+    "Bad sleep",
+    "Good sleep",
+    "Camping",
+}
+
+
+class SessionTagsUpdate(BaseModel):
+    tags: list[str]
+
+
 @router.get("/", response_model=List[SessionSummary])
 def list_sessions(
     page: int = Query(1, ge=1),
@@ -134,7 +150,8 @@ def get_session(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
-                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
+                (array_agg(COALESCE(s.tags, ARRAY[]::text[]) ORDER BY s.duration_seconds DESC))[1] AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -179,6 +196,46 @@ def update_session_note(
               AND folder_date = :folder_date
         """),
         {"note": note, "uid": current_user["id"], "folder_date": selected["folder_date"]},
+    )
+    db.commit()
+    return get_session(session_id=session_id, current_user=current_user, db=db)
+
+
+@router.put("/{session_id}/tags", response_model=SessionDetail)
+def update_session_tags(
+    session_id: str,
+    body: SessionTagsUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    selected = db.execute(
+        text("""
+            SELECT folder_date
+            FROM sessions
+            WHERE id::text = :id
+              AND user_id = CAST(:uid AS uuid)
+        """),
+        {"id": session_id, "uid": current_user["id"]},
+    ).mappings().first()
+    if not selected:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    tags = []
+    for tag in body.tags:
+        if tag not in ALLOWED_SESSION_TAGS:
+            raise HTTPException(status_code=422, detail=f"Invalid session tag: {tag}")
+        if tag not in tags:
+            tags.append(tag)
+
+    db.execute(
+        text("""
+            UPDATE sessions
+            SET tags = CAST(:tags AS text[]),
+                updated_at = NOW()
+            WHERE user_id = CAST(:uid AS uuid)
+              AND folder_date = :folder_date
+        """),
+        {"tags": tags, "uid": current_user["id"], "folder_date": selected["folder_date"]},
     )
     db.commit()
     return get_session(session_id=session_id, current_user=current_user, db=db)
@@ -608,7 +665,8 @@ def get_session_by_date(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
-                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
+                (array_agg(COALESCE(s.tags, ARRAY[]::text[]) ORDER BY s.duration_seconds DESC))[1] AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600

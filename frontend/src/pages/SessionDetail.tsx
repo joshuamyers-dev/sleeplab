@@ -61,6 +61,17 @@ const EVENT_COLORS: Record<string, string> = {
   'Arousal': '#6AA136',
 }
 
+const SESSION_TAGS = [
+  'Travel',
+  'Alcohol',
+  'Sick',
+  'New mask',
+  'Mouth tape',
+  'Bad sleep',
+  'Good sleep',
+  'Camping',
+]
+
 export default function SessionDetail() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
@@ -83,6 +94,10 @@ export default function SessionDetail() {
   const [noteMessage, setNoteMessage] = useState<string | null>(null)
   const [noteError, setNoteError] = useState<string | null>(null)
   const [isNoteSubmitting, setIsNoteSubmitting] = useState(false)
+  const [tagsDraft, setTagsDraft] = useState<string[]>([])
+  const [tagsMessage, setTagsMessage] = useState<string | null>(null)
+  const [tagsError, setTagsError] = useState<string | null>(null)
+  const [isTagsSubmitting, setIsTagsSubmitting] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
   const [eventWindowLoading, setEventWindowLoading] = useState(false)
@@ -99,6 +114,8 @@ export default function SessionDetail() {
     setIsTimezoneEditorOpen(false)
     setNoteMessage(null)
     setNoteError(null)
+    setTagsMessage(null)
+    setTagsError(null)
     setSelectedEventId(null)
     setEventWindow(null)
     setEventWindowLoading(false)
@@ -109,6 +126,7 @@ export default function SessionDetail() {
       setSession(s)
       setTimezoneDraft(s.machine_tz ?? '')
       setNoteDraft(s.note ?? '')
+      setTagsDraft(s.tags ?? [])
       return Promise.all([
         api.getEvents(s.id),
         api.getMetrics(s.id, 15),
@@ -263,6 +281,34 @@ export default function SessionDetail() {
     } finally {
       setIsNoteSubmitting(false)
     }
+  }
+
+  async function handleTagsSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setTagsError(null)
+    setTagsMessage(null)
+    setIsTagsSubmitting(true)
+    try {
+      const updated = await api.updateSessionTags(session.id, tagsDraft)
+      setSession(updated)
+      setTagsDraft(updated.tags ?? [])
+      setTagsMessage(updated.tags.length ? 'Tags saved.' : 'Tags cleared.')
+    } catch (err) {
+      setTagsError(err instanceof Error ? err.message : 'Could not save tags')
+    } finally {
+      setIsTagsSubmitting(false)
+    }
+  }
+
+  function toggleTag(tag: string) {
+    setTagsDraft((current) => (
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : [...current, tag]
+    ))
+    setTagsError(null)
+    setTagsMessage(null)
   }
 
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
@@ -507,6 +553,55 @@ export default function SessionDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tags</CardTitle>
+          <CardDescription>{session.tags.length ? 'Saved tags for this night.' : 'No tags added.'}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleTagsSubmit}>
+            <div className="flex flex-wrap gap-2">
+              {tagsDraft.length ? tagsDraft.map((tag) => (
+                <span key={tag} className="rounded-full bg-[rgba(82,81,167,0.10)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
+                  {tag}
+                </span>
+              )) : (
+                <p className="text-sm text-[var(--muted-foreground)]">No tags added.</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {SESSION_TAGS.map((tag) => {
+                const selected = tagsDraft.includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                      selected
+                        ? 'border-[var(--accent-border)] bg-[rgba(82,81,167,0.12)] text-[var(--accent)]'
+                        : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:border-[var(--accent-border)] hover:text-[var(--accent)]'
+                    }`}
+                    aria-pressed={selected}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                {tagsMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{tagsMessage}</p> : null}
+                {tagsError ? <p className="text-sm text-[var(--danger-text)]">{tagsError}</p> : null}
+              </div>
+              <Button type="submit" disabled={isTagsSubmitting}>
+                {isTagsSubmitting ? 'Saving...' : 'Save tags'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
