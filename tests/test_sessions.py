@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+
 def _seed_session(
     db,
     user_id: str,
