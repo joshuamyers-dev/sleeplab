@@ -151,7 +151,15 @@ def get_session(
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
                 (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
-                (array_agg(COALESCE(s.tags, ARRAY[]::text[]) ORDER BY s.duration_seconds DESC))[1] AS tags
+                COALESCE((
+                    SELECT s2.tags
+                    FROM sessions s2
+                    JOIN night n2 ON s2.folder_date = n2.folder_date AND s2.user_id = n2.user_id
+                    WHERE s2.duration_seconds >= 600
+                      AND s2.tags IS NOT NULL
+                    ORDER BY s2.duration_seconds DESC
+                    LIMIT 1
+                ), ARRAY[]::text[]) AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -666,7 +674,15 @@ def get_session_by_date(
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
                 (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
-                (array_agg(COALESCE(s.tags, ARRAY[]::text[]) ORDER BY s.duration_seconds DESC))[1] AS tags
+                COALESCE((
+                    SELECT s2.tags
+                    FROM sessions s2
+                    JOIN night n2 ON s2.folder_date = n2.folder_date AND s2.user_id = n2.user_id
+                    WHERE s2.duration_seconds >= 600
+                      AND s2.tags IS NOT NULL
+                    ORDER BY s2.duration_seconds DESC
+                    LIMIT 1
+                ), ARRAY[]::text[]) AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600

@@ -83,6 +83,34 @@ class TestGetSession:
         assert resp.status_code == 200
         assert resp.json()["tags"] == ["Travel", "Sick"]
 
+    def test_get_by_date_returns_empty_tags_when_null(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2025, 1, 17)
+        _seed_session(db, test_user["id"], folder_date=folder_date)
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["tags"] == []
+
+    def test_get_by_date_returns_empty_tags_when_cleared(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2025, 1, 18)
+        _seed_session(db, test_user["id"], folder_date=folder_date, tags=[])
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["tags"] == []
+
+    def test_get_by_date_returns_saved_tags(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2025, 1, 19)
+        _seed_session(db, test_user["id"], folder_date=folder_date, tags=["Mouth tape", "Good sleep"])
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["tags"] == ["Mouth tape", "Good sleep"]
+
+    def test_get_by_date_preserves_note(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2025, 1, 20)
+        _seed_session(db, test_user["id"], folder_date=folder_date, note="Still congested")
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["note"] == "Still congested"
+
     def test_get_nonexistent(self, client: TestClient, auth_headers):
         fake_id = "00000000-0000-0000-0000-000000000000"
         resp = client.get(f"/sessions/{fake_id}", headers=auth_headers)
