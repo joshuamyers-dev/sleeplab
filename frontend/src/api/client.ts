@@ -149,6 +149,7 @@ export interface SessionSummary {
 export interface SessionDetail extends SessionSummary {
   pld_start_datetime: string
   device_serial: string | null
+  note: string | null
   avg_resp_rate: number | null
   avg_tidal_vol: number | null
   avg_min_vent: number | null
@@ -434,6 +435,8 @@ export const api = {
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
+  updateSessionNote: (id: string, note: string) =>
+    put<SessionDetail>(`/sessions/${id}/note`, { note }),
   updateSessionTimezone: (id: string, machineTz: string) =>
     put<SessionDetail>(`/sessions/${id}/timezone`, { machine_tz: machineTz }),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),

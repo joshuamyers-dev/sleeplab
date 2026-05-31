@@ -18,6 +18,10 @@ class SessionTimezoneUpdate(BaseModel):
     machine_tz: str
 
 
+class SessionNoteUpdate(BaseModel):
+    note: str | None = None
+
+
 @router.get("/", response_model=List[SessionSummary])
 def list_sessions(
     page: int = Query(1, ge=1),
@@ -129,7 +133,8 @@ def get_session(
                 (array_agg(s.mask_type       ORDER BY s.duration_seconds DESC))[1] AS mask_type,
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
-                (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz
+                (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -140,6 +145,43 @@ def get_session(
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionDetail.model_validate(dict(row))
+
+
+@router.put("/{session_id}/note", response_model=SessionDetail)
+def update_session_note(
+    session_id: str,
+    body: SessionNoteUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    selected = db.execute(
+        text("""
+            SELECT folder_date
+            FROM sessions
+            WHERE id::text = :id
+              AND user_id = CAST(:uid AS uuid)
+        """),
+        {"id": session_id, "uid": current_user["id"]},
+    ).mappings().first()
+    if not selected:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    note = body.note.strip() if body.note is not None else None
+    if note == "":
+        note = None
+
+    db.execute(
+        text("""
+            UPDATE sessions
+            SET note = :note,
+                updated_at = NOW()
+            WHERE user_id = CAST(:uid AS uuid)
+              AND folder_date = :folder_date
+        """),
+        {"note": note, "uid": current_user["id"], "folder_date": selected["folder_date"]},
+    )
+    db.commit()
+    return get_session(session_id=session_id, current_user=current_user, db=db)
 
 
 @router.get("/{session_id}/events", response_model=List[EventRecord])
@@ -564,7 +606,9 @@ def get_session_by_date(
                 (array_agg(s.therapy_mode    ORDER BY s.duration_seconds DESC))[1] AS therapy_mode,
                 (array_agg(s.mask_type       ORDER BY s.duration_seconds DESC))[1] AS mask_type,
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
-                (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c
+                (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
+                (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600

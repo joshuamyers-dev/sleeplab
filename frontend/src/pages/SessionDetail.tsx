@@ -79,6 +79,10 @@ export default function SessionDetail() {
   const [timezoneError, setTimezoneError] = useState<string | null>(null)
   const [isTimezoneSubmitting, setIsTimezoneSubmitting] = useState(false)
   const [isTimezoneEditorOpen, setIsTimezoneEditorOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteMessage, setNoteMessage] = useState<string | null>(null)
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const [isNoteSubmitting, setIsNoteSubmitting] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
   const [eventWindowLoading, setEventWindowLoading] = useState(false)
@@ -93,6 +97,8 @@ export default function SessionDetail() {
     setTimezoneMessage(null)
     setTimezoneError(null)
     setIsTimezoneEditorOpen(false)
+    setNoteMessage(null)
+    setNoteError(null)
     setSelectedEventId(null)
     setEventWindow(null)
     setEventWindowLoading(false)
@@ -102,6 +108,7 @@ export default function SessionDetail() {
     ]).then(([s]) => {
       setSession(s)
       setTimezoneDraft(s.machine_tz ?? '')
+      setNoteDraft(s.note ?? '')
       return Promise.all([
         api.getEvents(s.id),
         api.getMetrics(s.id, 15),
@@ -237,6 +244,24 @@ export default function SessionDetail() {
       setTimezoneError(err instanceof Error ? err.message : 'Could not update session timezone')
     } finally {
       setIsTimezoneSubmitting(false)
+    }
+  }
+
+  async function handleNoteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setNoteError(null)
+    setNoteMessage(null)
+    setIsNoteSubmitting(true)
+    try {
+      const updated = await api.updateSessionNote(session.id, noteDraft)
+      setSession(updated)
+      setNoteDraft(updated.note ?? '')
+      setNoteMessage(updated.note ? 'Note saved.' : 'Note cleared.')
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'Could not save note')
+    } finally {
+      setIsNoteSubmitting(false)
     }
   }
 
@@ -482,6 +507,38 @@ export default function SessionDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notes</CardTitle>
+          <CardDescription>{session.note ? 'Saved note for this night.' : 'No notes yet.'}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-3" onSubmit={handleNoteSubmit}>
+            <Label htmlFor="sessionNote">Session note</Label>
+            <textarea
+              id="sessionNote"
+              value={noteDraft}
+              onChange={(event) => {
+                setNoteDraft(event.target.value)
+                setNoteError(null)
+                setNoteMessage(null)
+              }}
+              className="min-h-28 w-full resize-y rounded-[14px] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent-border)] focus:ring-2 focus:ring-[rgba(82,81,167,0.16)]"
+              placeholder="Tried mouth tape, had a late drink, felt congested..."
+            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                {noteMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{noteMessage}</p> : null}
+                {noteError ? <p className="text-sm text-[var(--danger-text)]">{noteError}</p> : null}
+              </div>
+              <Button type="submit" disabled={isNoteSubmitting}>
+                {isNoteSubmitting ? 'Saving...' : 'Save note'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <SessionAICard sessionId={session.id} />
 

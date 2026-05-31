@@ -34,6 +34,7 @@ class SessionSummary(BaseModel):
 class SessionDetail(SessionSummary):
     pld_start_datetime: datetime
     device_serial: Optional[str]
+    note: str | None = None
     avg_resp_rate: Optional[float]
     avg_tidal_vol: Optional[float]
     avg_min_vent: Optional[float]
