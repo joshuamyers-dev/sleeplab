@@ -146,9 +146,33 @@ export interface SessionSummary {
   machine_tz: string | null
 }
 
+export interface TherapyScoreComponent {
+  score: number
+  max_score: number
+  label: string
+  value: number | null
+  unit: string | null
+  unavailable_reason: string | null
+}
+
+export interface TherapyScore {
+  total: number
+  grade: 'A' | 'B' | 'C' | 'D' | 'F'
+  low_confidence: boolean
+  callout: string
+  components: {
+    ahi: TherapyScoreComponent | null
+    leak: TherapyScoreComponent | null
+    duration: TherapyScoreComponent | null
+    spo2: TherapyScoreComponent | null
+  }
+}
+
 export interface SessionDetail extends SessionSummary {
   pld_start_datetime: string
   device_serial: string | null
+  therapy_score: TherapyScore
+  score_vs_30d_avg: number | null
   avg_resp_rate: number | null
   avg_tidal_vol: number | null
   avg_min_vent: number | null

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
-import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData, EventWindowResponse } from '../api/client'
+import type { SessionDetail as SessionDetailType, EventRecord, MetricsResponse, SpO2Response, InferredEquipment, WearableData, EventWindowResponse, TherapyScoreComponent } from '../api/client'
 import WearableSleepStageChart from '../components/WearableSleepStageChart'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons/ChevronIcons'
 import EventInspector from '../components/EventInspector'
@@ -60,6 +60,13 @@ const EVENT_COLORS: Record<string, string> = {
   'Apnea': '#C9B715',
   'Arousal': '#6AA136',
 }
+
+const THERAPY_COMPONENTS: Array<{ key: keyof SessionDetailType['therapy_score']['components']; label: string }> = [
+  { key: 'ahi', label: 'AHI' },
+  { key: 'leak', label: 'Leak' },
+  { key: 'duration', label: 'Duration' },
+  { key: 'spo2', label: 'SpO2' },
+]
 
 export default function SessionDetail() {
   const { date } = useParams<{ date: string }>()
@@ -483,6 +490,7 @@ export default function SessionDetail() {
         </Card>
       )}
 
+      <TherapyScoreCard session={session} />
       <SessionAICard sessionId={session.id} />
 
       <Card>
@@ -592,5 +600,93 @@ function EventTable({
         </table>
       </div>
     </div>
+  )
+}
+
+function TherapyScoreCard({ session }: { session: SessionDetailType }) {
+  const score = session.therapy_score
+  const delta = session.score_vs_30d_avg
+  const deltaLabel = delta == null
+    ? null
+    : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} vs 30d avg`
+
+  return (
+    <Card>
+      <CardContent className="px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5">
+        <div className="mb-3 flex items-center gap-1.5">
+          <p className="whitespace-nowrap text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Therapy score</p>
+          <TherapyScoreHelp />
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] bg-[rgba(82,81,167,0.10)] text-2xl font-extrabold leading-none text-[var(--accent)]">
+            {score.total}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
+            <span className="text-lg font-bold leading-6 text-[var(--foreground)] sm:text-xl">Grade {score.grade}</span>
+            {deltaLabel ? <span className="text-sm font-medium text-[var(--muted-foreground)]">{deltaLabel}</span> : null}
+            {score.low_confidence ? (
+              <span className="w-fit rounded-full bg-[var(--surface-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--muted-foreground)]">
+                Low confidence
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {THERAPY_COMPONENTS.map(({ key, label }) => (
+            <TherapyComponentRow key={key} label={label} component={score.components[key]} />
+          ))}
+        </div>
+
+        <p className="mt-3 text-sm leading-5 text-[var(--muted-foreground)]">{score.callout}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TherapyComponentRow({ label, component }: { label: string; component: TherapyScoreComponent | null }) {
+  const pct = component ? Math.round((component.score / component.max_score) * 100) : 0
+  const value = component?.value == null
+    ? null
+    : `${component.value.toFixed(component.unit === 'hours' ? 1 : 0)} ${component.unit ?? ''}`.trim()
+
+  return (
+    <div className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="font-bold text-[var(--foreground)]">{label}</span>
+        <span className="truncate text-right text-[var(--muted-foreground)]">
+          {component ? (value ?? `${pct}%`) : 'Unavailable'}
+        </span>
+      </div>
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+        <div
+          className="h-full rounded-full bg-[var(--accent)]"
+          style={{ width: `${component ? pct : 0}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function TherapyScoreHelp() {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label="About therapy score"
+        aria-describedby="therapy-score-help"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-strong)] text-[11px] font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(82,81,167,0.22)]"
+      >
+        i
+      </button>
+      <span
+        id="therapy-score-help"
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-7 z-50 hidden w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[var(--border)] bg-[var(--popover-surface)] p-3 text-left text-xs font-medium normal-case leading-5 tracking-normal text-[var(--muted-foreground)] shadow-[0_16px_48px_rgba(0,0,0,0.08)] group-hover:block group-focus-within:block sm:left-auto sm:right-0 sm:translate-x-0"
+      >
+        Therapy Score is a 0-100 summary based on AHI, leak, usage duration, and SpO2 when available. Default weights are AHI 40, leak 25, duration 20, and SpO2 15. If a component is unavailable, its weight is redistributed. Low confidence means the session was not parser-validated.
+      </span>
+    </span>
   )
 }
