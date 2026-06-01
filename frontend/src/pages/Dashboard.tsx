@@ -59,35 +59,6 @@ function buildPrimaryByDate(sessions: SessionSummary[]): Map<string, SessionSumm
   return map
 }
 
-function formatInputDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function compactDate(value: string) {
-  return value.replaceAll('-', '')
-}
-
-function defaultReportRange() {
-  const to = new Date()
-  const from = new Date()
-  from.setDate(to.getDate() - 29)
-  return {
-    from: formatInputDate(from),
-    to: formatInputDate(to),
-  }
-}
-
-export default function Dashboard() {
-  const initialReportRange = defaultReportRange()
-  const [summary, setSummary] = useState<SummaryStats | null>(null)
-  const [sessions, setSessions] = useState<SessionSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [wearableSummary, setWearableSummary] = useState<WearableDailySummary[]>([])
-  const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('ahi')
   const [reportFrom, setReportFrom] = useState(initialReportRange.from)
   const [reportTo, setReportTo] = useState(initialReportRange.to)
   const [reportLoading, setReportLoading] = useState(false)
@@ -268,6 +239,37 @@ export default function Dashboard() {
     { key: 'usage', label: 'Usage' },
     { key: 'leak',  label: 'Leak' },
   ]
+
+  async function handleDownloadReport() {
+    setReportError(null)
+    if (!reportFrom || !reportTo) {
+      setReportError('Choose a start and end date.')
+      return
+    }
+    if (reportTo < reportFrom) {
+      setReportError('End date must be on or after start date.')
+      return
+    }
+
+    const fromCompact = compactDate(reportFrom)
+    const toCompact = compactDate(reportTo)
+    setReportLoading(true)
+    try {
+      const blob = await api.downloadSessionReportPdf(fromCompact, toCompact)
+      const url = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `sleeplab-report-${fromCompact}-${toCompact}.pdf`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Could not download report.')
+    } finally {
+      setReportLoading(false)
+    }
+  }
 
   async function handleDownloadReport() {
     setReportError(null)

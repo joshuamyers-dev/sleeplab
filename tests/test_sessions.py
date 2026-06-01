@@ -91,6 +91,8 @@ def _seed_session(
     )
     db.commit()
     return session_id
+    db.commit()
+    return session_id
 
 
 class TestListSessions:
