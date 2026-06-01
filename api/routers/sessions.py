@@ -64,6 +64,18 @@ def _session_column_exists(db: Session, column_name: str) -> bool:
     ).scalar())
 
 
+def _manufacturer_select_expression(db: Session) -> str:
+    if _session_column_exists(db, "manufacturer"):
+        return (
+            "COALESCE("
+            "(array_agg(s.manufacturer ORDER BY s.duration_seconds DESC) "
+            "FILTER (WHERE s.manufacturer IS NOT NULL))[1], "
+            "'Unknown'"
+            ") AS manufacturer"
+        )
+    return "'Unknown'::text AS manufacturer"
+
+
 def _format_date_range(start: date, end: date) -> str:
     return f"{start.strftime('%b')} {start.day}, {start.year} to {end.strftime('%b')} {end.day}, {end.year}"
 
@@ -246,11 +258,7 @@ def export_sessions_pdf(
     if end < start:
         raise HTTPException(status_code=400, detail="to must be on or after from")
 
-    manufacturer_expr = (
-        "COALESCE(NULLIF(TRIM(s.manufacturer), ''), 'Unknown')"
-        if _session_column_exists(db, "manufacturer")
-        else "'Unknown'"
-    )
+    manufacturer_select = _manufacturer_select_expression(db)
 
     rows = db.execute(
         text(f"""
@@ -265,7 +273,7 @@ def export_sessions_pdf(
                     (array_agg(s.device_serial ORDER BY s.duration_seconds DESC) FILTER (WHERE s.device_serial IS NOT NULL))[1] AS device_serial,
                     (array_agg(s.therapy_mode ORDER BY s.duration_seconds DESC) FILTER (WHERE s.therapy_mode IS NOT NULL))[1] AS therapy_mode,
                     (array_agg(s.mask_type ORDER BY s.duration_seconds DESC) FILTER (WHERE s.mask_type IS NOT NULL))[1] AS mask_type,
-                    (array_agg({manufacturer_expr} ORDER BY s.duration_seconds DESC))[1] AS manufacturer
+                    {manufacturer_select}
                 FROM sessions s
                 WHERE s.user_id = CAST(:uid AS uuid)
                   AND s.folder_date >= :start

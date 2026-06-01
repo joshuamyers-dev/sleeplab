@@ -4,6 +4,24 @@ from datetime import UTC, date, datetime
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from api.routers.sessions import _manufacturer_select_expression
+
+
+class _ScalarResult:
+    def __init__(self, value: bool):
+        self.value = value
+
+    def scalar(self):
+        return self.value
+
+
+class _ColumnExistsDb:
+    def __init__(self, value: bool):
+        self.value = value
+
+    def execute(self, *_args, **_kwargs):
+        return _ScalarResult(self.value)
+
 
 def _seed_session(
     db,
@@ -92,6 +110,19 @@ class TestGetSession:
 
 
 class TestExportSessionPdf:
+    def test_manufacturer_fallback_sql_uses_typed_constant(self):
+        expression = _manufacturer_select_expression(_ColumnExistsDb(False))
+
+        assert expression == "'Unknown'::text AS manufacturer"
+        assert "array_agg('Unknown'" not in expression
+
+    def test_manufacturer_column_sql_aggregates_column_with_unknown_fallback(self):
+        expression = _manufacturer_select_expression(_ColumnExistsDb(True))
+
+        assert "array_agg(s.manufacturer ORDER BY s.duration_seconds DESC)" in expression
+        assert "FILTER (WHERE s.manufacturer IS NOT NULL)" in expression
+        assert "'Unknown'" in expression
+
     def test_requires_auth(self, client: TestClient):
         resp = client.get("/sessions/export/pdf?from=20260501&to=20260530")
         assert resp.status_code == 401
