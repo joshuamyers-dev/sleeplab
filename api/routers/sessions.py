@@ -28,6 +28,7 @@ ALLOWED_SESSION_TAGS = {
     "Sick",
     "New mask",
     "Mouth tape",
+    "Back sleeper",
     "Bad sleep",
     "Good sleep",
     "Camping",

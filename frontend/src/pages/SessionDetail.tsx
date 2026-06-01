@@ -34,6 +34,13 @@ function ahiBadge(ahi: number | null): { label: string; className: string } {
   return { label: 'Difficult night', className: 'bg-[var(--danger-soft)] text-[var(--danger-text)]' }
 }
 
+function sameTags(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const left = [...a].sort()
+  const right = [...b].sort()
+  return left.every((tag, index) => tag === right[index])
+}
+
 const EVENT_WINDOW_PRESETS: Record<number, { before: number; after: number }> = {
   1: { before: 30, after: 30 },
   3: { before: 60, after: 120 },
@@ -308,6 +315,7 @@ export default function SessionDetail() {
   const mins  = Math.floor((session.duration_seconds % 3600) / 60)
   const endTime = new Date(new Date(session.start_datetime).getTime() + session.duration_seconds * 1000).toISOString()
   const badge = ahiBadge(session.ahi)
+  const tagsChanged = !sameTags(tagsDraft, session.tags ?? [])
 
   const statHelp = {
     ahi: 'AHI means apnea-hypopnea index: the average number of breathing events per hour during this session.',
@@ -551,15 +559,15 @@ export default function SessionDetail() {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleTagsSubmit}>
-            <div className="flex flex-wrap gap-2">
-              {tagsDraft.length ? tagsDraft.map((tag) => (
-                <span key={tag} className="rounded-full bg-[rgba(82,81,167,0.10)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
-                  {tag}
-                </span>
-              )) : (
-                <p className="text-sm text-[var(--muted-foreground)]">No tags added.</p>
-              )}
-            </div>
+            {tagsDraft.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {tagsDraft.map((tag) => (
+                  <span key={tag} className="rounded-full bg-[rgba(82,81,167,0.10)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {SESSION_TAGS.map((tag) => {
                 const selected = tagsDraft.includes(tag)
@@ -571,7 +579,7 @@ export default function SessionDetail() {
                     className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                       selected
                         ? 'border-[var(--accent-border)] bg-[rgba(82,81,167,0.12)] text-[var(--accent)]'
-                        : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:border-[var(--accent-border)] hover:text-[var(--accent)]'
+                        : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--foreground)] shadow-sm hover:border-[var(--accent-border)] hover:text-[var(--accent)]'
                     }`}
                     aria-pressed={selected}
                   >
@@ -585,7 +593,7 @@ export default function SessionDetail() {
                 {tagsMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{tagsMessage}</p> : null}
                 {tagsError ? <p className="text-sm text-[var(--danger-text)]">{tagsError}</p> : null}
               </div>
-              <Button type="submit" disabled={isTagsSubmitting}>
+              <Button type="submit" disabled={isTagsSubmitting || !tagsChanged}>
                 {isTagsSubmitting ? 'Saving...' : 'Save tags'}
               </Button>
             </div>
