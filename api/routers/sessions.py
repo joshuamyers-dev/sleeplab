@@ -28,7 +28,7 @@ from matplotlib import pyplot as plt  # noqa: E402
 from reportlab.lib import colors  # noqa: E402
 from reportlab.lib.enums import TA_CENTER  # noqa: E402
 from reportlab.lib.pagesizes import letter  # noqa: E402
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # noqa: E402
+from reportlab.lib.styles import ParagraphStyle  # noqa: E402
 from reportlab.lib.units import inch  # noqa: E402
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table  # noqa: E402
 
@@ -77,7 +77,15 @@ def _manufacturer_select_expression(db: Session) -> str:
 
 
 def _format_date_range(start: date, end: date) -> str:
-    return f"{start.strftime('%b')} {start.day}, {start.year} to {end.strftime('%b')} {end.day}, {end.year}"
+    start_month = start.strftime("%b")
+    end_month = end.strftime("%b")
+    if start == end:
+        return f"{start_month} {start.day}, {start.year}"
+    if start.year == end.year and start.month == end.month:
+        return f"{start_month} {start.day} - {end.day}, {end.year}"
+    if start.year == end.year:
+        return f"{start_month} {start.day} - {end_month} {end.day}, {end.year}"
+    return f"{start_month} {start.day}, {start.year} - {end_month} {end.day}, {end.year}"
 
 
 def _format_metric(value, suffix: str = "") -> str:
@@ -114,11 +122,23 @@ def _build_ahi_chart(nights: list[dict]) -> BytesIO:
     values = [float(night["ahi"]) if night["ahi"] is not None else None for night in chart_nights]
 
     fig, ax = plt.subplots(figsize=(6.9, 2.0), dpi=160)
-    ax.plot(labels, values, color="#2f5d7c", linewidth=2, marker="o", markersize=3.5)
-    ax.set_title("30-Day AHI Trend", fontsize=10, pad=8)
+    ax.plot(labels, values, color="#4f46a5", linewidth=1.4, marker="o", markersize=3)
+    ax.axhline(5, color="#9ca3af", linewidth=0.8, linestyle="--")
+    ax.text(0.99, 5.15, "Controlled threshold", color="#6b7280", fontsize=7, ha="right", va="bottom", transform=ax.get_yaxis_transform())
+    ax.set_ylim(bottom=0)
+    if values and all(value is not None for value in values):
+        max_value = max(max(values), 5)
+        ax.set_ylim(0, max_value * 1.18 if max_value > 0 else 6)
+    else:
+        ax.set_ylim(0, 6)
+    ax.set_title("30-Day AHI Trend", fontsize=9, fontweight="bold", color="#1f2937", pad=8)
     ax.set_ylabel("AHI", fontsize=8)
-    ax.grid(True, axis="y", color="#d9e2e8", linewidth=0.6)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.grid(True, axis="y", color="#e5e7eb", linewidth=0.55)
+    ax.tick_params(axis="both", labelsize=7, colors="#4b5563")
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color("#d1d5db")
+    ax.spines["bottom"].set_color("#d1d5db")
     if len(labels) > 12:
         for index, label in enumerate(ax.get_xticklabels()):
             label.set_visible(index % max(1, len(labels) // 10) == 0 or index == len(labels) - 1)
@@ -129,22 +149,69 @@ def _build_ahi_chart(nights: list[dict]) -> BytesIO:
     return chart_buffer
 
 
-def _build_pdf_report(start_raw: str, end_raw: str, start: date, end: date, nights: list[dict]) -> BytesIO:
+def _footer(canvas, _doc):
+    canvas.saveState()
+    width, height = letter
+    canvas.setFillColor(colors.HexColor("#4f46a5"))
+    canvas.rect(0, height - 0.12 * inch, width, 0.12 * inch, stroke=0, fill=1)
+    canvas.setStrokeColor(colors.HexColor("#e5e7eb"))
+    canvas.setLineWidth(0.5)
+    canvas.line(0.45 * inch, 0.48 * inch, width - 0.45 * inch, 0.48 * inch)
+    canvas.setFillColor(colors.HexColor("#6b7280"))
+    canvas.setFont("Helvetica", 7)
+    canvas.drawString(0.45 * inch, 0.28 * inch, f"SleepLab - Page {canvas.getPageNumber()}")
+    canvas.restoreState()
+
+
+def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict]) -> BytesIO:
     buffer = BytesIO()
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], alignment=TA_CENTER, fontSize=18, leading=22)
-    subtitle_style = ParagraphStyle("ReportSubtitle", parent=styles["Normal"], alignment=TA_CENTER, fontSize=10, leading=13)
-    body_style = ParagraphStyle("ReportBody", parent=styles["BodyText"], fontSize=8.5, leading=11)
-    section_style = ParagraphStyle("Section", parent=styles["Heading2"], fontSize=10, leading=12, spaceBefore=6, spaceAfter=4)
-    warning_style = ParagraphStyle("Warning", parent=body_style, textColor=colors.HexColor("#8a4b00"))
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        alignment=TA_CENTER,
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#1f2937"),
+    )
+    subtitle_style = ParagraphStyle(
+        "ReportSubtitle",
+        alignment=TA_CENTER,
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#6b7280"),
+    )
+    body_style = ParagraphStyle(
+        "ReportBody",
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10.5,
+        textColor=colors.HexColor("#4b5563"),
+    )
+    section_style = ParagraphStyle(
+        "Section",
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=12,
+        textColor=colors.HexColor("#1f2937"),
+        spaceBefore=9,
+        spaceAfter=5,
+    )
+    note_style = ParagraphStyle(
+        "Note",
+        parent=body_style,
+        fontSize=7.5,
+        leading=9.5,
+        textColor=colors.HexColor("#6b7280"),
+    )
 
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
         leftMargin=0.45 * inch,
         rightMargin=0.45 * inch,
-        topMargin=0.35 * inch,
-        bottomMargin=0.35 * inch,
+        topMargin=0.42 * inch,
+        bottomMargin=0.58 * inch,
         pageCompression=0,
     )
 
@@ -172,23 +239,30 @@ def _build_pdf_report(start_raw: str, end_raw: str, start: date, end: date, nigh
         if night["mask_type"]:
             mask_types.add(night["mask_type"])
 
-    if not manufacturers:
-        manufacturer_summary = "Manufacturers: Unknown"
-    elif len(manufacturers) == 1:
-        manufacturer_summary = f"Manufacturers: {next(iter(manufacturers))}"
+    known_manufacturers = {
+        manufacturer: dates
+        for manufacturer, dates in manufacturers.items()
+        if manufacturer and manufacturer != "Unknown"
+    }
+    if not known_manufacturers:
+        manufacturer_summary = None
+    elif len(known_manufacturers) == 1:
+        manufacturer_summary = next(iter(known_manufacturers))
     else:
-        manufacturer_summary = "Manufacturers: " + "; ".join(
+        manufacturer_summary = "; ".join(
             f"{manufacturer} - {_group_contiguous_dates(sorted(dates))}"
-            for manufacturer, dates in sorted(manufacturers.items())
+            for manufacturer, dates in sorted(known_manufacturers.items())
         )
 
-    equipment_rows = [
-        ["Manufacturer", manufacturer_summary.replace("Manufacturers: ", "")],
-        ["Machine model/type", "Unavailable"],
-        ["Device serial / identifier", ", ".join(sorted(device_serials)) or "Unavailable"],
-        ["Therapy mode", ", ".join(sorted(therapy_modes)) or "Unavailable"],
-        ["Mask", ", ".join(sorted(mask_types)) or "Unavailable"],
+    equipment_candidates = [
+        ("Manufacturer", manufacturer_summary),
+        ("Device serial / identifier", ", ".join(sorted(device_serials)) or None),
+        ("Therapy mode", ", ".join(sorted(therapy_modes)) or None),
+        ("Mask", ", ".join(sorted(mask_types)) or None),
     ]
+    equipment_rows = [[label, value] for label, value in equipment_candidates if value]
+    missing_equipment_count = 1 + sum(1 for _label, value in equipment_candidates if not value)
+    missing_equipment_details = missing_equipment_count > 1
 
     summary_rows = [
         ["Compliance", f"{compliance_pct:.1f}% ({nights_used}/{total_nights} nights)"],
@@ -200,16 +274,18 @@ def _build_pdf_report(start_raw: str, end_raw: str, start: date, end: date, nigh
 
     story = [
         Paragraph("SleepLab Therapy Report", title_style),
-        Paragraph(f"{_format_date_range(start, end)} ({start_raw}-{end_raw})", subtitle_style),
-        Spacer(1, 0.08 * inch),
+        Paragraph(_format_date_range(start, end), subtitle_style),
+        Spacer(1, 0.1 * inch),
         Image(_build_ahi_chart(nights), width=7.0 * inch, height=2.05 * inch),
         Paragraph("Summary", section_style),
         Table(summary_rows, colWidths=[2.05 * inch, 4.95 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.2),
             ("LEADING", (0, 0), (-1, -1), 10),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d9e2e8")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eef4f7")),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -217,31 +293,43 @@ def _build_pdf_report(start_raw: str, end_raw: str, start: date, end: date, nigh
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]),
         Paragraph("Equipment", section_style),
-        Table(equipment_rows, colWidths=[2.05 * inch, 4.95 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+    ]
+
+    if equipment_rows:
+        story.append(Table(equipment_rows, colWidths=[2.05 * inch, 4.95 * inch], style=[
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
             ("FONTSIZE", (0, 0), (-1, -1), 8.0),
             ("LEADING", (0, 0), (-1, -1), 9.5),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d9e2e8")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eef4f7")),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]),
-        Spacer(1, 0.08 * inch),
-        Paragraph(
-            "AHI is calculated from recorded apnea and hypopnea events over recorded therapy hours. "
-            "Leak values follow SleepLab's existing session display convention.",
-            body_style,
-        ),
+        ]))
+    notes = [
+        "AHI is calculated from recorded apnea and hypopnea events over recorded therapy hours.",
+        "Leak values follow SleepLab's existing session display convention.",
     ]
-
+    if missing_equipment_details:
+        notes.append("Some equipment details were not available for this device.")
     if nights_used < 7:
-        story.append(Spacer(1, 0.05 * inch))
-        story.append(Paragraph("This report includes fewer than 7 nights of data and may not be representative.", warning_style))
+        notes.append("This report includes fewer than 7 nights of data and may not be representative.")
 
-    doc.build(story)
+    story.extend([
+        Spacer(1, 0.12 * inch),
+        Table([[""]], colWidths=[7.0 * inch], style=[
+            ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]),
+        *[Paragraph(note, note_style) for note in notes],
+    ])
+
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     buffer.seek(0)
     return buffer
 

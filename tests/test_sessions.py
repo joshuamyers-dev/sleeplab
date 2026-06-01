@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from api.routers.sessions import _manufacturer_select_expression
+from api.routers.sessions import _build_pdf_report, _manufacturer_select_expression
 
 
 class _ScalarResult:
@@ -123,6 +123,58 @@ class TestExportSessionPdf:
         assert "FILTER (WHERE s.manufacturer IS NOT NULL)" in expression
         assert "'Unknown'" in expression
 
+    def test_pdf_omits_repeated_unavailable_equipment_rows(self):
+        pdf = _build_pdf_report(
+            "20260511",
+            "20260515",
+            date(2026, 5, 11),
+            date(2026, 5, 15),
+            [
+                {
+                    "folder_date": date(2026, 5, 11),
+                    "ahi": 1.2,
+                    "avg_pressure": 5.1,
+                    "p95_pressure": 7.2,
+                    "avg_leak": 0.0349,
+                    "manufacturer": "Unknown",
+                    "device_serial": "SN123",
+                    "therapy_mode": None,
+                    "mask_type": None,
+                }
+            ],
+        ).getvalue()
+
+        assert b"Device serial / identifier" in pdf
+        assert b"SN123" in pdf
+        assert b"Machine model/type" not in pdf
+        assert b"Manufacturer" not in pdf
+        assert b"Unavailable" not in pdf
+        assert b"Some equipment details were not available for this device." in pdf
+        assert b"20260511" not in pdf
+
+    def test_pdf_keeps_short_range_note(self):
+        pdf = _build_pdf_report(
+            "20260511",
+            "20260515",
+            date(2026, 5, 11),
+            date(2026, 5, 15),
+            [
+                {
+                    "folder_date": date(2026, 5, 11),
+                    "ahi": 1.2,
+                    "avg_pressure": 5.1,
+                    "p95_pressure": 7.2,
+                    "avg_leak": 0.0349,
+                    "manufacturer": "Unknown",
+                    "device_serial": "SN123",
+                    "therapy_mode": None,
+                    "mask_type": None,
+                }
+            ],
+        ).getvalue()
+
+        assert b"This report includes fewer than 7 nights of data and may not be representative." in pdf
+
     def test_requires_auth(self, client: TestClient):
         resp = client.get("/sessions/export/pdf?from=20260501&to=20260530")
         assert resp.status_code == 401
@@ -158,7 +210,7 @@ class TestExportSessionPdf:
         assert resp.status_code == 200
         assert b"fewer than 7 nights of data" in resp.content
 
-    def test_multiple_manufacturers_and_unknown_are_reported(self, client: TestClient, auth_headers, test_user, db):
+    def test_known_manufacturer_is_reported_without_prominent_unknown(self, client: TestClient, auth_headers, test_user, db):
         db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
         _seed_session(
             db,
@@ -179,7 +231,8 @@ class TestExportSessionPdf:
 
         assert resp.status_code == 200
         assert b"ResMed" in resp.content
-        assert b"Unknown" in resp.content
+        assert b"Manufacturer" in resp.content
+        assert b"Unknown" not in resp.content
 
     def test_missing_optional_metrics_do_not_crash(self, client: TestClient, auth_headers, test_user, db):
         _seed_session(
