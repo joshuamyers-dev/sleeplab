@@ -15,6 +15,7 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { SESSION_TAGS } from '../lib/constants'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: getDisplayTz() })
@@ -31,6 +32,13 @@ function ahiBadge(ahi: number | null): { label: string; className: string } {
   if (ahi < 15) return { label: 'Mild night', className: 'bg-[rgba(201,183,21,0.14)] text-[var(--yellow-700)]' }
   if (ahi < 30) return { label: 'Rough night', className: 'bg-[rgba(233,120,75,0.14)] text-[var(--orange-700)]' }
   return { label: 'Difficult night', className: 'bg-[var(--danger-soft)] text-[var(--danger-text)]' }
+}
+
+function sameTags(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const left = [...a].sort()
+  const right = [...b].sort()
+  return left.every((tag, index) => tag === right[index])
 }
 
 const EVENT_WINDOW_PRESETS: Record<number, { before: number; after: number }> = {
@@ -79,7 +87,16 @@ export default function SessionDetail() {
   const [timezoneError, setTimezoneError] = useState<string | null>(null)
   const [isTimezoneSubmitting, setIsTimezoneSubmitting] = useState(false)
   const [isTimezoneEditorOpen, setIsTimezoneEditorOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteMessage, setNoteMessage] = useState<string | null>(null)
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const [isNoteSubmitting, setIsNoteSubmitting] = useState(false)
+  const [tagsDraft, setTagsDraft] = useState<string[]>([])
+  const [tagsMessage, setTagsMessage] = useState<string | null>(null)
+  const [tagsError, setTagsError] = useState<string | null>(null)
+  const [isTagsSubmitting, setIsTagsSubmitting] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [isEventInspectorOpen, setIsEventInspectorOpen] = useState(false)
   const [eventWindow, setEventWindow] = useState<EventWindowResponse | null>(null)
   const [eventWindowLoading, setEventWindowLoading] = useState(false)
   const [eventWindowMinutes, setEventWindowMinutes] = useState(3)
@@ -93,7 +110,12 @@ export default function SessionDetail() {
     setTimezoneMessage(null)
     setTimezoneError(null)
     setIsTimezoneEditorOpen(false)
+    setNoteMessage(null)
+    setNoteError(null)
+    setTagsMessage(null)
+    setTagsError(null)
     setSelectedEventId(null)
+    setIsEventInspectorOpen(false)
     setEventWindow(null)
     setEventWindowLoading(false)
     eventWindowCacheRef.current.clear()
@@ -102,6 +124,8 @@ export default function SessionDetail() {
     ]).then(([s]) => {
       setSession(s)
       setTimezoneDraft(s.machine_tz ?? '')
+      setNoteDraft(s.note ?? '')
+      setTagsDraft(s.tags ?? [])
       return Promise.all([
         api.getEvents(s.id),
         api.getMetrics(s.id, 15),
@@ -177,6 +201,7 @@ export default function SessionDetail() {
   const selectedEventIndex = selectedEventId == null
     ? -1
     : events.findIndex((event) => event.id === selectedEventId)
+  const selectedEvent = selectedEventIndex >= 0 ? events[selectedEventIndex] : null
 
   function inspectRelativeEvent(delta: -1 | 1) {
     if (selectedEventIndex < 0) return
@@ -224,6 +249,7 @@ export default function SessionDetail() {
       setEvents(nextEvents)
       setMetrics(nextMetrics)
       setSelectedEventId(null)
+      setIsEventInspectorOpen(false)
       setEventWindow(null)
       eventWindowCacheRef.current.clear()
       if (updated.has_spo2) {
@@ -240,6 +266,52 @@ export default function SessionDetail() {
     }
   }
 
+  async function handleNoteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setNoteError(null)
+    setNoteMessage(null)
+    setIsNoteSubmitting(true)
+    try {
+      const updated = await api.updateSessionNote(session.id, noteDraft)
+      setSession(updated)
+      setNoteDraft(updated.note ?? '')
+      setNoteMessage(updated.note ? 'Note saved.' : 'Note cleared.')
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'Could not save note')
+    } finally {
+      setIsNoteSubmitting(false)
+    }
+  }
+
+  async function handleTagsSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session) return
+    setTagsError(null)
+    setTagsMessage(null)
+    setIsTagsSubmitting(true)
+    try {
+      const updated = await api.updateSessionTags(session.id, tagsDraft)
+      setSession(updated)
+      setTagsDraft(updated.tags ?? [])
+      setTagsMessage(updated.tags.length ? 'Tags saved.' : 'Tags cleared.')
+    } catch (err) {
+      setTagsError(err instanceof Error ? err.message : 'Could not save tags')
+    } finally {
+      setIsTagsSubmitting(false)
+    }
+  }
+
+  function toggleTag(tag: string) {
+    setTagsDraft((current) => (
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : [...current, tag]
+    ))
+    setTagsError(null)
+    setTagsMessage(null)
+  }
+
   if (loading) return <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-10 text-center text-[var(--muted-foreground)]">Loading session...</div>
   if (!session || !metrics) return null
 
@@ -247,6 +319,9 @@ export default function SessionDetail() {
   const mins  = Math.floor((session.duration_seconds % 3600) / 60)
   const endTime = new Date(new Date(session.start_datetime).getTime() + session.duration_seconds * 1000).toISOString()
   const badge = ahiBadge(session.ahi)
+  const tagsChanged = !sameTags(tagsDraft, session.tags ?? [])
+  const hasDeviceSettings = Boolean(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null)
+  const hasEquipment = Boolean(equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter))
 
   const statHelp = {
     ahi: 'AHI means apnea-hypopnea index: the average number of breathing events per hour during this session.',
@@ -293,9 +368,7 @@ export default function SessionDetail() {
       {/* Session header card */}
       <Card className="overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(106,161,54,0.10),_transparent_30%),radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_24%),var(--surface-strong)]">
         <CardContent className="px-4 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
-          {/* Top row: label + badge */}
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Session detail</p>
+          <div className="flex justify-end">
             <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${badge.className}`}>
               {badge.label}
             </span>
@@ -347,20 +420,13 @@ export default function SessionDetail() {
           {timezoneError ? <p className="mt-2 text-sm text-[var(--danger-text)]">{timezoneError}</p> : null}
 
           {/* Three primary stat pills */}
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-[18px] bg-[rgba(82,81,167,0.08)] px-3 py-4 text-center sm:px-4">
               <p className={secondaryStatLabelClass}>AHI</p>
               <p className="mt-1.5 text-3xl font-semibold text-[var(--accent)]">
                 {session.ahi?.toFixed(1) ?? '—'}
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">events/hr</p>
-            </div>
-            <div className="rounded-[18px] bg-[var(--surface-soft)] px-3 py-4 text-center sm:px-4">
-              <p className={secondaryStatLabelClass}>Pressure</p>
-              <p className="mt-1.5 text-3xl font-semibold text-[var(--foreground)]">
-                {session.avg_pressure?.toFixed(1) ?? '—'}
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">cmH₂O</p>
             </div>
             <div className="rounded-[18px] bg-[rgba(106,161,54,0.08)] px-3 py-4 text-center sm:px-4">
               <p className={secondaryStatLabelClass}>Usage</p>
@@ -369,9 +435,18 @@ export default function SessionDetail() {
               </p>
               <p className="mt-1 text-xs text-[var(--muted-foreground)]">of sleep</p>
             </div>
+            <div className="rounded-[18px] bg-[var(--surface-soft)] px-3 py-4 text-center sm:px-4">
+              <p className={secondaryStatLabelClass}>Pressure</p>
+              <p className="mt-1.5 text-3xl font-semibold text-[var(--foreground)]">
+                {session.avg_pressure?.toFixed(1) ?? '—'}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">cmH₂O</p>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <SessionAICard sessionId={session.id} />
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -423,101 +498,213 @@ export default function SessionDetail() {
         </Card>
       </div>
 
-      {/* Machine settings — only if any field is present */}
-      {(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null) && (
-        <Card>
-          <CardContent className={secondaryStatContentClass}>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Device settings</p>
-            <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-              {session.therapy_mode && (
-                <span><span className="text-[var(--muted-foreground)]">Mode </span>{session.therapy_mode.toUpperCase()}</span>
-              )}
-              {session.mask_type && (
-                <span><span className="text-[var(--muted-foreground)]">Mask </span>{session.mask_type}</span>
-              )}
-              {session.humidity_level != null && (
-                <span><span className="text-[var(--muted-foreground)]">Humidity </span>{session.humidity_level}</span>
-              )}
-              {session.temperature_c != null && (
-                <span><span className="text-[var(--muted-foreground)]">Temp </span>{session.temperature_c}°C</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Inferred equipment */}
-      {equipment && (equipment.cushion || equipment.headgear || equipment.tubing || equipment.humidifier_chamber || equipment.filter) && (
-        <Card>
-          <CardContent className={secondaryStatContentClass}>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-3">Equipment this night</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {([
-                { key: 'cushion', label: 'Cushion' },
-                { key: 'headgear', label: 'Headgear' },
-                { key: 'tubing', label: 'Tubing' },
-                { key: 'humidifier_chamber', label: 'Humidifier' },
-                { key: 'filter', label: 'Filter' },
-              ] as { key: keyof InferredEquipment; label: string }[]).map(({ key, label }) => {
-                const item = equipment[key]
-                if (!item) return null
-                const name = [item.brand, item.model].filter(Boolean).join(' ') || label
-                const category = item.mask_category ? ` · ${item.mask_category}` : ''
-                const age = item.days_in_use != null ? `${item.days_in_use}d` : null
-                const overdue = item.replacement_days != null && item.days_in_use != null
-                  && item.days_in_use > item.replacement_days
-                return (
-                  <div key={key} className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2.5">
-                    <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
-                    <p className="text-sm font-medium">{name}{category}</p>
-                    {age && (
-                      <p className={`text-xs mt-0.5 ${overdue ? 'text-[var(--danger-text)]' : 'text-[var(--muted-foreground)]'}`}>
-                        {age} old{overdue ? ' · overdue for replacement' : ''}
+      <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <div className="min-h-0 lg:col-start-1 lg:row-start-1">
+          <Card className="flex h-full flex-col">
+            <CardHeader>
+              <CardTitle>Event Timeline</CardTitle>
+              <CardDescription>Respiratory events across the session duration.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col">
+              <EventTimeline
+                events={events}
+                durationSeconds={session.duration_seconds}
+                startDatetime={session.start_datetime}
+                selectedEventId={selectedEventId}
+                onSelectEvent={inspectEvent}
+              />
+              <EventTable
+                events={events}
+                selectedEventId={selectedEventId}
+                onSelectEvent={inspectEvent}
+              />
+              <div className="mt-auto rounded-[16px] border border-[var(--border)] bg-[var(--surface-soft)] p-3 sm:p-4">
+                {selectedEvent ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--foreground)]">
+                        {selectedEvent.event_type}
                       </p>
-                    )}
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        {fmtTime(selectedEvent.event_datetime)}
+                        {selectedEvent.duration_seconds ? ` · ${selectedEvent.duration_seconds}s` : ''}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setIsEventInspectorOpen(true)}
+                    >
+                      Inspect event
+                    </Button>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                ) : (
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    Select an event to inspect flow, pressure, and leak around it.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      <SessionAICard sessionId={session.id} />
+        {isEventInspectorOpen && selectedEvent ? (
+          <div className="lg:col-span-2 lg:row-start-2">
+            <EventInspector
+              data={eventWindow}
+              loading={eventWindowLoading}
+              windowMinutes={eventWindowMinutes}
+              hasPreviousEvent={selectedEventIndex > 0}
+              hasNextEvent={selectedEventIndex >= 0 && selectedEventIndex < events.length - 1}
+              onClose={() => setIsEventInspectorOpen(false)}
+              onWindowMinutesChange={setEventWindowMinutes}
+              onPreviousEvent={() => inspectRelativeEvent(-1)}
+              onNextEvent={() => inspectRelativeEvent(1)}
+            />
+          </div>
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Event Timeline</CardTitle>
-          <CardDescription>Respiratory events across the session duration.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EventTimeline
-            events={events}
-            durationSeconds={session.duration_seconds}
-            startDatetime={session.start_datetime}
-            selectedEventId={selectedEventId}
-            onSelectEvent={inspectEvent}
-          />
-          <EventTable
-            events={events}
-            selectedEventId={selectedEventId}
-            onSelectEvent={inspectEvent}
-          />
-        </CardContent>
-      </Card>
+        <div className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
+          {hasDeviceSettings && (
+            <Card>
+              <CardContent className={secondaryStatContentClass}>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Device settings</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+                  {session.therapy_mode && (
+                    <span><span className="text-[var(--muted-foreground)]">Mode </span>{session.therapy_mode.toUpperCase()}</span>
+                  )}
+                  {session.mask_type && (
+                    <span><span className="text-[var(--muted-foreground)]">Mask </span>{session.mask_type}</span>
+                  )}
+                  {session.humidity_level != null && (
+                    <span><span className="text-[var(--muted-foreground)]">Humidity </span>{session.humidity_level}</span>
+                  )}
+                  {session.temperature_c != null && (
+                    <span><span className="text-[var(--muted-foreground)]">Temp </span>{session.temperature_c}°C</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {(selectedEventId || eventWindowLoading) && (
-        <EventInspector
-          data={eventWindow}
-          loading={eventWindowLoading}
-          windowMinutes={eventWindowMinutes}
-          hasPreviousEvent={selectedEventIndex > 0}
-          hasNextEvent={selectedEventIndex >= 0 && selectedEventIndex < events.length - 1}
-          onWindowMinutesChange={setEventWindowMinutes}
-          onPreviousEvent={() => inspectRelativeEvent(-1)}
-          onNextEvent={() => inspectRelativeEvent(1)}
-        />
-      )}
+          {hasEquipment && equipment && (
+            <Card>
+              <CardContent className="px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Equipment this night</p>
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
+                  {([
+                    { key: 'cushion', label: 'Cushion' },
+                    { key: 'headgear', label: 'Headgear' },
+                    { key: 'tubing', label: 'Tubing' },
+                    { key: 'humidifier_chamber', label: 'Humidifier' },
+                    { key: 'filter', label: 'Filter' },
+                  ] as { key: keyof InferredEquipment; label: string }[]).map(({ key, label }) => {
+                    const item = equipment[key]
+                    if (!item) return null
+                    const name = [item.brand, item.model].filter(Boolean).join(' ') || label
+                    const category = item.mask_category ? ` · ${item.mask_category}` : ''
+                    const age = item.days_in_use != null ? `${item.days_in_use}d` : null
+                    const overdue = item.replacement_days != null && item.days_in_use != null
+                      && item.days_in_use > item.replacement_days
+                    return (
+                      <div key={key} className="rounded-[12px] bg-[var(--surface-soft)] px-3 py-2">
+                        <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
+                        <p className="text-sm font-medium">{name}{category}</p>
+                        {age && (
+                          <p className={`mt-0.5 text-xs ${overdue ? 'text-[var(--danger-text)]' : 'text-[var(--muted-foreground)]'}`}>
+                            {age} old{overdue ? ' · overdue for replacement' : ''}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="p-4 pb-2 sm:p-5 sm:pb-2">
+              <CardTitle>Notes</CardTitle>
+              {session.note ? <CardDescription>Saved note for this night.</CardDescription> : null}
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+              <form className="space-y-2.5" onSubmit={handleNoteSubmit}>
+                <Label htmlFor="sessionNote">Session note</Label>
+                <textarea
+                  id="sessionNote"
+                  value={noteDraft}
+                  onChange={(event) => {
+                    setNoteDraft(event.target.value)
+                    setNoteError(null)
+                    setNoteMessage(null)
+                  }}
+                  className="min-h-20 w-full resize-y rounded-[14px] border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent-border)] focus:ring-2 focus:ring-[rgba(82,81,167,0.16)]"
+                  placeholder="Tried mouth tape, had a late drink, felt congested..."
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {noteMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{noteMessage}</p> : null}
+                    {noteError ? <p className="text-sm text-[var(--danger-text)]">{noteError}</p> : null}
+                  </div>
+                  <Button type="submit" disabled={isNoteSubmitting}>
+                    {isNoteSubmitting ? 'Saving...' : 'Save note'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-4 pb-2 sm:p-5 sm:pb-2">
+              <CardTitle>Tags</CardTitle>
+              {session.tags.length ? <CardDescription>Saved tags for this night.</CardDescription> : null}
+            </CardHeader>
+            <CardContent className="px-4 pb-4 pt-0 sm:px-5 sm:pb-5 sm:pt-0">
+              <form className="space-y-3" onSubmit={handleTagsSubmit}>
+                {tagsDraft.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {tagsDraft.map((tag) => (
+                      <span key={tag} className="rounded-full bg-[rgba(82,81,167,0.10)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {SESSION_TAGS.map((tag) => {
+                    const selected = tagsDraft.includes(tag)
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                          selected
+                            ? 'border-[var(--accent-border)] bg-[rgba(82,81,167,0.12)] text-[var(--accent)]'
+                            : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--foreground)] shadow-sm hover:border-[var(--accent-border)] hover:text-[var(--accent)]'
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        {tag}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {tagsMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{tagsMessage}</p> : null}
+                    {tagsError ? <p className="text-sm text-[var(--danger-text)]">{tagsError}</p> : null}
+                  </div>
+                  <Button type="submit" disabled={isTagsSubmitting || !tagsChanged}>
+                    {isTagsSubmitting ? 'Saving...' : 'Save tags'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <MetricsChart metrics={metrics} />
 
@@ -528,6 +715,7 @@ export default function SessionDetail() {
       {wearableData && wearableData.stages.length > 0 && (
         <WearableSleepStageChart stages={wearableData.stages} />
       )}
+
     </div>
   )
 }
@@ -544,8 +732,8 @@ function EventTable({
   if (!events.length) return null
 
   return (
-    <div className="mt-5 overflow-hidden rounded-[14px] border border-[var(--border)]">
-      <div className="max-h-52 overflow-auto">
+    <div className="mt-5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-[var(--border)]">
+      <div className="max-h-52 overflow-auto lg:max-h-none lg:flex-1">
         <table className="w-full border-collapse text-left text-xs">
           <thead className="sticky top-0 bg-[var(--surface-strong)] text-[var(--muted-foreground)]">
             <tr>
