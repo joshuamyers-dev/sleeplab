@@ -1,10 +1,26 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
+from ..compliance import (
+    ComplianceConfig,
+    NightRecord,
+    compute_compliance,
+)
 from ..database import get_db
-from ..models import SummaryStats, DailyStat, OverviewStats, OverviewDailyStat
+from ..models import (
+    ComplianceNightlyStat,
+    ComplianceStats,
+    ComplianceWindowStat,
+    DailyStat,
+    OverviewDailyStat,
+    OverviewStats,
+    SummaryStats,
+)
+from ..settings_store import get_compliance_settings
 
 router = APIRouter()
 
@@ -111,6 +127,104 @@ def get_summary(
         avg_pressure=avg_pressure,
         ahi_trend=ahi_trend,
         event_breakdown=event_breakdown,
+    )
+
+
+@router.get("/compliance", response_model=ComplianceStats)
+def get_compliance(
+    days: int = Query(180, ge=7, le=3650),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Per-night compliance breakdown for the Trends page.
+
+    Returns nightly usage hours with three-tier status classification,
+    overall/best-window summary, rolling compliance, and streak data.
+    """
+    settings = get_compliance_settings(db, current_user["id"])
+    config = ComplianceConfig(
+        usage_threshold_hours=settings["usage_threshold_hours"],
+        borderline_threshold_hours=settings["borderline_threshold_hours"],
+        target_compliance_pct=settings["target_compliance_pct"],
+        compliance_window_days=settings["compliance_window_days"],
+        evaluation_period_days=settings["evaluation_period_days"],
+        window_evaluation_logic=settings["window_evaluation_logic"],
+        maintenance_lookback_days=settings["maintenance_lookback_days"],
+    )
+
+    period_end = date.today()
+    period_start = period_end - timedelta(days=days - 1)
+
+    rows = db.execute(text("""
+        SELECT
+            folder_date,
+            SUM(duration_seconds) AS duration_seconds,
+            AVG(ahi) AS ahi,
+            AVG(avg_leak) AS avg_leak
+        FROM sessions
+        WHERE user_id = CAST(:uid AS uuid)
+          AND folder_date >= :start
+          AND folder_date <= :end
+        GROUP BY folder_date
+        ORDER BY folder_date
+    """), {
+        "uid": current_user["id"],
+        "start": period_start,
+        "end": period_end,
+    }).mappings().all()
+
+    nights = [
+        NightRecord(
+            folder_date=r["folder_date"],
+            duration_seconds=int(r["duration_seconds"]) if r["duration_seconds"] else None,
+            ahi=float(r["ahi"]) if r["ahi"] is not None else None,
+            avg_leak=float(r["avg_leak"]) if r["avg_leak"] is not None else None,
+        )
+        for r in rows
+    ]
+
+    result = compute_compliance(nights, period_start, period_end, config)
+
+    return ComplianceStats(
+        overall=ComplianceWindowStat(
+            start_date=result.overall.start_date.isoformat(),
+            end_date=result.overall.end_date.isoformat(),
+            total_nights=result.overall.total_nights,
+            compliant_nights=result.overall.compliant_nights,
+            compliance_pct=result.overall.compliance_pct,
+            avg_hours=result.overall.avg_hours,
+            passes=result.overall.passes,
+        ),
+        best_window=(
+            ComplianceWindowStat(
+                start_date=result.best_window.start_date.isoformat(),
+                end_date=result.best_window.end_date.isoformat(),
+                total_nights=result.best_window.total_nights,
+                compliant_nights=result.best_window.compliant_nights,
+                compliance_pct=result.best_window.compliance_pct,
+                avg_hours=result.best_window.avg_hours,
+                passes=result.best_window.passes,
+            )
+            if result.best_window
+            else None
+        ),
+        nightly=[
+            ComplianceNightlyStat(
+                date=n["date"],
+                usage_hours=n["usage_hours"],
+                status=n["status"],
+                ahi=n.get("ahi"),
+                avg_leak=n.get("avg_leak"),
+            )
+            for n in result.nightly_breakdown
+        ],
+        rolling_compliance=result.rolling_compliance,
+        streak_longest=result.streak_longest,
+        streak_current=result.streak_current,
+        usage_threshold_hours=config.usage_threshold_hours,
+        borderline_threshold_hours=config.borderline_threshold_hours,
+        target_compliance_pct=config.target_compliance_pct,
     )
 
 

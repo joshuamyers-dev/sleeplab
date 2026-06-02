@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-
 VALID_LLM_PROVIDERS = {"openai", "ollama", "litellm", "custom"}
 
 
@@ -104,6 +103,41 @@ def get_llm_settings(db: Session, user_id: str) -> dict[str, str | None]:
         "llm_base_url": base_url,
         "llm_api_key": api_key,
         "llm_model": model,
+    }
+
+
+def get_compliance_settings(db: Session, user_id: str) -> dict:
+    row = get_user_import_settings_row(db, user_id)
+    raw_borderline = _row_value(row, "borderline_threshold_hours")
+    return {
+        "usage_threshold_hours": float(
+            _row_value(row, "usage_threshold_hours")
+            or os.environ.get("USAGE_THRESHOLD_HOURS", "4.0")
+        ),
+        "borderline_threshold_hours": (
+            float(raw_borderline) if raw_borderline is not None
+            else (float(os.environ["BORDERLINE_THRESHOLD_HOURS"]) if "BORDERLINE_THRESHOLD_HOURS" in os.environ else None)
+        ),
+        "target_compliance_pct": float(
+            _row_value(row, "target_compliance_pct")
+            or os.environ.get("TARGET_COMPLIANCE_PCT", "70.0")
+        ),
+        "compliance_window_days": int(
+            _row_value(row, "compliance_window_days")
+            or os.environ.get("COMPLIANCE_WINDOW_DAYS", "30")
+        ),
+        "evaluation_period_days": int(
+            _row_value(row, "evaluation_period_days")
+            or os.environ.get("EVALUATION_PERIOD_DAYS", "90")
+        ),
+        "window_evaluation_logic": (
+            _row_value(row, "window_evaluation_logic")
+            or os.environ.get("WINDOW_EVALUATION_LOGIC", "best_consecutive")
+        ),
+        "maintenance_lookback_days": int(
+            _row_value(row, "maintenance_lookback_days")
+            or os.environ.get("MAINTENANCE_LOOKBACK_DAYS", "90")
+        ),
     }
 
 

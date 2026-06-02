@@ -14,6 +14,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..llm_client import is_configured
 from ..settings_store import (
+    get_compliance_settings,
     get_llm_settings,
     get_timezone_settings,
     get_user_import_settings_row,
@@ -58,6 +59,13 @@ class ImportSettingsResponse(BaseModel):
     llm_api_key: str | None = None  # always None in responses
     has_llm_api_key: bool = False
     llm_configured: bool = False
+    usage_threshold_hours: float = 4.0
+    borderline_threshold_hours: float | None = None
+    target_compliance_pct: float = 70.0
+    compliance_window_days: int = 30
+    evaluation_period_days: int = 90
+    window_evaluation_logic: str = "best_consecutive"
+    maintenance_lookback_days: int = 90
 
 
 class WebhookPayload(BaseModel):
@@ -83,6 +91,13 @@ class ImportSettingsUpdate(BaseModel):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    usage_threshold_hours: float | None = None
+    borderline_threshold_hours: float | None = None
+    target_compliance_pct: float | None = None
+    compliance_window_days: int | None = None
+    evaluation_period_days: int | None = None
+    window_evaluation_logic: str | None = None
+    maintenance_lookback_days: int | None = None
 
 
 def _validate_local_path(raw: str) -> Path:
@@ -113,6 +128,7 @@ def get_import_settings(
     tz = get_timezone_settings(db, current_user["id"])
     llm = get_llm_settings(db, current_user["id"])
     llm_configured = has_explicit_llm_settings(db, current_user["id"]) and is_configured(llm)
+    comp = get_compliance_settings(db, current_user["id"])
 
     if row is None:
         return ImportSettingsResponse(
@@ -124,6 +140,7 @@ def get_import_settings(
             llm_model=llm["llm_model"],
             has_llm_api_key=bool(llm["llm_api_key"] and llm["llm_api_key"] not in {"ollama", "litellm"}),
             llm_configured=llm_configured,
+            **comp,
         )
 
     last_at = row["last_local_import_at"]
@@ -153,6 +170,7 @@ def get_import_settings(
         llm_api_key=None,
         has_llm_api_key=bool(row["llm_api_key"]),
         llm_configured=llm_configured,
+        **comp,
     )
 
 
@@ -184,7 +202,11 @@ def save_import_settings(
                      local_datalog_path, local_import_frequency, updated_at,
                      wearable_provider, wearable_base_url, wearable_api_key,
                      machine_tz, display_tz,
-                     llm_provider, llm_base_url, llm_api_key, llm_model)
+                     llm_provider, llm_base_url, llm_api_key, llm_model,
+                     usage_threshold_hours, borderline_threshold_hours,
+                     target_compliance_pct, compliance_window_days,
+                     evaluation_period_days, window_evaluation_logic,
+                     maintenance_lookback_days)
                 VALUES
                     (CAST(:uid AS uuid), :client_id, :client_secret,
                      :team_id, :machine_id,
@@ -192,7 +214,11 @@ def save_import_settings(
                      :local_path, :local_freq, NOW(),
                      :w_provider, :w_base_url, :w_api_key,
                      :machine_tz, :display_tz,
-                     :llm_provider, :llm_base_url, :llm_api_key, :llm_model)
+                     :llm_provider, :llm_base_url, :llm_api_key, :llm_model,
+                     :usage_threshold_hours, :borderline_threshold_hours,
+                     :target_compliance_pct, :compliance_window_days,
+                     :evaluation_period_days, :window_evaluation_logic,
+                     :maintenance_lookback_days)
             """),
             {
                 "uid": current_user["id"],
@@ -213,6 +239,13 @@ def save_import_settings(
                 "llm_base_url": body.llm_base_url,
                 "llm_api_key": body.llm_api_key,
                 "llm_model": body.llm_model,
+                "usage_threshold_hours": body.usage_threshold_hours if body.usage_threshold_hours is not None else 4.0,
+                "borderline_threshold_hours": body.borderline_threshold_hours,
+                "target_compliance_pct": body.target_compliance_pct if body.target_compliance_pct is not None else 70.0,
+                "compliance_window_days": body.compliance_window_days if body.compliance_window_days is not None else 30,
+                "evaluation_period_days": body.evaluation_period_days if body.evaluation_period_days is not None else 90,
+                "window_evaluation_logic": body.window_evaluation_logic or "best_consecutive",
+                "maintenance_lookback_days": body.maintenance_lookback_days if body.maintenance_lookback_days is not None else 90,
             },
         )
     else:
@@ -286,6 +319,34 @@ def save_import_settings(
         if "llm_model" in body.model_fields_set:
             set_clauses.append("llm_model = :llm_model")
             fields["llm_model"] = body.llm_model or None
+
+        if "usage_threshold_hours" in body.model_fields_set:
+            set_clauses.append("usage_threshold_hours = :usage_threshold_hours")
+            fields["usage_threshold_hours"] = body.usage_threshold_hours
+
+        if "borderline_threshold_hours" in body.model_fields_set:
+            set_clauses.append("borderline_threshold_hours = :borderline_threshold_hours")
+            fields["borderline_threshold_hours"] = body.borderline_threshold_hours
+
+        if "target_compliance_pct" in body.model_fields_set:
+            set_clauses.append("target_compliance_pct = :target_compliance_pct")
+            fields["target_compliance_pct"] = body.target_compliance_pct
+
+        if "compliance_window_days" in body.model_fields_set:
+            set_clauses.append("compliance_window_days = :compliance_window_days")
+            fields["compliance_window_days"] = body.compliance_window_days
+
+        if "evaluation_period_days" in body.model_fields_set:
+            set_clauses.append("evaluation_period_days = :evaluation_period_days")
+            fields["evaluation_period_days"] = body.evaluation_period_days
+
+        if "window_evaluation_logic" in body.model_fields_set:
+            set_clauses.append("window_evaluation_logic = :window_evaluation_logic")
+            fields["window_evaluation_logic"] = body.window_evaluation_logic
+
+        if "maintenance_lookback_days" in body.model_fields_set:
+            set_clauses.append("maintenance_lookback_days = :maintenance_lookback_days")
+            fields["maintenance_lookback_days"] = body.maintenance_lookback_days
 
         db.execute(
             text(f"UPDATE user_import_settings SET {', '.join(set_clauses)} WHERE user_id = CAST(:uid AS uuid)"),
