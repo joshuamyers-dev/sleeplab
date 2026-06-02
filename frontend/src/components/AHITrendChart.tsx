@@ -3,10 +3,18 @@ import type { DailyStat } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   trend: DailyStat[]
 }
 
+/**
+ * React component or element to render the a h i trend chart.
+ *
+ * @returns The rendered React element.
+ */
 export default function AHITrendChart({ trend }: Props) {
   const navigate = useNavigate()
 

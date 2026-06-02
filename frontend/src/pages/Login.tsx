@@ -8,6 +8,11 @@ import { Label } from '../components/ui/label'
 import { getIsUserRegistrationDisabled } from '../config'
 import { useAuth } from '../context/AuthContext'
 
+/**
+ * React component or element to render the login.
+ *
+ * @returns The rendered React element.
+ */
 export default function Login() {
   const navigate = useNavigate()
   const { login, user, isLoading } = useAuth()

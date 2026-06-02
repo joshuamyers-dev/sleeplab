@@ -2,6 +2,11 @@ import type { HTMLAttributes } from 'react'
 
 import { cn } from '../../lib/utils'
 
+/**
+ * React component to render the badge.
+ *
+ * @returns The rendered React element.
+ */
 export function Badge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return (
     <span

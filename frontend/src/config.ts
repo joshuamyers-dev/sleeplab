@@ -7,11 +7,17 @@ declare global {
   }
 }
 
+/**
+ * Helper function for normalize api url.
+ */
 function normalizeApiUrl(value: string | undefined) {
   const normalized = value?.trim()
   return normalized ? normalized.replace(/\/+$/, '') : null
 }
 
+/**
+ * Helper function for get api base url.
+ */
 export function getApiBaseUrl() {
   return (
     normalizeApiUrl(window.__APP_CONFIG__?.API_URL) ??
@@ -20,6 +26,9 @@ export function getApiBaseUrl() {
   )
 }
 
+/**
+ * Helper function for parse boolean flag.
+ */
 function parseBooleanFlag(value: unknown) {
   if (typeof value === 'boolean') {
     return value
@@ -30,6 +39,9 @@ function parseBooleanFlag(value: unknown) {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
+/**
+ * Helper function for get is user registration disabled.
+ */
 export function getIsUserRegistrationDisabled() {
   return (
     parseBooleanFlag(window.__APP_CONFIG__?.DISABLE_USER_REGISTRATION) ||

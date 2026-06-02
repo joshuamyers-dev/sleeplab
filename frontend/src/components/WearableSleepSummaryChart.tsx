@@ -11,6 +11,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import type { WearableDailySummary } from '../api/client'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   data: WearableDailySummary[]
 }
@@ -29,6 +32,11 @@ const STAGE_LABELS = {
   rem_h: 'REM',
 }
 
+/**
+ * React component or element to render the wearable sleep summary chart.
+ *
+ * @returns The rendered React element.
+ */
 export default function WearableSleepSummaryChart({ data }: Props) {
   if (data.length === 0) return null
 

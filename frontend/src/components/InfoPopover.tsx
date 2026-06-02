@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
+/**
+ * Properties and structure for the info popover props.
+ */
 interface InfoPopoverProps {
   title: string
   children: ReactNode
 }
 
+/**
+ * React component or element to render the info popover.
+ *
+ * @returns The rendered React element.
+ */
 export default function InfoPopover({ title, children }: InfoPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)

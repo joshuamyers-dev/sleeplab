@@ -11,16 +11,27 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import type { SpO2Response, WearableData } from '../api/client'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   spo2: SpO2Response
   wearable?: WearableData | null
 }
 
+/**
+ * Helper function for format tick.
+ */
 function formatTick(iso: unknown): string {
   const d = new Date(String(iso ?? ''))
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * React component or element to render the sp o2 chart.
+ *
+ * @returns The rendered React element.
+ */
 export default function SpO2Chart({ spo2, wearable }: Props) {
   const hasWearable =
     wearable && (wearable.hr.length > 0 || wearable.spo2.length > 0)

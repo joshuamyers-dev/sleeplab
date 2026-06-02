@@ -6,6 +6,11 @@ import AISummaryCard from '../components/AISummaryCard'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
 import { Card, CardContent } from '../components/ui/card'
 
+/**
+ * React component or element to render the insights page.
+ *
+ * @returns The rendered React element.
+ */
 export default function InsightsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [aiConfigured, setAiConfigured] = useState(false)

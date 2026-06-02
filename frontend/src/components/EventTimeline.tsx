@@ -3,6 +3,9 @@ import { useState } from 'react'
 import type { EventRecord } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   events: EventRecord[]
   durationSeconds: number
@@ -11,6 +14,11 @@ interface Props {
   onSelectEvent?: (event: EventRecord) => void
 }
 
+/**
+ * React component or element to render the e v e n t_ c o l o r s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_COLORS: Record<string, string> = {
   'Central Apnea':     '#5251A7',
   'Obstructive Apnea': '#8E3D40',
@@ -19,11 +27,19 @@ const EVENT_COLORS: Record<string, string> = {
   'Arousal':           '#6AA136',
 }
 
+/**
+ * Helper function for fmt time.
+ */
 function fmtTime(startIso: string, offsetSeconds: number): string {
   const d = new Date(new Date(startIso).getTime() + offsetSeconds * 1000)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
+/**
+ * React component or element to render the event timeline.
+ *
+ * @returns The rendered React element.
+ */
 export default function EventTimeline({ events, durationSeconds, startDatetime, selectedEventId, onSelectEvent }: Props) {
   const [activeTooltip, setActiveTooltip] = useState<{
     eventType: string

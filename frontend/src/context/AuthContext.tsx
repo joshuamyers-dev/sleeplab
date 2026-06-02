@@ -16,6 +16,9 @@ import {
   type UpdateProfileRequest,
 } from '../api/client'
 
+/**
+ * Properties and structure for the auth context value.
+ */
 interface AuthContextValue {
   user: AuthUser | null
   isLoading: boolean
@@ -27,6 +30,11 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/**
+ * React component to render the auth provider.
+ *
+ * @returns The rendered React element.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -76,6 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
+/**
+ * Custom hook for managing use auth.
+ *
+ * @returns Object containing hook state and controls.
+ */
 export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) {

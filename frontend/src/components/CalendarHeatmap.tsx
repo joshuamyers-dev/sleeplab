@@ -1,10 +1,16 @@
 import { useNavigate } from 'react-router-dom'
 import type { SessionSummary } from '../api/client'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   sessions: SessionSummary[]
 }
 
+/**
+ * Helper function for get ahi color.
+ */
 function getAhiColor(ahi: number | null): string {
   if (ahi === null) return 'var(--calendar-empty)'
   if (ahi < 5)      return '#6AA136'
@@ -13,6 +19,9 @@ function getAhiColor(ahi: number | null): string {
   return '#8E3D40'
 }
 
+/**
+ * Helper function for get ahi label.
+ */
 function getAhiLabel(ahi: number | null): string {
   if (ahi === null) return 'No data'
   if (ahi < 5)      return 'Normal'
@@ -24,6 +33,11 @@ function getAhiLabel(ahi: number | null): string {
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
+/**
+ * React component or element to render the calendar heatmap.
+ *
+ * @returns The rendered React element.
+ */
 export default function CalendarHeatmap({ sessions }: Props) {
   const navigate = useNavigate()
 

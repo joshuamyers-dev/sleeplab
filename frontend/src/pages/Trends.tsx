@@ -28,6 +28,11 @@ const TREND_FLAG_COLORS = {
   },
 } as const
 
+/**
+ * React component or element to render the t r e n d_ d i r e c t i o n_ l a b e l.
+ *
+ * @returns The rendered React element.
+ */
 const TREND_DIRECTION_LABEL: Record<string, string> = {
   improving: 'Improving',
   stable: 'Stable',
@@ -35,6 +40,9 @@ const TREND_DIRECTION_LABEL: Record<string, string> = {
   variable: 'Variable',
 }
 
+/**
+ * Type definition for the metric key.
+ */
 type MetricKey = keyof Pick<
   OverviewDailyStat,
   | 'ahi'
@@ -60,6 +68,9 @@ type MetricKey = keyof Pick<
   | 'equipment_age_days'
 >
 
+/**
+ * Properties and structure for the trend metric.
+ */
 interface TrendMetric {
   key: MetricKey
   label: string
@@ -79,6 +90,11 @@ interface TrendMetric {
   secondaryLabel?: string
 }
 
+/**
+ * React component or element to render the t r e n d_ m e t r i c s.
+ *
+ * @returns The rendered React element.
+ */
 const TREND_METRICS: TrendMetric[] = [
   {
     key: 'ahi',
@@ -404,10 +420,18 @@ const RANGE_OPTIONS = [
   { label: 'All', days: 3650 },
 ]
 
+/**
+ * Helper function for get metric.
+ */
 function getMetric(key: MetricKey) {
   return TREND_METRICS.find((metric) => metric.key === key) ?? TREND_METRICS[0]
 }
 
+/**
+ * React component or element to render the trend a i card.
+ *
+ * @returns The rendered React element.
+ */
 function TrendAICard() {
   const [data, setData] = useState<TrendAISummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -538,6 +562,9 @@ function TrendAICard() {
   )
 }
 
+/**
+ * Helper function for ahi tone.
+ */
 function ahiTone(ahi: number | null) {
   if (ahi == null) return 'text-[var(--muted-foreground)]'
   if (ahi < 5) return 'text-[var(--green-700)]'
@@ -545,6 +572,9 @@ function ahiTone(ahi: number | null) {
   return 'text-[var(--orange-700)]'
 }
 
+/**
+ * Helper function for humanize event type.
+ */
 function humanizeEventType(eventType: string) {
   return eventType
     .split('_')
@@ -553,6 +583,9 @@ function humanizeEventType(eventType: string) {
     .join(' ')
 }
 
+/**
+ * Helper function for format metric value.
+ */
 function formatMetricValue(value: number | null | undefined, metric: TrendMetric) {
   if (value == null) return '-'
   if (metric.unit === 'clock') return formatClockHour(value)
@@ -561,6 +594,9 @@ function formatMetricValue(value: number | null | undefined, metric: TrendMetric
   return metric.unit ? `${formatted} ${metric.unit}` : formatted
 }
 
+/**
+ * Helper function for format metric range.
+ */
 function formatMetricRange(low: number, high: number, metric: TrendMetric) {
   if (metric.unit === 'clock') {
     return `${formatClockHour(low)} / ${formatClockHour(high)}`
@@ -572,6 +608,9 @@ function formatMetricRange(low: number, high: number, metric: TrendMetric) {
   return metric.unit ? `${lowValue} / ${highValue} ${metric.unit}` : `${lowValue} / ${highValue}`
 }
 
+/**
+ * Helper function for format metric delta.
+ */
 function formatMetricDelta(value: number | null | undefined, metric: TrendMetric) {
   if (value == null) return '-'
   const sign = value >= 0 ? '+' : ''
@@ -579,11 +618,17 @@ function formatMetricDelta(value: number | null | undefined, metric: TrendMetric
   return `${sign}${formatMetricValue(value, metric)}`
 }
 
+/**
+ * Helper function for rounds to zero.
+ */
 function roundsToZero(value: number, metric: TrendMetric) {
   const precision = metric.precision ?? 1
   return Number(value.toFixed(precision)) === 0
 }
 
+/**
+ * Helper function for format clock hour.
+ */
 function formatClockHour(hour: number) {
   const normalized = ((hour % 24) + 24) % 24
   const wholeHours = Math.floor(normalized)
@@ -595,6 +640,9 @@ function formatClockHour(hour: number) {
   return `${hour12}:${String(displayMinutes).padStart(2, '0')} ${suffix}`
 }
 
+/**
+ * Helper function for get active session id.
+ */
 function getActiveSessionId(payload: unknown) {
   if (!payload || typeof payload !== 'object' || !('activePayload' in payload)) {
     return null
@@ -604,10 +652,16 @@ function getActiveSessionId(payload: unknown) {
   return typeof sessionId === 'string' ? sessionId : null
 }
 
+/**
+ * Helper function for metric number.
+ */
 function metricNumber(value: OverviewDailyStat[MetricKey]) {
   return typeof value === 'number' ? value : null
 }
 
+/**
+ * Helper function for calculate metric summary.
+ */
 function calculateMetricSummary(nights: OverviewDailyStat[], metric: TrendMetric) {
   const points = nights
     .map((night) => ({ night, value: metricNumber(night[metric.key]) }))
@@ -632,6 +686,11 @@ function calculateMetricSummary(nights: OverviewDailyStat[], metric: TrendMetric
   return { average, latest, lowest, highest, change }
 }
 
+/**
+ * React component or element to render the metric summary cards.
+ *
+ * @returns The rendered React element.
+ */
 function MetricSummaryCards({ nights, metric }: { nights: OverviewDailyStat[]; metric: TrendMetric }) {
   const summary = calculateMetricSummary(nights, metric)
 
@@ -679,6 +738,11 @@ function MetricSummaryCards({ nights, metric }: { nights: OverviewDailyStat[]; m
   )
 }
 
+/**
+ * React component or element to render the overview chart.
+ *
+ * @returns The rendered React element.
+ */
 function OverviewChart({
   nights,
   metric,
@@ -799,6 +863,11 @@ function OverviewChart({
   )
 }
 
+/**
+ * React component or element to render the recent overview table.
+ *
+ * @returns The rendered React element.
+ */
 function RecentOverviewTable({ nights, metric }: { nights: OverviewDailyStat[]; metric: TrendMetric }) {
   const recent = nights.slice(-10).reverse()
 
@@ -845,6 +914,11 @@ function RecentOverviewTable({ nights, metric }: { nights: OverviewDailyStat[]; 
   )
 }
 
+/**
+ * React component or element to render the trends page.
+ *
+ * @returns The rendered React element.
+ */
 export default function TrendsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [overview, setOverview] = useState<OverviewDailyStat[]>([])

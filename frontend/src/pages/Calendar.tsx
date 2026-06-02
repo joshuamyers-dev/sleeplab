@@ -6,6 +6,9 @@ import CalendarHeatmap from '../components/CalendarHeatmap'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
 
+/**
+ * Helper function for current streak.
+ */
 function currentStreak(sessions: SessionSummary[]) {
   const uniqueDates = [...new Set(sessions.map((session) => session.folder_date))].sort().reverse()
   if (uniqueDates.length === 0) return 0
@@ -26,6 +29,11 @@ function currentStreak(sessions: SessionSummary[]) {
   return streak
 }
 
+/**
+ * React component or element to render the calendar page.
+ *
+ * @returns The rendered React element.
+ */
 export default function CalendarPage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)

@@ -16,6 +16,9 @@ import { ChevronLeftIcon, ChevronRightIcon } from './icons/ChevronIcons'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   data: EventWindowResponse | null
   loading: boolean
@@ -27,6 +30,9 @@ interface Props {
   onNextEvent: () => void
 }
 
+/**
+ * Helper function for fmt ts.
+ */
 function fmtTs(ts: number) {
   return new Date(ts).toLocaleTimeString([], {
     hour: '2-digit',
@@ -36,6 +42,9 @@ function fmtTs(ts: number) {
   })
 }
 
+/**
+ * Helper function for fmt event time.
+ */
 function fmtEventTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], {
     hour: '2-digit',
@@ -45,6 +54,9 @@ function fmtEventTime(iso: string) {
   })
 }
 
+/**
+ * Helper function for stat.
+ */
 function stat(values: (number | null)[], mode: 'min' | 'max' | 'avg') {
   const nums = values.filter((v): v is number => v !== null && Number.isFinite(v))
   if (!nums.length) return null
@@ -53,6 +65,9 @@ function stat(values: (number | null)[], mode: 'min' | 'max' | 'avg') {
   return nums.reduce((sum, v) => sum + v, 0) / nums.length
 }
 
+/**
+ * Helper function for flow domain.
+ */
 function flowDomain(values: (number | null)[]): [number, number] {
   const absVals = values
     .filter((v): v is number => v !== null && Number.isFinite(v))
@@ -64,6 +79,11 @@ function flowDomain(values: (number | null)[]): [number, number] {
   return [-bound, bound]
 }
 
+/**
+ * React component or element to render the e v e n t_ c o d e s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_CODES: Record<string, string> = {
   'Central Apnea': 'CA',
   'Obstructive Apnea': 'OA',
@@ -72,6 +92,11 @@ const EVENT_CODES: Record<string, string> = {
   'Arousal': 'RE',
 }
 
+/**
+ * React component or element to render the e v e n t_ c o l o r s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_COLORS: Record<string, string> = {
   'Central Apnea': '#5251A7',
   'Obstructive Apnea': '#8E3D40',
@@ -80,12 +105,20 @@ const EVENT_COLORS: Record<string, string> = {
   'Arousal': '#6AA136',
 }
 
+/**
+ * Helper function for event bounds.
+ */
 function eventBounds(event: EventRecord): { startTs: number; endTs: number } {
   const endTs = new Date(event.event_datetime).getTime()
   const durationMs = Math.max((event.duration_seconds ?? 2) * 1000, 2000)
   return { startTs: endTs - durationMs, endTs }
 }
 
+/**
+ * React component or element to render the event band.
+ *
+ * @returns The rendered React element.
+ */
 function EventBand({
   startTs,
   endTs,
@@ -127,6 +160,11 @@ function EventBand({
   )
 }
 
+/**
+ * React component or element to render the event bands.
+ *
+ * @returns The rendered React element.
+ */
 function EventBands({ data }: { data: EventWindowResponse }) {
   const events = data.neighboring_events.length ? data.neighboring_events : [data.event]
   const selected = events.find((event) => event.id === data.event.id)
@@ -149,6 +187,11 @@ function EventBands({ data }: { data: EventWindowResponse }) {
   )
 }
 
+/**
+ * React component or element to render the event inspector.
+ *
+ * @returns The rendered React element.
+ */
 export default function EventInspector({
   data,
   loading,
@@ -342,6 +385,11 @@ export default function EventInspector({
   )
 }
 
+/**
+ * React component or element to render the window controls.
+ *
+ * @returns The rendered React element.
+ */
 function WindowControls({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
   return (
     <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-soft)] p-1 text-xs">

@@ -2,6 +2,11 @@ import type { AISummaryResponse } from '../api/client'
 import GlossaryText from './GlossaryText'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 
+/**
+ * React component or element to render the a i recommendations card.
+ *
+ * @returns The rendered React element.
+ */
 export default function AIRecommendationsCard({
   enabled,
   data,

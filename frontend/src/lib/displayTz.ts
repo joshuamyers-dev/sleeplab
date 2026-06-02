@@ -12,10 +12,16 @@
 
 let _tz: string = Intl.DateTimeFormat().resolvedOptions().timeZone
 
+/**
+ * Helper function for get display tz.
+ */
 export function getDisplayTz(): string {
   return _tz
 }
 
+/**
+ * Helper function for set display tz.
+ */
 export function setDisplayTz(tz: string): void {
   _tz = tz
 }

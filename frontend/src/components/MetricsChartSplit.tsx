@@ -5,10 +5,18 @@ import {
 import type { MetricsResponse } from '../api/client'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   metrics: MetricsResponse
 }
 
+/**
+ * React component or element to render the metrics chart split.
+ *
+ * @returns The rendered React element.
+ */
 export default function MetricsChartSplit({ metrics }: Props) {
   const GAP_THRESHOLD_MS = 5 * 60 * 1000
 

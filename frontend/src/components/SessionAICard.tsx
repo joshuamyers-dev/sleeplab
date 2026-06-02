@@ -30,6 +30,11 @@ const FLAG_LABELS = {
   alert: 'Worth reviewing',
 } as const
 
+/**
+ * React component or element to render the session a i card.
+ *
+ * @returns The rendered React element.
+ */
 export default function SessionAICard({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<SessionAISummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
