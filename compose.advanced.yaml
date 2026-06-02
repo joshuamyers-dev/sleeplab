@@ -80,6 +80,22 @@ services:
       # Comma-separated origins allowed for CORS.  * allows all (dev only).
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
 
+      # --- Compliance thresholds ---------------------------------------------
+      # Minimum hours of use for a night to count as compliant.
+      USAGE_THRESHOLD_HOURS: ${USAGE_THRESHOLD_HOURS:-4.0}
+      # Optional lower bound for three-tier coloring (red/orange/green).  Leave empty to disable.
+      BORDERLINE_THRESHOLD_HOURS: ${BORDERLINE_THRESHOLD_HOURS:-}
+      # Target compliance percentage for pass/fail.
+      TARGET_COMPLIANCE_PCT: ${TARGET_COMPLIANCE_PCT:-70.0}
+      # Number of consecutive days in a single compliance window.
+      COMPLIANCE_WINDOW_DAYS: ${COMPLIANCE_WINDOW_DAYS:-30}
+      # Overall evaluation period (days) for sliding-window search.
+      EVALUATION_PERIOD_DAYS: ${EVALUATION_PERIOD_DAYS:-90}
+      # Window evaluation logic: "best_consecutive" (sliding) or "last_consecutive" (most recent only).
+      WINDOW_EVALUATION_LOGIC: ${WINDOW_EVALUATION_LOGIC:-best_consecutive}
+      # Lookback days for ongoing maintenance monitoring.
+      MAINTENANCE_LOOKBACK_DAYS: ${MAINTENANCE_LOOKBACK_DAYS:-90}
+
       # --- Optional: OpenAI --------------------------------------------------
       # Enables AI-powered session summaries.  Get a key at https://platform.openai.com
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

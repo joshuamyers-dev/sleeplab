@@ -327,6 +327,26 @@ If your machine is set to the same timezone as your display, both values will be
 
 > **Re-importing after changing `MACHINE_TZ`:** The importer attaches the timezone at import time. If you change `MACHINE_TZ` after sessions are already in the database, re-run the importer with `--from` to update affected sessions.
 
+## Compliance Reporting
+
+SleepLab includes configurable compliance tracking with per-night three-tier classification (compliant / borderline / non-compliant), sliding-window evaluation, streak tracking, and PDF export.
+
+Configure thresholds in **Settings → Compliance** or via environment variables:
+
+| Env var | Default | Description |
+|---|---|---|
+| `USAGE_THRESHOLD_HOURS` | 4.0 | Minimum hours for a compliant night |
+| `BORDERLINE_THRESHOLD_HOURS` | (none) | Optional lower bound for three-tier chart coloring |
+| `TARGET_COMPLIANCE_PCT` | 70.0 | Pass/fail target for a compliance window |
+| `COMPLIANCE_WINDOW_DAYS` | 30 | Window size for evaluation |
+| `EVALUATION_PERIOD_DAYS` | 90 | Overall period for sliding-window search |
+| `WINDOW_EVALUATION_LOGIC` | `best_consecutive` | `best_consecutive` (sliding) or `last_consecutive` (most recent only) |
+| `MAINTENANCE_LOOKBACK_DAYS` | 90 | Lookback for ongoing monitoring |
+
+The Trends page shows a daily usage bar chart colored by compliance status with summary cards (overall rate, best window, streaks). Two PDF endpoints (`/sessions/export/compliance/pdf` and `/sessions/export/advanced-compliance/pdf`) produce printable reports for doctor visits or insurance submission.
+
+See [`docs/compliance-report.md`](docs/compliance-report.md) for complete documentation.
+
 ## Auth
 
 SleepLab uses bearer-token auth.
