@@ -33,10 +33,7 @@ def _load_users_from_env() -> list[dict]:
     team_ids = [t.strip() for t in raw.split(",") if t.strip()]
     if not team_ids:
         return []
-    return [
-        {"label": f"team-{tid}", "team_id": int(tid), "user_id": f"test-team-{tid}"}
-        for tid in team_ids
-    ]
+    return [{"label": f"team-{tid}", "team_id": int(tid), "user_id": f"test-team-{tid}"} for tid in team_ids]
 
 
 DAYS = 30  # how many days of history to pull
@@ -63,17 +60,16 @@ DISPLAY_COLS = [
 # ── Imports ──────────────────────────────────────────────────────────────────
 
 # db.py loads .env; import it first so env vars are available
-import db  # noqa: F401 (side-effect: loads .env)
-
-from sleephq_import import (
+import db  # noqa: E402, F401 (side-effect: loads .env)
+from sleephq_import import (  # noqa: E402
     create_sleephq_client,
     fetch_machine_dates,
     map_machine_date_to_session,
     resolve_machine_id,
 )
 
-
 # ── Formatting helpers ───────────────────────────────────────────────────────
+
 
 def _fmt(val) -> str:
     if val is None:
@@ -111,14 +107,14 @@ def print_table(rows: list[dict], cols: list[str], title: str) -> None:
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
-    client_id     = os.environ.get("SLEEPHQ_CLIENT_ID")
+    client_id = os.environ.get("SLEEPHQ_CLIENT_ID")
     client_secret = os.environ.get("SLEEPHQ_CLIENT_SECRET")
 
     if not client_id or not client_secret:
         print(
-            "ERROR: SLEEPHQ_CLIENT_ID and SLEEPHQ_CLIENT_SECRET must be set "
-            "in the environment or in .env",
+            "ERROR: SLEEPHQ_CLIENT_ID and SLEEPHQ_CLIENT_SECRET must be set in the environment or in .env",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -131,7 +127,7 @@ def main() -> None:
         )
         sys.exit(1)
 
-    to_date   = date.today()
+    to_date = date.today()
     from_date = to_date - timedelta(days=DAYS)
     print(f"Date range: {from_date} → {to_date}  ({DAYS} days)")
 
@@ -145,7 +141,7 @@ def main() -> None:
         sys.exit(1)
 
     for user in users:
-        label   = user["label"]
+        label = user["label"]  # noqa: F841
         team_id = user["team_id"]
         user_id = user["user_id"]
 
@@ -156,7 +152,7 @@ def main() -> None:
         os.environ["SLEEPHQ_TEAM_ID"] = str(team_id)
 
         try:
-            client     = shared_client
+            client = shared_client
             machine_id = resolve_machine_id(client, team_id)
             print(f"  machine_id resolved → {machine_id}")
 
@@ -181,9 +177,16 @@ def main() -> None:
                 attrs = getattr(first, "attributes", None)
                 print(f"\n  [first record id={first.id}]")
                 if attrs:
-                    for sub in ("ahi_summary", "pressure_summary", "leak_rate_summary",
-                                "resp_rate_summary", "flow_limit_summary",
-                                "pulse_rate_summary", "spo2_summary", "movement_summary"):
+                    for sub in (
+                        "ahi_summary",
+                        "pressure_summary",
+                        "leak_rate_summary",
+                        "resp_rate_summary",
+                        "flow_limit_summary",
+                        "pulse_rate_summary",
+                        "spo2_summary",
+                        "movement_summary",
+                    ):
                         obj = getattr(attrs, sub, None)
                         if obj is not None:
                             props = getattr(obj, "additional_properties", {})
@@ -192,6 +195,7 @@ def main() -> None:
         except Exception as exc:
             print(f"  FAILED for team-{team_id}: {exc}", file=sys.stderr)
             import traceback
+
             traceback.print_exc()
         finally:
             os.environ.pop("SLEEPHQ_TEAM_ID", None)

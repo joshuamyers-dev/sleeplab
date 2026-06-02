@@ -1,19 +1,18 @@
 # SleepLab — Third-Party Notices
 
-**Version:** 1.2.1
+**Version:** 1.0.0
 
-## SleepyHead / OSCAR / open-cpap-parser
+## SleepyHead / OSCAR / cpap-parser
 
-This project depends on **open-cpap-parser** as a key functional module for
-multi-manufacturer CPAP data parsing. All SleepyHead/OSCAR-derived binary
-parsing code lives in open-cpap-parser — SleepLab itself does not implement
-any direct derivative of SleepyHead or OSCAR.
+This project depends on **cpap-parser** as a key functional module for
+multi-manufacturer CPAP data parsing. SleepLab incorporates functionality
+derived from the SleepyHead/OSCAR lineage via cpap-parser.
 
-open-cpap-parser is a derivative of both the free and open-source software
+cpap-parser is a derivative of both the free and open-source software
 **SleepyHead**, developed and copyright by Mark Watkins (Jedimark) (C) 2011-2018,
 and the **OSCAR** project (https://gitlab.com/CrimsonNape/OSCAR-code), which is
 itself a derivative of SleepyHead. The binary-format parsing logic in
-open-cpap-parser's Rust extension module is ported from OSCAR. Both SleepyHead
+cpap-parser's Rust extension module is ported from OSCAR. Both SleepyHead
 and OSCAR are distributed under the GNU General Public License v3.0 (GPL-3.0),
 which this project inherits accordingly.
 
@@ -45,12 +44,13 @@ which this project inherits accordingly.
 | [uvicorn](https://github.com/encode/uvicorn) | BSD-3-Clause |
 | [sqlalchemy](https://github.com/sqlalchemy/sqlalchemy) | MIT |
 | [psycopg2-binary](https://github.com/psycopg/psycopg2) | LGPL-3.0-or-later with exceptions |
-| [python-jose](https://github.com/mpdavis/python-jose) | MIT |
+| [PyJWT](https://github.com/jpadilla/pyjwt) | MIT |
 | [passlib](https://github.com/glic3rinu/passlib) | BSD-3-Clause |
 | [openai](https://github.com/openai/openai-python) | Apache-2.0 |
 | [python-multipart](https://github.com/andrew-d/python-multipart) | Apache-2.0 |
 | [httpx](https://github.com/encode/httpx) | BSD-3-Clause |
-| [ecdsa](https://github.com/tlsfuzn/python-ecdsa) | MIT |
+| [cpap-parser](https://gitlab.com/open-cpap/cpap-parser) | GPL-3.0-only |
+| [cpap-py](https://pypi.org/project/cpap-py/) | MIT |
 | [sleephq-client](https://github.com/frohoff/sleephq-client) | MIT |
 | [pydantic](https://github.com/pydantic/pydantic) | MIT |
 

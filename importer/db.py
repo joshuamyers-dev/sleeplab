@@ -3,11 +3,11 @@ PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timedelta
 
 
 def _load_dotenv() -> None:
@@ -41,20 +41,19 @@ def session_exists(conn, user_id: str, session_id: str) -> bool:
         return cur.fetchone() is not None
 
 
-def get_session_db_id(conn, user_id: str, session_id: str) -> str | None:
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id FROM sessions WHERE user_id = %s AND session_id = %s",
-            (user_id, session_id),
-        )
-        row = cur.fetchone()
-        return row[0] if row else None
-
-
 def upsert_session(conn, data: dict) -> int:
     """
     Insert or update a session row. Returns the session's integer id.
     data must contain all columns defined in the sessions table.
+
+    Native ResMed callers should pass:
+        "manufacturer": None,
+        "data_source": "resmed_native",
+        "parser_validated": True,
+        "avg_spo2": ...,
+        "min_spo2": ...,
+    cpap-parser callers pass values from cpap_parser_import.py.
+    See: sleeplab#38, importer/cpap_parser_import.py
     """
     sql = """
     INSERT INTO sessions (
@@ -64,8 +63,10 @@ def upsert_session(conn, data: dict) -> int:
         apnea_count, arousal_count, total_ahi_events,
         avg_pressure, p95_pressure, avg_leak, avg_resp_rate, avg_tidal_vol,
         avg_min_vent, avg_snore, avg_flow_lim, has_spo2,
+        avg_spo2, min_spo2,
         therapy_mode, mask_type, humidity_level, temperature_c,
-        machine_tz, user_id, updated_at
+        manufacturer, data_source, parser_validated,
+        user_id, updated_at
     ) VALUES (
         %(session_id)s, %(folder_date)s, %(block_index)s, %(start_datetime)s, %(pld_start_datetime)s,
         %(duration_seconds)s, %(device_serial)s, %(ahi)s,
@@ -73,8 +74,10 @@ def upsert_session(conn, data: dict) -> int:
         %(apnea_count)s, %(arousal_count)s, %(total_ahi_events)s,
         %(avg_pressure)s, %(p95_pressure)s, %(avg_leak)s, %(avg_resp_rate)s, %(avg_tidal_vol)s,
         %(avg_min_vent)s, %(avg_snore)s, %(avg_flow_lim)s, %(has_spo2)s,
+        %(avg_spo2)s, %(min_spo2)s,
         %(therapy_mode)s, %(mask_type)s, %(humidity_level)s, %(temperature_c)s,
-        %(machine_tz)s, %(user_id)s, NOW()
+        %(manufacturer)s, %(data_source)s, %(parser_validated)s,
+        %(user_id)s, NOW()
     )
     ON CONFLICT (user_id, session_id) DO UPDATE SET
         folder_date             = EXCLUDED.folder_date,
@@ -99,11 +102,15 @@ def upsert_session(conn, data: dict) -> int:
         avg_snore               = EXCLUDED.avg_snore,
         avg_flow_lim            = EXCLUDED.avg_flow_lim,
         has_spo2                = EXCLUDED.has_spo2,
+        avg_spo2                = EXCLUDED.avg_spo2,
+        min_spo2                = EXCLUDED.min_spo2,
         therapy_mode            = EXCLUDED.therapy_mode,
         mask_type               = EXCLUDED.mask_type,
         humidity_level          = EXCLUDED.humidity_level,
         temperature_c           = EXCLUDED.temperature_c,
-        machine_tz              = EXCLUDED.machine_tz,
+        manufacturer            = EXCLUDED.manufacturer,
+        data_source             = EXCLUDED.data_source,
+        parser_validated        = EXCLUDED.parser_validated,
         -- user_id intentionally excluded: re-import must not change ownership
         updated_at              = NOW()
     RETURNING id
@@ -134,23 +141,32 @@ def replace_session_events(conn, session_db_id: int, events: list, csl_start: da
         psycopg2.extras.execute_values(cur, sql, rows)
 
 
-def replace_session_metrics(conn, session_db_id: int, header, channels: dict, start_datetime: datetime | None = None):
+def replace_session_metrics(conn, session_db_id: int, header, channels: dict):
     """Delete existing metrics for this session and bulk-insert all PLD time-series rows."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
 
-    LABELS = ['MaskPress.2s', 'Press.2s', 'EprPress.2s', 'Leak.2s', 'RespRate.2s',
-              'TidVol.2s', 'MinVent.2s', 'Snore.2s', 'FlowLim.2s']
+    LABELS = [  # noqa: N806
+        "MaskPress.2s",
+        "Press.2s",
+        "EprPress.2s",
+        "Leak.2s",
+        "RespRate.2s",
+        "TidVol.2s",
+        "MinVent.2s",
+        "Snore.2s",
+        "FlowLim.2s",
+    ]
 
     # Determine samples per record from first non-Crc16 signal
-    data_signals = [s for s in header.signals if s.label != 'Crc16']
+    data_signals = [s for s in header.signals if s.label != "Crc16"]
     spr = data_signals[0].num_samples_per_record  # 30 samples per 60s record = 2s epochs
-    dur = header.duration_per_record               # 60.0 seconds
-    epoch = dur / spr                              # 2.0 seconds
-    pld_start = start_datetime or header.start_datetime
+    dur = header.duration_per_record  # 60.0 seconds
+    epoch = dur / spr  # 2.0 seconds
+    pld_start = header.start_datetime
 
     rows = []
-    total_samples = spr * header.num_records
+    total_samples = spr * header.num_records  # noqa: F841
     for rec in range(header.num_records):
         for si in range(spr):
             abs_idx = rec * spr + si
@@ -171,16 +187,53 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict, st
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
 
 
-def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple, start_datetime: datetime | None = None):
+def replace_session_metrics_cpap(conn, session_db_id: int, rows: list[dict]):
+    """Delete existing metrics and bulk-insert cpap-parser flat-row format.
+
+    Each row is a dict with key 'ts' (Unix epoch float) plus optional
+    numeric fields matching session_metrics columns.
+    """
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
+    if not rows:
+        return
+
+    def _clamp(v, lo, hi):
+        return v if (v is not None and lo <= v <= hi) else None
+
+    data = []
+    for r in rows:
+        vals = (
+            _clamp(r.get("mask_pressure"), 0, 50),
+            _clamp(r.get("pressure"), 0, 50),
+            _clamp(r.get("epr_pressure"), 0, 50),
+            _clamp(r.get("leak"), 0, 150),
+            _clamp(r.get("resp_rate"), 1, 60),
+            _clamp(r.get("tidal_vol"), 50, 3000),
+            _clamp(r.get("min_vent"), 0, 50),
+            _clamp(r.get("snore"), 0, 9999),
+            _clamp(r.get("flow_lim"), 0, 1),
+        )
+        if any(v is not None for v in vals):
+            data.append((session_db_id, datetime.fromtimestamp(r["ts"], tz=UTC)) + vals)
+    sql = """INSERT INTO session_metrics
+        (session_id, ts, mask_pressure, pressure, epr_pressure, leak,
+         resp_rate, tidal_vol, min_vent, snore, flow_lim)
+        VALUES %s"""
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(cur, sql, data, page_size=5000)
+
+
+def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple):
     """Delete existing SpO2 rows and insert new ones."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
 
     pulse_vals, spo2_vals = spo2_data
-    spo2_sig = header.signals[1]   # SpO2.1s at 1 Hz
+    spo2_sig = header.signals[1]  # SpO2.1s at 1 Hz
     spr = spo2_sig.num_samples_per_record  # 1 sample/second per record
     dur = header.duration_per_record
-    pld_start = start_datetime or header.start_datetime
+    pld_start = header.start_datetime
 
     rows = []
     for rec in range(header.num_records):
@@ -196,84 +249,74 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple, sta
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
 
 
-def replace_session_waveform(
+def find_or_create_machine_equipment(
     conn,
-    session_db_id: int,
-    header,
-    channels: dict,
-    events: list | None = None,
-    before_seconds: int = 120,
-    after_seconds: int = 180,
-    start_datetime=None,
-):
-    """
-    Delete existing BRP waveform rows and bulk-insert event-focused samples.
+    user_id: str,
+    manufacturer: str | None,
+    device_serial: str | None,
+    model: str | None,
+    parser_validated: bool,
+) -> str | None:
+    """Return user_equipment.id (UUID) for the machine record, creating it if absent.
 
-    Full-night BRP is large: a typical 7-hour night is ~630k rows at 25 Hz.
-    The Event Inspector only needs windows around scored events, so by default
-    we store merged event windows rather than the entire night.
+    Returns None if both manufacturer and device_serial are None (nothing to key on).
+    """
+    if manufacturer is None and device_serial is None:
+        return None
+    with conn.cursor() as cur:
+        if device_serial:
+            cur.execute(
+                """SELECT id FROM user_equipment
+                   WHERE user_id = %s AND equipment_type = 'machine' AND device_serial = %s""",
+                (user_id, device_serial),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "UPDATE user_equipment SET parser_validated = %s, updated_at = NOW() WHERE id = %s",
+                    (parser_validated, row[0]),
+                )
+                return str(row[0])
+        cur.execute(
+            """INSERT INTO user_equipment
+               (user_id, equipment_type, brand, model, device_serial, parser_validated,
+                start_date, created_at, updated_at)
+               VALUES (%s, 'machine', %s, %s, %s, %s, NULL, NOW(), NOW())
+               RETURNING id""",
+            (user_id, manufacturer, model, device_serial, parser_validated),
+        )
+        return str(cur.fetchone()[0])
+
+
+def update_session_machine_equipment(conn, session_db_id: str, machine_equipment_id: str):
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE sessions SET machine_equipment_id = %s WHERE id = %s",
+            (machine_equipment_id, session_db_id),
+        )
+
+
+def replace_session_spo2_cpap(conn, session_db_id: int, rows: list[dict]):
+    """Delete existing SpO2 rows and insert cpap-parser flat-row format.
+
+    Each row is a dict with 'ts' (Unix epoch float), optional 'spo2' and 'pulse'.
     """
     with conn.cursor() as cur:
-        cur.execute("DELETE FROM session_waveform WHERE session_id = %s", (session_db_id,))
-
-    flow_vals = channels.get("Flow.40ms")
-    pressure_vals = channels.get("Press.40ms")
-    if not flow_vals and not pressure_vals:
-        return
-
-    data_signals = [s for s in header.signals if s.label != "Crc16"]
-    if not data_signals:
-        return
-
-    spr = data_signals[0].num_samples_per_record
-    dur = header.duration_per_record
-    if spr <= 0 or dur <= 0:
-        return
-
-    epoch = dur / spr
-    start = start_datetime or header.start_datetime
-    total_samples = spr * header.num_records
-    windows = _merge_waveform_windows(events or [], before_seconds, after_seconds)
-    if not windows:
-        return
-
-    rows = []
-    for start_idx, end_idx in windows:
-        start_idx = max(0, int(start_idx / epoch))
-        end_idx = min(total_samples, int(end_idx / epoch) + 1)
-        for idx in range(start_idx, end_idx):
-            ts = start + timedelta(seconds=idx * epoch)
-            flow = flow_vals[idx] if flow_vals and idx < len(flow_vals) else None
-            pressure = pressure_vals[idx] if pressure_vals and idx < len(pressure_vals) else None
-            rows.append((
-                session_db_id,
-                ts,
-                round(flow, 4) if flow is not None else None,
-                round(pressure, 2) if pressure is not None else None,
-            ))
-
+        cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
     if not rows:
         return
-
-    sql = "INSERT INTO session_waveform (session_id, ts, flow, pressure) VALUES %s"
+    data = [
+        (
+            session_db_id,
+            datetime.fromtimestamp(r["ts"], tz=UTC),
+            r.get("spo2"),
+            r.get("pulse"),
+        )
+        for r in rows
+        if r.get("spo2") is not None or r.get("pulse") is not None
+    ]
+    if not data:
+        return
+    sql = "INSERT INTO session_spo2 (session_id, ts, spo2, pulse) VALUES %s"
     with conn.cursor() as cur:
-        psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
-
-
-def _merge_waveform_windows(events: list, before_seconds: int, after_seconds: int) -> list[tuple[float, float]]:
-    windows = []
-    for onset, duration, _event_type in events:
-        duration = duration or 0
-        windows.append((max(0, onset - before_seconds), onset + duration + after_seconds))
-    if not windows:
-        return []
-
-    windows.sort()
-    merged = [windows[0]]
-    for start, end in windows[1:]:
-        prev_start, prev_end = merged[-1]
-        if start <= prev_end:
-            merged[-1] = (prev_start, max(prev_end, end))
-        else:
-            merged.append((start, end))
-    return merged
+        psycopg2.extras.execute_values(cur, sql, data, page_size=5000)

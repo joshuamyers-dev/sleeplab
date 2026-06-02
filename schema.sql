@@ -38,7 +38,10 @@ CREATE TABLE sessions (
     avg_spo2                NUMERIC(5,1),
     min_spo2                NUMERIC(5,1),
     created_at              TIMESTAMPTZ DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ DEFAULT NOW()
+    updated_at              TIMESTAMPTZ DEFAULT NOW(),
+    manufacturer            TEXT,
+    data_source             TEXT NOT NULL DEFAULT 'resmed_native',
+    parser_validated        BOOLEAN NOT NULL DEFAULT true
 );
 CREATE INDEX idx_sessions_folder_date ON sessions (folder_date);
 CREATE INDEX idx_sessions_start_datetime ON sessions (start_datetime);
@@ -54,7 +57,6 @@ CREATE TABLE session_events (
     event_datetime   TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX idx_session_events_session_id ON session_events (session_id);
-CREATE INDEX idx_session_events_session_id_datetime ON session_events (session_id, event_datetime);
 
 CREATE TABLE session_metrics (
     id             BIGSERIAL PRIMARY KEY,
@@ -71,7 +73,6 @@ CREATE TABLE session_metrics (
     flow_lim       NUMERIC(6,4)
 );
 CREATE INDEX idx_session_metrics_session_id ON session_metrics (session_id);
-CREATE INDEX idx_session_metrics_session_id_ts ON session_metrics (session_id, ts);
 
 CREATE TABLE session_spo2 (
     id         BIGSERIAL PRIMARY KEY,
@@ -81,13 +82,3 @@ CREATE TABLE session_spo2 (
     pulse      SMALLINT
 );
 CREATE INDEX idx_session_spo2_session_id ON session_spo2 (session_id);
-CREATE INDEX idx_session_spo2_session_id_ts ON session_spo2 (session_id, ts);
-
-CREATE TABLE session_waveform (
-    id         BIGSERIAL PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    ts         TIMESTAMPTZ NOT NULL,
-    flow       NUMERIC(7,4),
-    pressure   NUMERIC(6,2)
-);
-CREATE INDEX idx_session_waveform_session_id_ts ON session_waveform (session_id, ts);
