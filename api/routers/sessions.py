@@ -402,7 +402,7 @@ def export_sessions_pdf(
                     (array_agg(s.mask_type ORDER BY s.duration_seconds DESC) FILTER (WHERE s.mask_type IS NOT NULL))[1] AS mask_type,
                     {manufacturer_select}
                 FROM sessions s
-                WHERE s.user_id = CAST(:uid AS uid)
+                WHERE s.user_id = CAST(:uid AS uuid)
                   AND s.folder_date >= :start
                   AND s.folder_date <= :end
                   AND s.duration_seconds >= 600
