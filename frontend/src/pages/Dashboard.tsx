@@ -59,10 +59,43 @@ function buildPrimaryByDate(sessions: SessionSummary[]): Map<string, SessionSumm
   return map
 }
 
+function formatInputDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function compactDate(value: string) {
+  return value.replaceAll('-', '')
+}
+
+function defaultReportRange() {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(to.getDate() - 29)
+  return {
+    from: formatInputDate(from),
+    to: formatInputDate(to),
+  }
+}
+
+export default function Dashboard() {
+  const initialReportRange = defaultReportRange()
+  const [summary, setSummary] = useState<SummaryStats | null>(null)
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [wearableSummary, setWearableSummary] = useState<WearableDailySummary[]>([])
+  const [calendarMetric, setCalendarMetric] = useState<CalendarMetric>('ahi')
   const [reportFrom, setReportFrom] = useState(initialReportRange.from)
   const [reportTo, setReportTo] = useState(initialReportRange.to)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
+  const [complianceReportFrom, setComplianceReportFrom] = useState(initialReportRange.from)
+  const [complianceReportTo, setComplianceReportTo] = useState(initialReportRange.to)
+  const [complianceReportLoading, setComplianceReportLoading] = useState(false)
+  const [complianceReportError, setComplianceReportError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -271,36 +304,34 @@ function buildPrimaryByDate(sessions: SessionSummary[]): Map<string, SessionSumm
     }
   }
 
-  async function handleDownloadReport() {
-    setReportError(null)
-    if (!reportFrom || !reportTo) {
-      setReportError('Choose a start and end date.')
+  async function handleDownloadComplianceReport() {
+    setComplianceReportError(null)
+    if (!complianceReportFrom || !complianceReportTo) {
+      setComplianceReportError('Choose a start and end date.')
       return
     }
-    if (reportTo < reportFrom) {
-      setReportError('End date must be on or after start date.')
+    if (complianceReportTo < complianceReportFrom) {
+      setComplianceReportError('End date must be on or after start date.')
       return
     }
-
-    const fromCompact = compactDate(reportFrom)
-    const toCompact = compactDate(reportTo)
-    setReportLoading(true)
+    const fromCompact = compactDate(complianceReportFrom)
+    const toCompact = compactDate(complianceReportTo)
+    setComplianceReportLoading(true)
     try {
-      const blob = await api.downloadSessionReportPdf(fromCompact, toCompact)
-      const url = window.URL.createObjectURL(blob)
+      const blob = await api.downloadComplianceReportPdf(fromCompact, toCompact)
+      const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `sleeplab-report-${fromCompact}-${toCompact}.pdf`
-      document.body.appendChild(anchor)
+      anchor.download = `sleeplab-compliance-${fromCompact}-${toCompact}.pdf`
       anchor.click()
-      anchor.remove()
-      window.URL.revokeObjectURL(url)
+      URL.revokeObjectURL(url)
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : 'Could not download report.')
+      setComplianceReportError(err instanceof Error ? err.message : 'Could not download report.')
     } finally {
-      setReportLoading(false)
+      setComplianceReportLoading(false)
     }
   }
+
 
   return (
     <div className="flex flex-col gap-5 sm:gap-8">
@@ -531,6 +562,41 @@ function buildPrimaryByDate(sessions: SessionSummary[]): Map<string, SessionSumm
           </div>
           {reportError && (
             <p className="mt-3 text-sm font-semibold text-[var(--danger-text)]">{reportError}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="order-6 md:hidden">
+        <CardHeader>
+          <CardTitle>Compliance Report</CardTitle>
+          <CardDescription>Export a PDF compliance summary showing daily usage, streaks, and adherence to the 4-hour threshold.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="compliance-from">From</Label>
+              <Input
+                id="compliance-from"
+                type="date"
+                value={complianceReportFrom}
+                onChange={(event) => setComplianceReportFrom(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="compliance-to">To</Label>
+              <Input
+                id="compliance-to"
+                type="date"
+                value={complianceReportTo}
+                onChange={(event) => setComplianceReportTo(event.target.value)}
+              />
+            </div>
+            <Button className="w-full sm:w-auto" onClick={() => void handleDownloadComplianceReport()} disabled={complianceReportLoading}>
+              {complianceReportLoading ? 'Downloading...' : 'Download Report'}
+            </Button>
+          </div>
+          {complianceReportError && (
+            <p className="mt-3 text-sm font-semibold text-[var(--danger-text)]">{complianceReportError}</p>
           )}
         </CardContent>
       </Card>

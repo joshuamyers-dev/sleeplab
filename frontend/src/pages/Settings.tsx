@@ -99,6 +99,18 @@ export default function SettingsPage() {
   const [wearableError, setWearableError] = useState<string | null>(null)
   const [isWearableSubmitting, setIsWearableSubmitting] = useState(false)
 
+  // Compliance settings
+  const [usageThresholdHours, setUsageThresholdHours] = useState(4.0)
+  const [borderlineThresholdHours, setBorderlineThresholdHours] = useState<number | null>(null)
+  const [targetCompliancePct, setTargetCompliancePct] = useState(70.0)
+  const [complianceWindowDays, setComplianceWindowDays] = useState(30)
+  const [evaluationPeriodDays, setEvaluationPeriodDays] = useState(90)
+  const [windowEvaluationLogic, setWindowEvaluationLogic] = useState('best_consecutive')
+  const [maintenanceLookbackDays, setMaintenanceLookbackDays] = useState(90)
+  const [complianceMessage, setComplianceMessage] = useState<string | null>(null)
+  const [complianceError, setComplianceError] = useState<string | null>(null)
+  const [isComplianceSubmitting, setIsComplianceSubmitting] = useState(false)
+
   useEffect(() => {
     if (!user) {
       return
@@ -132,6 +144,13 @@ export default function SettingsPage() {
       setLlmModel(settings.llm_model ?? '')
       setLlmApiKeySaved(settings.has_llm_api_key)
       // wearable_api_key is always null from server — leave blank
+      setUsageThresholdHours(settings.usage_threshold_hours ?? 4.0)
+      setBorderlineThresholdHours(settings.borderline_threshold_hours ?? null)
+      setTargetCompliancePct(settings.target_compliance_pct ?? 70.0)
+      setComplianceWindowDays(settings.compliance_window_days ?? 30)
+      setEvaluationPeriodDays(settings.evaluation_period_days ?? 90)
+      setWindowEvaluationLogic(settings.window_evaluation_logic ?? 'best_consecutive')
+      setMaintenanceLookbackDays(settings.maintenance_lookback_days ?? 90)
     }).catch(() => {
       // No settings saved yet — leave fields empty
     })
@@ -294,6 +313,89 @@ export default function SettingsPage() {
     } finally {
       setIsWearableSubmitting(false)
     }
+  }
+
+  async function handleComplianceSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setComplianceError(null)
+    setComplianceMessage(null)
+    setIsComplianceSubmitting(true)
+    try {
+      await api.saveImportSettings({
+        usage_threshold_hours: usageThresholdHours,
+        borderline_threshold_hours: borderlineThresholdHours ?? null,
+        target_compliance_pct: targetCompliancePct,
+        compliance_window_days: complianceWindowDays,
+        evaluation_period_days: evaluationPeriodDays,
+        window_evaluation_logic: windowEvaluationLogic,
+        maintenance_lookback_days: maintenanceLookbackDays,
+      })
+      setComplianceMessage('Compliance settings saved.')
+    } catch (err) {
+      setComplianceError(err instanceof Error ? err.message : 'Could not save compliance settings')
+    } finally {
+      setIsComplianceSubmitting(false)
+    }
+  }
+
+  function applyCompliancePreset(preset: 'medicare' | 'insurer_a' | 'insurer_b' | 'insurer_c' | 'insurer_f') {
+    const presets: Record<string, { usage_threshold_hours: number; borderline_threshold_hours: number | null; target_compliance_pct: number; compliance_window_days: number; evaluation_period_days: number; window_evaluation_logic: string; maintenance_lookback_days: number }> = {
+      medicare: {
+        usage_threshold_hours: 4.0,
+        borderline_threshold_hours: null,
+        target_compliance_pct: 70.0,
+        compliance_window_days: 30,
+        evaluation_period_days: 90,
+        window_evaluation_logic: 'best_consecutive',
+        maintenance_lookback_days: 90,
+      },
+      insurer_a: {
+        usage_threshold_hours: 4.0,
+        borderline_threshold_hours: null,
+        target_compliance_pct: 70.0,
+        compliance_window_days: 30,
+        evaluation_period_days: 90,
+        window_evaluation_logic: 'best_consecutive',
+        maintenance_lookback_days: 90,
+      },
+      insurer_b: {
+        usage_threshold_hours: 4.0,
+        borderline_threshold_hours: null,
+        target_compliance_pct: 70.0,
+        compliance_window_days: 30,
+        evaluation_period_days: 90,
+        window_evaluation_logic: 'best_consecutive',
+        maintenance_lookback_days: 90,
+      },
+      insurer_c: {
+        usage_threshold_hours: 4.0,
+        borderline_threshold_hours: 3.0,
+        target_compliance_pct: 70.0,
+        compliance_window_days: 30,
+        evaluation_period_days: 90,
+        window_evaluation_logic: 'last_consecutive',
+        maintenance_lookback_days: 180,
+      },
+      insurer_f: {
+        usage_threshold_hours: 4.0,
+        borderline_threshold_hours: null,
+        target_compliance_pct: 70.0,
+        compliance_window_days: 30,
+        evaluation_period_days: 90,
+        window_evaluation_logic: 'best_consecutive',
+        maintenance_lookback_days: 90,
+      },
+    }
+    const p = presets[preset]
+    setUsageThresholdHours(p.usage_threshold_hours)
+    setBorderlineThresholdHours(p.borderline_threshold_hours)
+    setTargetCompliancePct(p.target_compliance_pct)
+    setComplianceWindowDays(p.compliance_window_days)
+    setEvaluationPeriodDays(p.evaluation_period_days)
+    setWindowEvaluationLogic(p.window_evaluation_logic)
+    setMaintenanceLookbackDays(p.maintenance_lookback_days)
+    setComplianceMessage(`Preset "${preset}" applied. Save to persist.`)
+    setComplianceError(null)
   }
 
   async function handleSleephqSubmit(event: FormEvent<HTMLFormElement>) {
@@ -757,6 +859,132 @@ export default function SettingsPage() {
 
             <Button type="submit" disabled={isWearableSubmitting}>
               {isWearableSubmitting ? 'Saving...' : 'Save wearable settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Compliance</CardTitle>
+          <CardDescription>
+            Configure how therapy compliance is calculated. These settings affect the compliance report, dashboard charts, and the daily usage heatmap. Medicare defaults are shown — adjust to match your insurer&apos;s requirements.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleComplianceSubmit}>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('medicare')}>Medicare</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_a')}>INSURER A</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_b')}>INSURER B</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_c')}>INSURER C</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_f')}>INSURER F</Button>
+            </div>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Presets apply common plan structures. Requirements vary by plan — always verify with the specific insurer.
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-3">
+                <Label htmlFor="usageThresholdHours">Usage threshold (hours)</Label>
+                <Input
+                  id="usageThresholdHours"
+                  type="number"
+                  value={usageThresholdHours}
+                  onChange={(event) => setUsageThresholdHours(Number(event.target.value))}
+                  step={0.5}
+                  min={0.5}
+                  max={12}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="borderlineThresholdHours">
+                  Borderline threshold (hours)
+                  <span className="ml-1 text-xs font-normal text-[var(--muted-foreground)]">optional</span>
+                </Label>
+                <Input
+                  id="borderlineThresholdHours"
+                  type="number"
+                  value={borderlineThresholdHours ?? ''}
+                  onChange={(event) => setBorderlineThresholdHours(event.target.value ? Number(event.target.value) : null)}
+                  step={0.5}
+                  min={0.5}
+                  max={12}
+                  placeholder="Not set"
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">Sets the orange zone on charts. Must be below the usage threshold.</p>
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="targetCompliancePct">Target compliance (%)</Label>
+                <Input
+                  id="targetCompliancePct"
+                  type="number"
+                  value={targetCompliancePct}
+                  onChange={(event) => setTargetCompliancePct(Number(event.target.value))}
+                  step={5}
+                  min={0}
+                  max={100}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="complianceWindowDays">Window (days)</Label>
+                <Input
+                  id="complianceWindowDays"
+                  type="number"
+                  value={complianceWindowDays}
+                  onChange={(event) => setComplianceWindowDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={365}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="evaluationPeriodDays">Evaluation period (days)</Label>
+                <Input
+                  id="evaluationPeriodDays"
+                  type="number"
+                  value={evaluationPeriodDays}
+                  onChange={(event) => setEvaluationPeriodDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={730}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="maintenanceLookbackDays">Maintenance lookback (days)</Label>
+                <Input
+                  id="maintenanceLookbackDays"
+                  type="number"
+                  value={maintenanceLookbackDays}
+                  onChange={(event) => setMaintenanceLookbackDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={730}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="windowEvaluationLogic">Window evaluation logic</Label>
+              <select
+                id="windowEvaluationLogic"
+                value={windowEvaluationLogic}
+                onChange={(event) => setWindowEvaluationLogic(event.target.value)}
+                className="flex h-9 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="best_consecutive">Best consecutive — finds the highest-scoring window</option>
+                <option value="last_consecutive">Last consecutive — evaluates the most recent window only</option>
+              </select>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Best consecutive: a sliding window finds the highest compliance within the evaluation period. Last consecutive: only the final window of the evaluation period is considered.
+              </p>
+            </div>
+
+            {complianceMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{complianceMessage}</p> : null}
+            {complianceError ? <p className="text-sm text-[var(--danger-text)]">{complianceError}</p> : null}
+
+            <Button type="submit" disabled={isComplianceSubmitting}>
+              {isComplianceSubmitting ? 'Saving...' : 'Save compliance settings'}
             </Button>
           </form>
         </CardContent>
