@@ -9,6 +9,23 @@ COPY frontend ./frontend
 RUN cd frontend && npm run build
 
 
+# Build cpap-parser wheel — needs Rust/maturin (not in the slim runtime image)
+FROM python:3.12-slim AS cpap-builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN pip install --no-cache-dir maturin
+
+RUN pip wheel --no-deps --wheel-dir /wheels \
+    "cpap-parser @ https://gitlab.com/open-cpap/cpap-parser/-/archive/main/cpap-parser-main.tar.gz"
+
+
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,13 +40,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY --from=cpap-builder /wheels /tmp/cpap-wheels
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install --no-cache-dir --find-links /tmp/cpap-wheels cpap-parser \
+    && rm -rf /tmp/cpap-wheels
 
 COPY api ./api
 COPY importer ./importer
 COPY migrations ./migrations
 COPY docker ./docker
-COPY schema.sql server.py VERSION ./
+COPY schema.sql server.py ./
 COPY --from=frontend-build /build/frontend/dist ./frontend/dist
 
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf \

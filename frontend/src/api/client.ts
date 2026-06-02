@@ -143,6 +143,8 @@ export interface SessionSummary {
   p95_pressure: number | null
   avg_leak: number | null
   has_spo2: boolean
+  parser_validated: boolean
+  manufacturer: string | null
   machine_tz: string | null
 }
 
@@ -162,25 +164,27 @@ export interface SessionDetail extends SessionSummary {
   temperature_c: number | null
 }
 
-export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter'
+export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter' | 'machine'
 
 export interface Equipment {
   id: string
   equipment_type: EquipmentType
-  start_date: string
+  start_date: string | null
   replacement_days: number | null
   mask_category: string | null
   brand: string | null
   model: string | null
   notes: string | null
   days_in_use: number | null
+  device_serial: string | null
+  parser_validated: boolean | null
   created_at: string
   updated_at: string
 }
 
 export interface EquipmentCreate {
   equipment_type: EquipmentType
-  start_date: string
+  start_date?: string | null
   replacement_days?: number | null
   mask_category?: string | null
   brand?: string | null
@@ -203,6 +207,7 @@ export interface InferredEquipment {
   tubing: Equipment | null
   humidifier_chamber: Equipment | null
   filter: Equipment | null
+  machine: Equipment | null
 }
 
 export interface EventRecord {

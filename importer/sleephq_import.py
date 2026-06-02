@@ -39,22 +39,21 @@ import random
 import sys
 import time
 from datetime import date, datetime, timedelta
-from typing import Optional
 
 import httpx
 
 try:
     from sleephq import AuthenticatedClient
-    from sleephq.auth import create_client as _sleephq_create_client
     from sleephq.api.machine_dates import get_v1_machines_machine_id_machine_dates
-    from sleephq.api.teams import get_v1_teams
     from sleephq.api.machines import get_v1_teams_team_id_machines
+    from sleephq.api.teams import get_v1_teams
+    from sleephq.auth import create_client as _sleephq_create_client
+
     _SLEEPHQ_AVAILABLE = True
 except ImportError:
     _SLEEPHQ_AVAILABLE = False
 
 from db import get_conn, session_exists, upsert_session
-
 
 # ---------------------------------------------------------------------------
 # Rate-limit / retry helpers
@@ -76,7 +75,7 @@ _MAX_DELAY = 300.0  # 5 minutes
 _PAGE_DELAY = 1.5  # seconds
 
 
-def _backoff_delay(attempt: int, retry_after_header: Optional[str] = None) -> float:
+def _backoff_delay(attempt: int, retry_after_header: str | None = None) -> float:
     """
     Return how many seconds to wait before the next attempt.
 
@@ -88,7 +87,7 @@ def _backoff_delay(attempt: int, retry_after_header: Optional[str] = None) -> fl
             return max(1.0, float(retry_after_header))
         except (TypeError, ValueError):
             pass
-    cap = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
+    cap = min(_BASE_DELAY * (2**attempt), _MAX_DELAY)
     return random.uniform(0, cap)
 
 
@@ -128,17 +127,17 @@ def _api_call_with_retry(fn, *args, label: str = "API call", **kwargs):
 # Client / authentication
 # ---------------------------------------------------------------------------
 
+
 def _require_sleephq():
     if not _SLEEPHQ_AVAILABLE:
         raise RuntimeError(
-            "sleephq-client is not installed. "
-            "Set SLEEPHQ_ENABLED=true in your environment to enable SleepHQ support."
+            "sleephq-client is not installed. Set SLEEPHQ_ENABLED=true in your environment to enable SleepHQ support."
         )
 
 
 def create_sleephq_client(
-    client_id: Optional[str] = None,
-    client_secret: Optional[str] = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> AuthenticatedClient:
     """
     Authenticate with SleepHQ via OAuth2 and return an authenticated client.
@@ -150,7 +149,7 @@ def create_sleephq_client(
     cid = client_id or os.environ["SLEEPHQ_CLIENT_ID"]
     csecret = client_secret or os.environ["SLEEPHQ_CLIENT_SECRET"]
 
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
             return _sleephq_create_client(client_id=cid, client_secret=csecret)
@@ -167,14 +166,13 @@ def create_sleephq_client(
             time.sleep(wait)
             last_exc = exc
 
-    raise RuntimeError(
-        f"SleepHQ authentication failed after {_MAX_ATTEMPTS} attempts"
-    ) from last_exc
+    raise RuntimeError(f"SleepHQ authentication failed after {_MAX_ATTEMPTS} attempts") from last_exc
 
 
 # ---------------------------------------------------------------------------
 # ID resolution helpers
 # ---------------------------------------------------------------------------
+
 
 def resolve_team_id(client: AuthenticatedClient) -> int:
     """Return the team ID from env or auto-resolve via the API."""
@@ -182,9 +180,7 @@ def resolve_team_id(client: AuthenticatedClient) -> int:
     if env_val:
         return int(env_val)
 
-    resp = _api_call_with_retry(
-        get_v1_teams.sync_detailed, client=client, label="GET /teams"
-    )
+    resp = _api_call_with_retry(get_v1_teams.sync_detailed, client=client, label="GET /teams")
     if resp.status_code != 200 or not resp.parsed:
         raise RuntimeError(f"Failed to list teams: HTTP {resp.status_code}")
 
@@ -221,11 +217,12 @@ def resolve_machine_id(client: AuthenticatedClient, team_id: int) -> int:
 # Data fetching
 # ---------------------------------------------------------------------------
 
+
 def fetch_machine_dates(
     client: AuthenticatedClient,
     machine_id: int,
-    from_date: Optional[date] = None,
-    to_date: Optional[date] = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
     days: int = 30,
 ) -> list:
     """
@@ -252,10 +249,7 @@ def fetch_machine_dates(
     to_date = to_date or date.today()
 
     span_days = (to_date - from_date).days
-    print(
-        f"  Fetching machine_dates for machine {machine_id}: "
-        f"{from_date} → {to_date} ({span_days} days)"
-    )
+    print(f"  Fetching machine_dates for machine {machine_id}: {from_date} → {to_date} ({span_days} days)")
 
     all_records: list = []
     page = 1
@@ -273,9 +267,7 @@ def fetch_machine_dates(
         )
 
         if resp.status_code != 200:
-            raise RuntimeError(
-                f"machine_dates fetch failed on page {page}: HTTP {resp.status_code}"
-            )
+            raise RuntimeError(f"machine_dates fetch failed on page {page}: HTTP {resp.status_code}")
 
         parsed = resp.parsed
         if parsed is None:
@@ -290,7 +282,7 @@ def fetch_machine_dates(
 
         for rec in records:
             rec_attrs = getattr(rec, "attributes", None)
-            rec_date  = getattr(rec_attrs, "date", None) if rec_attrs else None
+            rec_date = getattr(rec_attrs, "date", None) if rec_attrs else None
             if isinstance(rec_date, Unset):
                 rec_date = None
 
@@ -319,8 +311,7 @@ def fetch_machine_dates(
             page_kept += 1
 
         print(
-            f"    page {page}: {len(records)} records returned, "
-            f"{page_kept} in window, {len(all_records)} total so far"
+            f"    page {page}: {len(records)} records returned, {page_kept} in window, {len(all_records)} total so far"
         )
 
         if reached_start or len(records) < 100:
@@ -334,6 +325,7 @@ def fetch_machine_dates(
 # ---------------------------------------------------------------------------
 # Field mapping
 # ---------------------------------------------------------------------------
+
 
 def _attr(obj, *names, default=None):
     """Return the first attribute in `names` that exists and is not None."""
@@ -364,6 +356,7 @@ def _sub(summary_obj, *keys, default=None):
     if summary_obj is None:
         return default
     from sleephq.types import Unset
+
     if isinstance(summary_obj, Unset):
         return default
     props = getattr(summary_obj, "additional_properties", {}) or {}
@@ -406,11 +399,7 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
     # ── Start datetime ───────────────────────────────────────────────────────
     # SleepHQ doesn't expose a start_time on machine_dates; use midnight of
     # the session date as a reasonable default.
-    start_datetime = (
-        datetime(folder_date.year, folder_date.month, folder_date.day)
-        if folder_date
-        else None
-    )
+    start_datetime = datetime(folder_date.year, folder_date.month, folder_date.day) if folder_date else None
 
     # ── Duration ─────────────────────────────────────────────────────────────
     # attributes.usage is confirmed to be in seconds (e.g. 27960 = ~7.8 h).
@@ -453,9 +442,9 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
 
     ca = _index_to_count(_sub(ahi_s, "clear_airway"))
     oa = _index_to_count(_sub(ahi_s, "obstructive_apnea"))
-    h  = _index_to_count(_sub(ahi_s, "hypopnea"))
+    h = _index_to_count(_sub(ahi_s, "hypopnea"))
     # all_apnea covers obstructive + unidentified; store as the generic apnea count
-    a  = _index_to_count(_sub(ahi_s, "all_apnea"))
+    a = _index_to_count(_sub(ahi_s, "all_apnea"))
     ar = None  # not present in machine_dates
 
     total_ahi_events = _index_to_count(_sub(ahi_s, "total"))
@@ -488,15 +477,13 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
     # Returns empty dict for most machines; has_spo2 = True only if non-empty
     spo2_s = getattr(attrs, "spo2_summary", None) if attrs else None
     has_spo2 = bool(
-        spo2_s is not None
-        and not isinstance(spo2_s, Unset)
-        and getattr(spo2_s, "additional_properties", {})
+        spo2_s is not None and not isinstance(spo2_s, Unset) and getattr(spo2_s, "additional_properties", {})
     )
 
     # Fields not present in machine_dates (no per-session waveform summaries)
     avg_tidal_vol = None
-    avg_min_vent  = None
-    avg_snore     = None
+    avg_min_vent = None
+    avg_snore = None
 
     # ── Device serial ────────────────────────────────────────────────────────
     # Not present on machine_dates; would need to join against the machine record
@@ -507,8 +494,8 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
     ms = getattr(attrs, "machine_settings", None) if attrs else None
     ms_props = getattr(ms, "additional_properties", {}) or {} if ms and not isinstance(ms, Unset) else {}
 
-    therapy_mode   = ms_props.get("mode") or None
-    mask_type      = ms_props.get("mask") or None
+    therapy_mode = ms_props.get("mode") or None
+    mask_type = ms_props.get("mask") or None
     humidity_level = _int(ms_props.get("humidity_level"))
 
     temperature_c = None
@@ -521,41 +508,42 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
             pass
 
     return {
-        "session_id":              session_id,
-        "folder_date":             folder_date,
-        "block_index":             0,
-        "start_datetime":          start_datetime,
-        "pld_start_datetime":      start_datetime,
-        "duration_seconds":        duration_seconds,
-        "device_serial":           device_serial,
-        "ahi":                     ahi,
-        "central_apnea_count":     ca,
+        "session_id": session_id,
+        "folder_date": folder_date,
+        "block_index": 0,
+        "start_datetime": start_datetime,
+        "pld_start_datetime": start_datetime,
+        "duration_seconds": duration_seconds,
+        "device_serial": device_serial,
+        "ahi": ahi,
+        "central_apnea_count": ca,
         "obstructive_apnea_count": oa,
-        "hypopnea_count":          h,
-        "apnea_count":             a,
-        "arousal_count":           ar,
-        "total_ahi_events":        total_ahi_events,
-        "avg_pressure":            avg_pressure,
-        "p95_pressure":            p95_pressure,
-        "avg_leak":                avg_leak,
-        "avg_resp_rate":           avg_resp_rate,
-        "avg_tidal_vol":           avg_tidal_vol,
-        "avg_min_vent":            avg_min_vent,
-        "avg_snore":               avg_snore,
-        "avg_flow_lim":            avg_flow_lim,
-        "has_spo2":                has_spo2,
-        "therapy_mode":            therapy_mode,
-        "mask_type":               mask_type,
-        "humidity_level":          humidity_level,
-        "temperature_c":           temperature_c,
-        "machine_tz":              "UTC",
-        "user_id":                 user_id,
+        "hypopnea_count": h,
+        "apnea_count": a,
+        "arousal_count": ar,
+        "total_ahi_events": total_ahi_events,
+        "avg_pressure": avg_pressure,
+        "p95_pressure": p95_pressure,
+        "avg_leak": avg_leak,
+        "avg_resp_rate": avg_resp_rate,
+        "avg_tidal_vol": avg_tidal_vol,
+        "avg_min_vent": avg_min_vent,
+        "avg_snore": avg_snore,
+        "avg_flow_lim": avg_flow_lim,
+        "has_spo2": has_spo2,
+        "therapy_mode": therapy_mode,
+        "mask_type": mask_type,
+        "humidity_level": humidity_level,
+        "temperature_c": temperature_c,
+        "machine_tz": "UTC",
+        "user_id": user_id,
     }
 
 
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
+
 
 def persist_sessions(
     conn,
@@ -615,17 +603,18 @@ def persist_sessions(
 # Main pipeline
 # ---------------------------------------------------------------------------
 
+
 def run_sleephq_import(
     user_id: str,
     days: int = 30,
-    from_date: Optional[date] = None,
-    to_date: Optional[date] = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
     skip_existing: bool = True,
     dry_run: bool = False,
-    client_id: Optional[str] = None,
-    client_secret: Optional[str] = None,
-    team_id: Optional[int] = None,
-    machine_id: Optional[int] = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    team_id: int | None = None,
+    machine_id: int | None = None,
 ) -> dict:
     """
     Full SleepHQ → Postgres pipeline.
@@ -658,10 +647,7 @@ def run_sleephq_import(
         resolved_team_id = resolve_team_id(client)
         resolved_machine_id = resolve_machine_id(client, resolved_team_id)
 
-        print(
-            f"SleepHQ import: team={resolved_team_id} "
-            f"machine={resolved_machine_id} user={user_id}"
-        )
+        print(f"SleepHQ import: team={resolved_team_id} machine={resolved_machine_id} user={user_id}")
 
         records = fetch_machine_dates(
             client,
@@ -706,37 +692,20 @@ def run_sleephq_import(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args():
-    parser = argparse.ArgumentParser(
-        description="Import SleepHQ session history into the sleeplab database"
-    )
-    parser.add_argument(
-        "--user-id", required=True, dest="user_id",
-        help="User UUID to associate sessions with"
-    )
+    parser = argparse.ArgumentParser(description="Import SleepHQ session history into the sleeplab database")
+    parser.add_argument("--user-id", required=True, dest="user_id", help="User UUID to associate sessions with")
 
     date_group = parser.add_mutually_exclusive_group()
-    date_group.add_argument(
-        "--days", type=int, default=30,
-        help="Number of past days to fetch (default: 30)"
-    )
-    date_group.add_argument(
-        "--from", dest="from_date", metavar="YYYY-MM-DD",
-        help="Start of date range (inclusive)"
-    )
+    date_group.add_argument("--days", type=int, default=30, help="Number of past days to fetch (default: 30)")
+    date_group.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD", help="Start of date range (inclusive)")
 
     parser.add_argument(
-        "--to", dest="to_date", metavar="YYYY-MM-DD",
-        help="End of date range (inclusive, default: today)"
+        "--to", dest="to_date", metavar="YYYY-MM-DD", help="End of date range (inclusive, default: today)"
     )
-    parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Fetch and map records but do not write to the database"
-    )
-    parser.add_argument(
-        "--force", action="store_true",
-        help="Overwrite existing sessions instead of skipping them"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Fetch and map records but do not write to the database")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing sessions instead of skipping them")
     return parser.parse_args()
 
 
@@ -744,7 +713,7 @@ def main():
     args = _parse_args()
 
     from_date = date.fromisoformat(args.from_date) if args.from_date else None
-    to_date   = date.fromisoformat(args.to_date)   if args.to_date   else None
+    to_date = date.fromisoformat(args.to_date) if args.to_date else None
 
     run_sleephq_import(
         user_id=args.user_id,
