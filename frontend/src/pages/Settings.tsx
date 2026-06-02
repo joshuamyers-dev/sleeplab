@@ -102,14 +102,14 @@ export default function SettingsPage() {
   // Compliance settings
   const [usageThresholdHours, setUsageThresholdHours] = useState(4.0)
   const [borderlineThresholdHours, setBorderlineThresholdHours] = useState<number | null>(null)
-  const [targetCompliancePct, setTargetCompliancePct] = useState(70.0)
-  const [complianceWindowDays, setComplianceWindowDays] = useState(30)
+  const [targetAdherencePct, setTargetAdherencePct] = useState(70.0)
+  const [adherenceWindowDays, setAdherenceWindowDays] = useState(30)
   const [evaluationPeriodDays, setEvaluationPeriodDays] = useState(90)
   const [windowEvaluationLogic, setWindowEvaluationLogic] = useState('best_consecutive')
   const [maintenanceLookbackDays, setMaintenanceLookbackDays] = useState(90)
-  const [complianceMessage, setComplianceMessage] = useState<string | null>(null)
-  const [complianceError, setComplianceError] = useState<string | null>(null)
-  const [isComplianceSubmitting, setIsComplianceSubmitting] = useState(false)
+  const [adherenceMessage, setComplianceMessage] = useState<string | null>(null)
+  const [adherenceError, setComplianceError] = useState<string | null>(null)
+  const [isAdherenceSubmitting, setIsComplianceSubmitting] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -146,8 +146,8 @@ export default function SettingsPage() {
       // wearable_api_key is always null from server — leave blank
       setUsageThresholdHours(settings.usage_threshold_hours ?? 4.0)
       setBorderlineThresholdHours(settings.borderline_threshold_hours ?? null)
-      setTargetCompliancePct(settings.target_compliance_pct ?? 70.0)
-      setComplianceWindowDays(settings.compliance_window_days ?? 30)
+      setTargetAdherencePct(settings.target_adherence_pct ?? 70.0)
+      setAdherenceWindowDays(settings.adherence_window_days ?? 30)
       setEvaluationPeriodDays(settings.evaluation_period_days ?? 90)
       setWindowEvaluationLogic(settings.window_evaluation_logic ?? 'best_consecutive')
       setMaintenanceLookbackDays(settings.maintenance_lookback_days ?? 90)
@@ -315,7 +315,7 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleComplianceSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleAdherenceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setComplianceError(null)
     setComplianceMessage(null)
@@ -324,15 +324,15 @@ export default function SettingsPage() {
       await api.saveImportSettings({
         usage_threshold_hours: usageThresholdHours,
         borderline_threshold_hours: borderlineThresholdHours ?? null,
-        target_compliance_pct: targetCompliancePct,
-        compliance_window_days: complianceWindowDays,
+        target_adherence_pct: targetAdherencePct,
+        adherence_window_days: adherenceWindowDays,
         evaluation_period_days: evaluationPeriodDays,
         window_evaluation_logic: windowEvaluationLogic,
         maintenance_lookback_days: maintenanceLookbackDays,
       })
-      setComplianceMessage('Compliance settings saved.')
+      setComplianceMessage('Adherence settings saved.')
     } catch (err) {
-      setComplianceError(err instanceof Error ? err.message : 'Could not save compliance settings')
+      setComplianceError(err instanceof Error ? err.message : 'Could not save adherence settings')
     } finally {
       setIsComplianceSubmitting(false)
     }
@@ -806,13 +806,13 @@ export default function SettingsPage() {
 
       <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
         <CardHeader>
-          <CardTitle className="text-2xl">Compliance</CardTitle>
+          <CardTitle className="text-2xl">Adherence</CardTitle>
           <CardDescription>
-            Configure how therapy compliance is calculated. These settings affect the compliance report, dashboard charts, and the daily usage bar chart. Defaults follow OSCAR and standard Medicare criteria — consult your insurer or clinician for plan-specific requirements.
+            Configure how therapy adherence is calculated. These settings affect the adherence report, dashboard charts, and the daily usage bar chart. Defaults follow OSCAR and standard Medicare criteria — consult your insurer or clinician for plan-specific requirements.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-5" onSubmit={handleComplianceSubmit}>
+          <form className="space-y-5" onSubmit={handleAdherenceSubmit}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-3">
                 <Label htmlFor="usageThresholdHours">Usage threshold (hours)</Label>
@@ -844,24 +844,24 @@ export default function SettingsPage() {
                 <p className="text-xs text-[var(--muted-foreground)]">Sets the orange zone on charts. Must be below the usage threshold.</p>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="targetCompliancePct">Target compliance (%)</Label>
+                <Label htmlFor="targetAdherencePct">Target adherence (%)</Label>
                 <Input
-                  id="targetCompliancePct"
+                  id="targetAdherencePct"
                   type="number"
-                  value={targetCompliancePct}
-                  onChange={(event) => setTargetCompliancePct(Number(event.target.value))}
+                  value={targetAdherencePct}
+                  onChange={(event) => setTargetAdherencePct(Number(event.target.value))}
                   step={5}
                   min={0}
                   max={100}
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="complianceWindowDays">Window (days)</Label>
+                <Label htmlFor="adherenceWindowDays">Window (days)</Label>
                 <Input
-                  id="complianceWindowDays"
+                  id="adherenceWindowDays"
                   type="number"
-                  value={complianceWindowDays}
-                  onChange={(event) => setComplianceWindowDays(Number(event.target.value))}
+                  value={adherenceWindowDays}
+                  onChange={(event) => setAdherenceWindowDays(Number(event.target.value))}
                   step={1}
                   min={1}
                   max={365}
@@ -905,15 +905,15 @@ export default function SettingsPage() {
                 <option value="last_consecutive">Last consecutive — evaluates the most recent window only</option>
               </select>
               <p className="text-xs text-[var(--muted-foreground)]">
-                Best consecutive: a sliding window finds the highest compliance within the evaluation period. Last consecutive: only the final window of the evaluation period is considered.
+                Best consecutive: a sliding window finds the highest adherence within the evaluation period. Last consecutive: only the final window of the evaluation period is considered.
               </p>
             </div>
 
-            {complianceMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{complianceMessage}</p> : null}
-            {complianceError ? <p className="text-sm text-[var(--danger-text)]">{complianceError}</p> : null}
+            {adherenceMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{adherenceMessage}</p> : null}
+            {adherenceError ? <p className="text-sm text-[var(--danger-text)]">{adherenceError}</p> : null}
 
-            <Button type="submit" disabled={isComplianceSubmitting}>
-              {isComplianceSubmitting ? 'Saving...' : 'Save compliance settings'}
+            <Button type="submit" disabled={isAdherenceSubmitting}>
+              {isAdherenceSubmitting ? 'Saving...' : 'Save adherence settings'}
             </Button>
           </form>
         </CardContent>

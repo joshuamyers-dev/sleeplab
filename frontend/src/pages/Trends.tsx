@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import type { ComplianceStats, OverviewDailyStat, SummaryStats, TrendAISummaryResponse } from '../api/client'
+import type { AdherenceStats, OverviewDailyStat, SummaryStats, TrendAISummaryResponse } from '../api/client'
 import { api } from '../api/client'
 import GlossaryText from '../components/GlossaryText'
 import InfoPopover from '../components/InfoPopover'
@@ -847,21 +847,21 @@ function RecentOverviewTable({ nights, metric }: { nights: OverviewDailyStat[]; 
   )
 }
 
-function ComplianceCard({ days }: { days: number }) {
+function AdherenceCard({ days }: { days: number }) {
   const navigate = useNavigate()
-  const [data, setData] = useState<ComplianceStats | null>(null)
+  const [data, setData] = useState<AdherenceStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    api.getComplianceStats(days).then(setData).finally(() => setLoading(false))
+    api.getAdherenceStats(days).then(setData).finally(() => setLoading(false))
   }, [days])
 
   if (loading) {
     return (
       <Card>
         <CardContent className="px-6 pb-6 pt-7 text-center text-sm text-[var(--muted-foreground)]">
-          Loading compliance data...
+          Loading adherence data...
         </CardContent>
       </Card>
     )
@@ -892,9 +892,9 @@ function ComplianceCard({ days }: { days: number }) {
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_32%),var(--surface-strong)]">
           <CardContent className="!p-6 sm:!p-8">
-            <p className="text-sm font-bold text-[var(--foreground)]">Overall compliance</p>
+            <p className="text-sm font-bold text-[var(--foreground)]">Overall adherence</p>
             <p className={`mt-2 text-4xl font-semibold ${data.overall.passes ? 'text-[var(--green-700)]' : 'text-[var(--orange-700)]'}`}>
-              {data.overall.compliance_pct}%
+              {data.overall.adherence_pct}%
             </p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">{data.overall.compliant_nights} of {data.overall.total_nights} nights</p>
           </CardContent>
@@ -903,7 +903,7 @@ function ComplianceCard({ days }: { days: number }) {
           <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Best window</p>
             <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">
-              {data.best_window ? `${data.best_window.compliance_pct}%` : '—'}
+              {data.best_window ? `${data.best_window.adherence_pct}%` : '—'}
             </p>
             {data.best_window && (
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
@@ -922,7 +922,7 @@ function ComplianceCard({ days }: { days: number }) {
         <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(233,120,75,0.08),_transparent_32%),var(--surface-strong)]">
           <CardContent className="!p-6 sm:!p-8">
             <p className="text-sm font-bold text-[var(--foreground)]">Target</p>
-            <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">&ge;{data.target_compliance_pct}%</p>
+            <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">&ge;{data.target_adherence_pct}%</p>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">&ge;{threshold}h usage threshold</p>
           </CardContent>
         </Card>
@@ -932,8 +932,8 @@ function ComplianceCard({ days }: { days: number }) {
         <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-[var(--foreground)]">Daily usage by compliance status</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Green = full compliance, orange = borderline, red = below threshold. Click a bar to view that night.</p>
+              <p className="text-sm font-bold text-[var(--foreground)]">Daily usage by adherence status</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Green = full adherence, orange = borderline, red = below threshold. Click a bar to view that night.</p>
             </div>
             <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)]">
               <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#6AA136' }} /> Compliant</span>
@@ -1065,7 +1065,7 @@ export default function TrendsPage() {
         </Card>
       </div>
 
-      <ComplianceCard days={rangeDays} />
+      <AdherenceCard days={rangeDays} />
 
       <Card>
         <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">

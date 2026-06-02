@@ -354,8 +354,8 @@ export interface ImportSettings {
   llm_configured: boolean
   usage_threshold_hours: number
   borderline_threshold_hours: number | null
-  target_compliance_pct: number
-  compliance_window_days: number
+  target_adherence_pct: number
+  adherence_window_days: number
   evaluation_period_days: number
   window_evaluation_logic: string
   maintenance_lookback_days: number
@@ -387,7 +387,7 @@ export interface SummaryStats {
   event_breakdown: Record<string, number>
 }
 
-export interface ComplianceNightlyStat {
+export interface AdherenceNightlyStat {
   date: string
   usage_hours: number
   status: number
@@ -395,31 +395,31 @@ export interface ComplianceNightlyStat {
   avg_leak: number | null
 }
 
-export interface ComplianceWindowStat {
+export interface AdherenceWindowStat {
   start_date: string
   end_date: string
   total_nights: number
   compliant_nights: number
-  compliance_pct: number
+  adherence_pct: number
   avg_hours: number
   passes: boolean
 }
 
-export interface ComplianceRollingPoint {
+export interface AdherenceRollingPoint {
   date: string
-  compliance_pct: number
+  adherence_pct: number
 }
 
-export interface ComplianceStats {
-  overall: ComplianceWindowStat
-  best_window: ComplianceWindowStat | null
-  nightly: ComplianceNightlyStat[]
-  rolling_compliance: ComplianceRollingPoint[]
+export interface AdherenceStats {
+  overall: AdherenceWindowStat
+  best_window: AdherenceWindowStat | null
+  nightly: AdherenceNightlyStat[]
+  rolling_adherence: AdherenceRollingPoint[]
   streak_longest: number
   streak_current: number
   usage_threshold_hours: number
   borderline_threshold_hours: number | null
-  target_compliance_pct: number
+  target_adherence_pct: number
 }
 
 function getStoredToken() {
@@ -542,7 +542,7 @@ function postForm<T>(path: string, formData: FormData) {
 export const api = {
   getVersion: () => get<VersionResponse>('/version'),
   getSummary: () => get<SummaryStats>('/stats/summary'),
-  getComplianceStats: (days = 180) => get<ComplianceStats>('/stats/compliance', { days }),
+  getAdherenceStats: (days = 180) => get<AdherenceStats>('/stats/adherence', { days }),
   getOverviewStats: (days = 180) => get<OverviewStats>('/stats/overview', { days }),
   getAISummary: (days = 30, force = false) => get<AISummaryResponse>('/stats/ai-summary', { days, force }),
   getSessionAISummary: (sessionId: string, force = false) =>
@@ -550,9 +550,9 @@ export const api = {
   getTrendAISummary: (force = false) => get<TrendAISummaryResponse>('/stats/trend-ai', { force }),
   getSessions: (params?: { per_page?: number; date_from?: string; date_to?: string }) =>
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
-  downloadSessionReportPdf: (from: string, to: string, includeCompliance = false) =>
-    requestBlob('/sessions/export/pdf', { from, to, include_compliance: includeCompliance }),
-  downloadComplianceReportPdf: (from: string, to: string) => requestBlob('/sessions/export/compliance/pdf', { from, to }),
+  downloadSessionReportPdf: (from: string, to: string, includeAdherence = false) =>
+    requestBlob('/sessions/export/pdf', { from, to, include_adherence: includeAdherence }),
+  downloadAdherenceReportPdf: (from: string, to: string) => requestBlob('/sessions/export/adherence/pdf', { from, to }),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
   getTagInsights: () => get<TagInsight[]>('/sessions/tag-insights'),

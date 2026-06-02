@@ -4,23 +4,23 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..compliance import (
-    ComplianceConfig,
+from ..adherence import (
+    AdherenceConfig,
     NightRecord,
-    compute_compliance,
+    compute_adherence,
 )
+from ..auth import get_current_user
 from ..database import get_db
 from ..models import (
-    ComplianceNightlyStat,
-    ComplianceStats,
-    ComplianceWindowStat,
+    AdherenceNightlyStat,
+    AdherenceStats,
+    AdherenceWindowStat,
     DailyStat,
     OverviewDailyStat,
     OverviewStats,
     SummaryStats,
 )
-from ..settings_store import get_compliance_settings
+from ..settings_store import get_adherence_settings
 
 router = APIRouter()
 
@@ -130,24 +130,24 @@ def get_summary(
     )
 
 
-@router.get("/compliance", response_model=ComplianceStats)
-def get_compliance(
+@router.get("/adherence", response_model=AdherenceStats)
+def get_adherence(
     days: int = Query(180, ge=7, le=3650),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Per-night compliance breakdown for the Trends page.
+    Per-night adherence breakdown for the Trends page.
 
     Returns nightly usage hours with three-tier status classification,
-    overall/best-window summary, rolling compliance, and streak data.
+    overall/best-window summary, rolling adherence, and streak data.
     """
-    settings = get_compliance_settings(db, current_user["id"])
-    config = ComplianceConfig(
+    settings = get_adherence_settings(db, current_user["id"])
+    config = AdherenceConfig(
         usage_threshold_hours=settings["usage_threshold_hours"],
         borderline_threshold_hours=settings["borderline_threshold_hours"],
-        target_compliance_pct=settings["target_compliance_pct"],
-        compliance_window_days=settings["compliance_window_days"],
+        target_adherence_pct=settings["target_adherence_pct"],
+        adherence_window_days=settings["adherence_window_days"],
         evaluation_period_days=settings["evaluation_period_days"],
         window_evaluation_logic=settings["window_evaluation_logic"],
         maintenance_lookback_days=settings["maintenance_lookback_days"],
@@ -184,25 +184,25 @@ def get_compliance(
         for r in rows
     ]
 
-    result = compute_compliance(nights, period_start, period_end, config)
+    result = compute_adherence(nights, period_start, period_end, config)
 
-    return ComplianceStats(
-        overall=ComplianceWindowStat(
+    return AdherenceStats(
+        overall=AdherenceWindowStat(
             start_date=result.overall.start_date.isoformat(),
             end_date=result.overall.end_date.isoformat(),
             total_nights=result.overall.total_nights,
             compliant_nights=result.overall.compliant_nights,
-            compliance_pct=result.overall.compliance_pct,
+            adherence_pct=result.overall.adherence_pct,
             avg_hours=result.overall.avg_hours,
             passes=result.overall.passes,
         ),
         best_window=(
-            ComplianceWindowStat(
+            AdherenceWindowStat(
                 start_date=result.best_window.start_date.isoformat(),
                 end_date=result.best_window.end_date.isoformat(),
                 total_nights=result.best_window.total_nights,
                 compliant_nights=result.best_window.compliant_nights,
-                compliance_pct=result.best_window.compliance_pct,
+                adherence_pct=result.best_window.adherence_pct,
                 avg_hours=result.best_window.avg_hours,
                 passes=result.best_window.passes,
             )
@@ -210,7 +210,7 @@ def get_compliance(
             else None
         ),
         nightly=[
-            ComplianceNightlyStat(
+            AdherenceNightlyStat(
                 date=n["date"],
                 usage_hours=n["usage_hours"],
                 status=n["status"],
@@ -219,12 +219,12 @@ def get_compliance(
             )
             for n in result.nightly_breakdown
         ],
-        rolling_compliance=result.rolling_compliance,
+        rolling_adherence=result.rolling_adherence,
         streak_longest=result.streak_longest,
         streak_current=result.streak_current,
         usage_threshold_hours=config.usage_threshold_hours,
         borderline_threshold_hours=config.borderline_threshold_hours,
-        target_compliance_pct=config.target_compliance_pct,
+        target_adherence_pct=config.target_adherence_pct,
     )
 
 

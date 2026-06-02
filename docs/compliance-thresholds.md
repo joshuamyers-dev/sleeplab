@@ -6,13 +6,13 @@ SleepLab's compliance settings are configurable to match different insurer and c
 
 | Setting | Default | Description |
 |---|---|---|
-| `USAGE_THRESHOLD_HOURS` | `4.0` | Minimum hours of CPAP use for a night to count as compliant. This is the primary threshold — nights at or above this value are classified as full compliance. |
-| `BORDERLINE_THRESHOLD_HOURS` | *(unset)* | Optional lower bound enabling three-tier classification (compliant / borderline / non-compliant). When unset, nights are binary: compliant or not. |
-| `TARGET_COMPLIANCE_PCT` | `70.0` | Percentage of nights in a window that must be compliant for the window to "pass". |
-| `COMPLIANCE_WINDOW_DAYS` | `30` | Size of a single compliance evaluation window in days. |
-| `EVALUATION_PERIOD_DAYS` | `90` | How many days back to search when looking for the best or most recent window. |
-| `WINDOW_EVALUATION_LOGIC` | `best_consecutive` | `best_consecutive`: sliding window finds the highest-compliance 30-day period within the evaluation window. `last_consecutive`: only the most recent window is evaluated. |
-| `MAINTENANCE_LOOKBACK_DAYS` | `90` | Days of history used for ongoing maintenance monitoring after the initial evaluation period. |
+| `ADHERENCE_THRESHOLD_HOURS` | `4.0` | Minimum hours of CPAP use for a night to count as compliant. This is the primary threshold — nights at or above this value are classified as full compliance. |
+| `ADHERENCE_BORDERLINE_HOURS` | *(unset)* | Optional lower bound enabling three-tier classification (compliant / borderline / non-compliant). When unset, nights are binary: compliant or not. |
+| `ADHERENCE_TARGET_PCT` | `70.0` | Percentage of nights in a window that must be compliant for the window to "pass". |
+| `ADHERENCE_WINDOW_DAYS` | `30` | Size of a single compliance evaluation window in days. |
+| `ADHERENCE_EVALUATION_DAYS` | `90` | How many days back to search when looking for the best or most recent window. |
+| `ADHERENCE_WINDOW_LOGIC` | `best_consecutive` | `best_consecutive`: sliding window finds the highest-compliance 30-day period within the evaluation window. `last_consecutive`: only the most recent window is evaluated. |
+| `ADHERENCE_LOOKBACK_DAYS` | `90` | Days of history used for ongoing maintenance monitoring after the initial evaluation period. |
 
 Defaults match [OSCAR](https://www.sleepfiles.com/OSCAR/) conventions and standard Medicare/CMS criteria.
 
@@ -46,10 +46,10 @@ Most commercial plans that cover CPAP follow the Medicare LCD framework closely.
 
 | Variation | Typical change |
 |---|---|
-| Stricter usage threshold | Some plans require ≥4 hours; a few require ≥5 or ≥6 hours. Adjust `USAGE_THRESHOLD_HOURS`. |
-| Last-window only | Some plans evaluate only the final 30-day window rather than the best window. Set `WINDOW_EVALUATION_LOGIC=last_consecutive`. |
-| Extended maintenance period | Plans monitoring long-term usage may look back 180 days instead of 90. Adjust `MAINTENANCE_LOOKBACK_DAYS=180`. |
-| Three-tier borderline | A handful of plans flag borderline usage (e.g., 3–3.9 hours) separately. Set `BORDERLINE_THRESHOLD_HOURS` to the lower bound of the borderline range. |
+| Stricter usage threshold | Some plans require ≥4 hours; a few require ≥5 or ≥6 hours. Adjust `ADHERENCE_THRESHOLD_HOURS`. |
+| Last-window only | Some plans evaluate only the final 30-day window rather than the best window. Set `ADHERENCE_WINDOW_LOGIC=last_consecutive`. |
+| Extended maintenance period | Plans monitoring long-term usage may look back 180 days instead of 90. Adjust `ADHERENCE_LOOKBACK_DAYS=180`. |
+| Three-tier borderline | A handful of plans flag borderline usage (e.g., 3–3.9 hours) separately. Set `ADHERENCE_BORDERLINE_HOURS` to the lower bound of the borderline range. |
 
 ---
 

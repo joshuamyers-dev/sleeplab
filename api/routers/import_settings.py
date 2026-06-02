@@ -14,7 +14,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..llm_client import is_configured
 from ..settings_store import (
-    get_compliance_settings,
+    get_adherence_settings,
     get_llm_settings,
     get_timezone_settings,
     get_user_import_settings_row,
@@ -61,8 +61,8 @@ class ImportSettingsResponse(BaseModel):
     llm_configured: bool = False
     usage_threshold_hours: float = 4.0
     borderline_threshold_hours: float | None = None
-    target_compliance_pct: float = 70.0
-    compliance_window_days: int = 30
+    target_adherence_pct: float = 70.0
+    adherence_window_days: int = 30
     evaluation_period_days: int = 90
     window_evaluation_logic: str = "best_consecutive"
     maintenance_lookback_days: int = 90
@@ -93,8 +93,8 @@ class ImportSettingsUpdate(BaseModel):
     llm_model: str | None = None
     usage_threshold_hours: float | None = None
     borderline_threshold_hours: float | None = None
-    target_compliance_pct: float | None = None
-    compliance_window_days: int | None = None
+    target_adherence_pct: float | None = None
+    adherence_window_days: int | None = None
     evaluation_period_days: int | None = None
     window_evaluation_logic: str | None = None
     maintenance_lookback_days: int | None = None
@@ -128,7 +128,7 @@ def get_import_settings(
     tz = get_timezone_settings(db, current_user["id"])
     llm = get_llm_settings(db, current_user["id"])
     llm_configured = has_explicit_llm_settings(db, current_user["id"]) and is_configured(llm)
-    comp = get_compliance_settings(db, current_user["id"])
+    comp = get_adherence_settings(db, current_user["id"])
 
     if row is None:
         return ImportSettingsResponse(
@@ -203,10 +203,10 @@ def save_import_settings(
                      wearable_provider, wearable_base_url, wearable_api_key,
                      machine_tz, display_tz,
                      llm_provider, llm_base_url, llm_api_key, llm_model,
-                     usage_threshold_hours, borderline_threshold_hours,
-                     target_compliance_pct, compliance_window_days,
-                     evaluation_period_days, window_evaluation_logic,
-                     maintenance_lookback_days)
+                     adherence_threshold_hours, adherence_borderline_hours,
+                     adherence_target_pct, adherence_window_days,
+                     adherence_evaluation_days, adherence_window_logic,
+                     adherence_lookback_days)
                 VALUES
                     (CAST(:uid AS uuid), :client_id, :client_secret,
                      :team_id, :machine_id,
@@ -215,10 +215,10 @@ def save_import_settings(
                      :w_provider, :w_base_url, :w_api_key,
                      :machine_tz, :display_tz,
                      :llm_provider, :llm_base_url, :llm_api_key, :llm_model,
-                     :usage_threshold_hours, :borderline_threshold_hours,
-                     :target_compliance_pct, :compliance_window_days,
-                     :evaluation_period_days, :window_evaluation_logic,
-                     :maintenance_lookback_days)
+                     :adherence_threshold_hours, :adherence_borderline_hours,
+                     :adherence_target_pct, :adherence_window_days,
+                     :adherence_evaluation_days, :adherence_window_logic,
+                     :adherence_lookback_days)
             """),
             {
                 "uid": current_user["id"],
@@ -239,13 +239,13 @@ def save_import_settings(
                 "llm_base_url": body.llm_base_url,
                 "llm_api_key": body.llm_api_key,
                 "llm_model": body.llm_model,
-                "usage_threshold_hours": body.usage_threshold_hours if body.usage_threshold_hours is not None else 4.0,
-                "borderline_threshold_hours": body.borderline_threshold_hours,
-                "target_compliance_pct": body.target_compliance_pct if body.target_compliance_pct is not None else 70.0,
-                "compliance_window_days": body.compliance_window_days if body.compliance_window_days is not None else 30,
-                "evaluation_period_days": body.evaluation_period_days if body.evaluation_period_days is not None else 90,
-                "window_evaluation_logic": body.window_evaluation_logic or "best_consecutive",
-                "maintenance_lookback_days": body.maintenance_lookback_days if body.maintenance_lookback_days is not None else 90,
+                "adherence_threshold_hours": body.usage_threshold_hours if body.usage_threshold_hours is not None else 4.0,
+                "adherence_borderline_hours": body.borderline_threshold_hours,
+                "adherence_target_pct": body.target_adherence_pct if body.target_adherence_pct is not None else 70.0,
+                "adherence_window_days": body.adherence_window_days if body.adherence_window_days is not None else 30,
+                "adherence_evaluation_days": body.evaluation_period_days if body.evaluation_period_days is not None else 90,
+                "adherence_window_logic": body.window_evaluation_logic or "best_consecutive",
+                "adherence_lookback_days": body.maintenance_lookback_days if body.maintenance_lookback_days is not None else 90,
             },
         )
     else:
@@ -321,32 +321,32 @@ def save_import_settings(
             fields["llm_model"] = body.llm_model or None
 
         if "usage_threshold_hours" in body.model_fields_set:
-            set_clauses.append("usage_threshold_hours = :usage_threshold_hours")
-            fields["usage_threshold_hours"] = body.usage_threshold_hours
+            set_clauses.append("adherence_threshold_hours = :adherence_threshold_hours")
+            fields["adherence_threshold_hours"] = body.usage_threshold_hours
 
         if "borderline_threshold_hours" in body.model_fields_set:
-            set_clauses.append("borderline_threshold_hours = :borderline_threshold_hours")
-            fields["borderline_threshold_hours"] = body.borderline_threshold_hours
+            set_clauses.append("adherence_borderline_hours = :adherence_borderline_hours")
+            fields["adherence_borderline_hours"] = body.borderline_threshold_hours
 
-        if "target_compliance_pct" in body.model_fields_set:
-            set_clauses.append("target_compliance_pct = :target_compliance_pct")
-            fields["target_compliance_pct"] = body.target_compliance_pct
+        if "target_adherence_pct" in body.model_fields_set:
+            set_clauses.append("adherence_target_pct = :adherence_target_pct")
+            fields["adherence_target_pct"] = body.target_adherence_pct
 
-        if "compliance_window_days" in body.model_fields_set:
-            set_clauses.append("compliance_window_days = :compliance_window_days")
-            fields["compliance_window_days"] = body.compliance_window_days
+        if "adherence_window_days" in body.model_fields_set:
+            set_clauses.append("adherence_window_days = :adherence_window_days")
+            fields["adherence_window_days"] = body.adherence_window_days
 
         if "evaluation_period_days" in body.model_fields_set:
-            set_clauses.append("evaluation_period_days = :evaluation_period_days")
-            fields["evaluation_period_days"] = body.evaluation_period_days
+            set_clauses.append("adherence_evaluation_days = :adherence_evaluation_days")
+            fields["adherence_evaluation_days"] = body.evaluation_period_days
 
         if "window_evaluation_logic" in body.model_fields_set:
-            set_clauses.append("window_evaluation_logic = :window_evaluation_logic")
-            fields["window_evaluation_logic"] = body.window_evaluation_logic
+            set_clauses.append("adherence_window_logic = :adherence_window_logic")
+            fields["adherence_window_logic"] = body.window_evaluation_logic
 
         if "maintenance_lookback_days" in body.model_fields_set:
-            set_clauses.append("maintenance_lookback_days = :maintenance_lookback_days")
-            fields["maintenance_lookback_days"] = body.maintenance_lookback_days
+            set_clauses.append("adherence_lookback_days = :adherence_lookback_days")
+            fields["adherence_lookback_days"] = body.maintenance_lookback_days
 
         db.execute(
             text(f"UPDATE user_import_settings SET {', '.join(set_clauses)} WHERE user_id = CAST(:uid AS uuid)"),

@@ -4,7 +4,12 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from api.routers.sessions import _build_pdf_report, _manufacturer_select_expression, _mask_device_serial
+from api.routers.sessions import (
+    _build_pdf_report,
+    _compute_adherence_summary,
+    _manufacturer_select_expression,
+    _mask_device_serial,
+)
 from api.therapy_score import compute_therapy_score
 
 
@@ -496,6 +501,63 @@ class TestSessionNotes:
         resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "New mask cushion"})
         assert resp.status_code == 200
         assert resp.json()["note"] == "New mask cushion"
+        assert resp.content.startswith(b"%PDF")
+        assert b"Adherence" in resp.content
+
+
+class TestExportAdherencePdf:
+    def test_compute_adherence_summary_all_compliant(self):
+        nights = [
+            {"folder_date": date(2026, 5, 1), "duration_seconds": 18000},
+            {"folder_date": date(2026, 5, 2), "duration_seconds": 16200},
+        ]
+        result = _compute_adherence_summary(nights, total_nights=2)
+        assert result["nights_compliant"] == 2
+        assert result["adherence_pct"] == 100.0
+        assert result["avg_hours"] == 4.75
+
+    def test_compute_adherence_summary_partial(self):
+        nights = [
+            {"folder_date": date(2026, 5, 1), "duration_seconds": 18000},
+            {"folder_date": date(2026, 5, 2), "duration_seconds": 7200},
+        ]
+        result = _compute_adherence_summary(nights, total_nights=2)
+        assert result["nights_compliant"] == 1
+        assert result["adherence_pct"] == 50.0
+
+    def test_compute_adherence_summary_streak(self):
+        nights = [
+            {"folder_date": date(2026, 5, 1), "duration_seconds": 18000},
+            {"folder_date": date(2026, 5, 2), "duration_seconds": 18000},
+            {"folder_date": date(2026, 5, 3), "duration_seconds": 7200},
+            {"folder_date": date(2026, 5, 4), "duration_seconds": 18000},
+        ]
+        result = _compute_adherence_summary(nights, total_nights=4)
+        assert result["nights_compliant"] == 3
+        assert result["longest_streak"] == 2
+
+    def test_compute_adherence_summary_empty(self):
+        result = _compute_adherence_summary([], total_nights=3)
+        assert result["nights_compliant"] == 0
+        assert result["adherence_pct"] == 0.0
+        assert result["avg_hours"] == 0.0
+        assert result["longest_streak"] == 0
+
+    def test_requires_auth(self, client: TestClient):
+        resp = client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530")
+        assert resp.status_code == 401
+
+    def test_rejects_invalid_date_format(self, client: TestClient, auth_headers):
+        resp = client.get("/sessions/export/adherence/pdf?from=2026-05-01&to=20260530", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_rejects_to_before_from(self, client: TestClient, auth_headers):
+        resp = client.get("/sessions/export/adherence/pdf?from=20260530&to=20260501", headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_valid_request_returns_pdf_with_filename(self, client: TestClient, auth_headers, test_user, db):
+        _seed_session(db, test_user["id"], date(2026, 5, 1))
+        resp = client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530", headers=auth_headers)
 
     def test_whitespace_note_clears_existing_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Felt congested")

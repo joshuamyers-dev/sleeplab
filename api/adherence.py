@@ -5,18 +5,18 @@ from datetime import date, timedelta
 from enum import IntEnum
 
 
-class ComplianceStatus(IntEnum):
+class AdherenceStatus(IntEnum):
     NONE = 0
     BORDERLINE = 2
     FULL = 3
 
 
 @dataclass
-class ComplianceConfig:
+class AdherenceConfig:
     usage_threshold_hours: float = 4.0
     borderline_threshold_hours: float | None = None
-    target_compliance_pct: float = 70.0
-    compliance_window_days: int = 30
+    target_adherence_pct: float = 70.0
+    adherence_window_days: int = 30
     evaluation_period_days: int = 90
     window_evaluation_logic: str = "best_consecutive"
     maintenance_lookback_days: int = 90
@@ -36,34 +36,34 @@ class WindowStat:
     end_date: date
     total_nights: int
     compliant_nights: int
-    compliance_pct: float
+    adherence_pct: float
     avg_hours: float
     passes: bool
 
 
 @dataclass
-class ComplianceResult:
+class AdherenceResult:
     overall: WindowStat
     best_window: WindowStat | None
     sequential_windows: list[WindowStat]
     nightly_breakdown: list[dict]
-    rolling_compliance: list[dict]
+    rolling_adherence: list[dict]
     streak_longest: int
     streak_current: int
 
 
-def classify_night(duration_seconds: int | None, config: ComplianceConfig) -> ComplianceStatus:
+def classify_night(duration_seconds: int | None, config: AdherenceConfig) -> AdherenceStatus:
     if not duration_seconds:
-        return ComplianceStatus.NONE
+        return AdherenceStatus.NONE
     hours = duration_seconds / 3600.0
     if hours >= config.usage_threshold_hours:
-        return ComplianceStatus.FULL
+        return AdherenceStatus.FULL
     if config.borderline_threshold_hours is not None and hours >= config.borderline_threshold_hours:
-        return ComplianceStatus.BORDERLINE
-    return ComplianceStatus.NONE
+        return AdherenceStatus.BORDERLINE
+    return AdherenceStatus.NONE
 
 
-def _window_stat(nights_by_date: dict[date, NightRecord], window_start: date, window_end: date, config: ComplianceConfig) -> WindowStat:
+def _window_stat(nights_by_date: dict[date, NightRecord], window_start: date, window_end: date, config: AdherenceConfig) -> WindowStat:
     total = (window_end - window_start).days + 1
     compliant = 0
     total_hours = 0.0
@@ -72,33 +72,32 @@ def _window_stat(nights_by_date: dict[date, NightRecord], window_start: date, wi
         rec = nights_by_date.get(d)
         hours = (rec.duration_seconds or 0) / 3600.0 if rec else 0.0
         total_hours += hours
-        if rec and classify_night(rec.duration_seconds, config) == ComplianceStatus.FULL:
+        if rec and classify_night(rec.duration_seconds, config) == AdherenceStatus.FULL:
             compliant += 1
-    compliance_pct = round(compliant / total * 100, 1) if total > 0 else 0.0
+    adherence_pct = round(compliant / total * 100, 1) if total > 0 else 0.0
     avg_hours = round(total_hours / total, 2) if total > 0 else 0.0
-    passes = compliance_pct >= config.target_compliance_pct
+    passes = adherence_pct >= config.target_adherence_pct
     return WindowStat(
         start_date=window_start,
         end_date=window_end,
         total_nights=total,
         compliant_nights=compliant,
-        compliance_pct=compliance_pct,
+        adherence_pct=adherence_pct,
         avg_hours=avg_hours,
         passes=passes,
     )
 
 
-def compute_compliance(
+def compute_adherence(
     nights: list[NightRecord],
     period_start: date,
     period_end: date,
-    config: ComplianceConfig,
-) -> ComplianceResult:
+    config: AdherenceConfig,
+) -> AdherenceResult:
     nights_by_date: dict[date, NightRecord] = {n.folder_date: n for n in nights}
 
     overall = _window_stat(nights_by_date, period_start, period_end, config)
 
-    # Build nightly breakdown for every calendar day in the period
     nightly_breakdown: list[dict] = []
     total_days = (period_end - period_start).days + 1
     for i in range(total_days):
@@ -115,7 +114,7 @@ def compute_compliance(
         })
 
     # Sequential non-overlapping windows (most recent first) for the window breakdown table
-    window_size = config.compliance_window_days
+    window_size = config.adherence_window_days
     sequential_windows: list[WindowStat] = []
     eval_days = config.evaluation_period_days
     eval_start = period_end - timedelta(days=eval_days - 1)
@@ -128,7 +127,7 @@ def compute_compliance(
 
     # Best / last window
     best_window: WindowStat | None = None
-    if config.evaluation_period_days >= config.compliance_window_days:
+    if config.evaluation_period_days >= config.adherence_window_days:
         candidate_end = period_end
         candidate_start = candidate_end - timedelta(days=eval_days - 1)
         if config.window_evaluation_logic == "last_consecutive":
@@ -144,13 +143,13 @@ def compute_compliance(
                 if scan_start < candidate_start:
                     break
                 w = _window_stat(nights_by_date, scan_start, scan_end, config)
-                if best is None or w.compliance_pct > best.compliance_pct:
+                if best is None or w.adherence_pct > best.adherence_pct:
                     best = w
                 scan_end -= timedelta(days=1)
             best_window = best
 
-    # Rolling compliance: one data point per week, each representing the last 30 days
-    rolling_compliance: list[dict] = []
+    # Rolling adherence: one data point per week, each representing the last 30 days
+    rolling_adherence: list[dict] = []
     roll_window = 30
     step = 7
     roll_start = period_start + timedelta(days=roll_window - 1)
@@ -158,11 +157,11 @@ def compute_compliance(
     while d <= period_end:
         w_s = d - timedelta(days=roll_window - 1)
         w = _window_stat(nights_by_date, w_s, d, config)
-        rolling_compliance.append({"date": d.isoformat(), "compliance_pct": w.compliance_pct})
+        rolling_adherence.append({"date": d.isoformat(), "adherence_pct": w.adherence_pct})
         d += timedelta(days=step)
 
-    # Streaks: consecutive FULL nights
-    full_dates = sorted(d for d, r in nights_by_date.items() if classify_night(r.duration_seconds, config) == ComplianceStatus.FULL)
+    # Streaks: consecutive qualifying nights
+    full_dates = sorted(d for d, r in nights_by_date.items() if classify_night(r.duration_seconds, config) == AdherenceStatus.FULL)
 
     streak_longest = 0
     streak_current = 0
@@ -185,12 +184,12 @@ def compute_compliance(
             else:
                 break
 
-    return ComplianceResult(
+    return AdherenceResult(
         overall=overall,
         best_window=best_window,
         sequential_windows=sequential_windows,
         nightly_breakdown=nightly_breakdown,
-        rolling_compliance=rolling_compliance,
+        rolling_adherence=rolling_adherence,
         streak_longest=streak_longest,
         streak_current=streak_current,
     )

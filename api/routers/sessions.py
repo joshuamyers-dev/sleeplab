@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..adherence import AdherenceConfig, AdherenceStatus, NightRecord, classify_night
+from ..adherence import compute_adherence as _compute_adherence
 from ..auth import get_current_user
-from ..compliance import ComplianceConfig, ComplianceStatus, NightRecord, classify_night
-from ..compliance import compute_compliance as compute_compliance_modal
 from ..database import get_db
 from ..models import (
     EventRecord,
@@ -25,7 +25,7 @@ from ..models import (
     TagInsight,
     WaveformResponse,
 )
-from ..settings_store import get_compliance_settings
+from ..settings_store import get_adherence_settings
 from ..therapy_score import compute_therapy_score
 
 matplotlib.use("Agg")
@@ -93,9 +93,9 @@ def _mask_device_serial(serial: str) -> str:
     return chart_buffer
 
 
-def _build_compliance_chart(nights: list[dict], config: ComplianceConfig | None = None) -> BytesIO:
+def _build_adherence_chart(nights: list[dict], config: AdherenceConfig | None = None) -> BytesIO:
     if config is None:
-        config = ComplianceConfig()
+        config = AdherenceConfig()
     chart_buffer = BytesIO()
     labels = [night["folder_date"].strftime("%m/%d") for night in nights]
     hours = [float(night.get("duration_seconds") or 0) / 3600 for night in nights]
@@ -105,9 +105,9 @@ def _build_compliance_chart(nights: list[dict], config: ComplianceConfig | None 
     colors_bars = []
     for night in nights:
         status = classify_night(night.get("duration_seconds"), config)
-        if status == ComplianceStatus.FULL:
+        if status == AdherenceStatus.FULL:
             colors_bars.append("#22c55e")
-        elif status == ComplianceStatus.BORDERLINE:
+        elif status == AdherenceStatus.BORDERLINE:
             colors_bars.append("#f59e0b")
         else:
             colors_bars.append("#f87171")
@@ -166,7 +166,7 @@ def _footer(canvas, _doc):
     canvas.restoreState()
 
 
-def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], *, compliance_config: ComplianceConfig | None = None) -> BytesIO:
+def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], *, adherence_config: AdherenceConfig | None = None) -> BytesIO:
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -223,7 +223,7 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
     compliance_pct = round((nights_used / total_nights) * 100, 1) if total_nights > 0 else 0.0
 
     nights_compliant = None
-    if compliance_config is not None:
+    if adherence_config is not None:
         night_records = [
             NightRecord(
                 folder_date=night["folder_date"],
@@ -233,7 +233,7 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
             )
             for night in nights
         ]
-        result = compute_compliance_modal(night_records, start, end, compliance_config)
+        result = _compute_adherence(night_records, start, end, adherence_config)
         nights_compliant = result.overall.compliant_nights
         compliance_line_value = f"{nights_compliant} nights used"
     else:
@@ -334,9 +334,9 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
         "AHI is calculated from recorded apnea and hypopnea events over recorded therapy hours.",
         "Leak values follow SleepLab's existing session display convention.",
     ]
-    if compliance_config is not None:
+    if adherence_config is not None:
         notes.append(
-            f'Compliance is defined as \u2265 {compliance_config.usage_threshold_hours} hours of therapy use per night, '
+            f'Adherence is defined as \u2265 {adherence_config.usage_threshold_hours} hours of therapy use per night, '
             f"following standard Medicare criteria."
         )
     if missing_equipment_details:
@@ -363,7 +363,7 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
 def export_sessions_pdf(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
-    include_compliance: bool = Query(False),
+    include_adherence: bool = Query(False),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -373,13 +373,13 @@ def export_sessions_pdf(
         raise HTTPException(status_code=400, detail="to must be on or after from")
 
     config = None
-    if include_compliance:
-        settings = get_compliance_settings(db, current_user["id"])
-        config = ComplianceConfig(
+    if include_adherence:
+        settings = get_adherence_settings(db, current_user["id"])
+        config = AdherenceConfig(
             usage_threshold_hours=settings["usage_threshold_hours"],
             borderline_threshold_hours=settings["borderline_threshold_hours"],
-            target_compliance_pct=settings["target_compliance_pct"],
-            compliance_window_days=settings["compliance_window_days"],
+            target_adherence_pct=settings["target_adherence_pct"],
+            adherence_window_days=settings["adherence_window_days"],
             evaluation_period_days=settings["evaluation_period_days"],
             window_evaluation_logic=settings["window_evaluation_logic"],
             maintenance_lookback_days=settings["maintenance_lookback_days"],
@@ -429,7 +429,7 @@ def export_sessions_pdf(
         {"uid": current_user["id"], "start": start, "end": end},
     ).mappings().all()
 
-    pdf = _build_pdf_report(from_, to, start, end, [dict(row) for row in rows], compliance_config=config)
+    pdf = _build_pdf_report(from_, to, start, end, [dict(row) for row in rows], adherence_config=config)
     filename = f"sleeplab-report-{from_}-{to}.pdf"
     return StreamingResponse(
         pdf,
@@ -438,12 +438,12 @@ def export_sessions_pdf(
     )
 
 
-def _compute_compliance(nights: list[dict], total_nights: int) -> dict:
+def _compute_adherence_summary(nights: list[dict], total_nights: int) -> dict:
     compliant = [n for n in nights if n.get("duration_seconds") and n["duration_seconds"] >= 14400]
     non_compliant = [n for n in nights if n.get("duration_seconds") and n["duration_seconds"] < 14400]
     nights_used = len(nights)
     nights_compliant = len(compliant)
-    compliance_pct = round((nights_compliant / total_nights) * 100, 1) if total_nights > 0 else 0.0
+    adherence_pct = round((nights_compliant / total_nights) * 100, 1) if total_nights > 0 else 0.0
 
     compliant_dates = sorted([n["folder_date"] for n in compliant])
     streak = 1
@@ -471,16 +471,16 @@ def _compute_compliance(nights: list[dict], total_nights: int) -> dict:
         "nights_used": nights_used,
         "nights_compliant": nights_compliant,
         "nights_non_compliant": len(non_compliant),
-        "compliance_pct": compliance_pct,
+        "adherence_pct": adherence_pct,
         "avg_hours": avg_hours,
         "longest_streak": longest_streak,
         "current_streak": current_streak,
     }
 
 
-def _build_compliance_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: ComplianceConfig | None = None) -> BytesIO:
+def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig | None = None) -> BytesIO:
     if config is None:
-        config = ComplianceConfig()
+        config = AdherenceConfig()
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -537,25 +537,25 @@ def _build_compliance_report(_start_raw: str, _end_raw: str, start: date, end: d
         NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds"))
         for n in nights
     ]
-    result = compute_compliance_modal(night_records, start, end, config)
+    result = _compute_adherence(night_records, start, end, config)
 
     daily_rows = []
     for day_night in result.nightly_breakdown:
-        if day_night["status"] == ComplianceStatus.NONE:
+        if day_night["status"] == AdherenceStatus.NONE:
             badge = "No data"
-        elif day_night["status"] == ComplianceStatus.FULL:
+        elif day_night["status"] == AdherenceStatus.FULL:
             badge = "Pass"
-        elif day_night["status"] == ComplianceStatus.BORDERLINE:
+        elif day_night["status"] == AdherenceStatus.BORDERLINE:
             badge = "Borderline"
         else:
             badge = "Fail"
         daily_rows.append([day_night["date"], f"{day_night['usage_hours']:.1f}", badge])
 
     story = [
-        Paragraph("SleepLab Compliance Report", title_style),
+        Paragraph("SleepLab Adherence Report", title_style),
         Paragraph(_format_date_range(start, end), subtitle_style),
         Spacer(1, 0.1 * inch),
-        Image(_build_compliance_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
+        Image(_build_adherence_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
         Paragraph("Summary", section_style),
     ]
 
@@ -563,7 +563,7 @@ def _build_compliance_report(_start_raw: str, _end_raw: str, start: date, end: d
         ["Total nights", str(total_nights)],
         ["Nights with therapy data", str(len(nights))],
         [f"Nights \u2265 {config.usage_threshold_hours}h usage", str(result.overall.compliant_nights)],
-        ["Compliance rate", f"{result.overall.compliance_pct:.1f}%"],
+        ["Adherence rate", f"{result.overall.adherence_pct:.1f}%"],
         ["Average nightly usage", f"{result.overall.avg_hours:.1f} hours"],
         ["Longest compliant streak", f"{result.streak_longest} {'night' if result.streak_longest == 1 else 'nights'}"],
     ]
@@ -604,7 +604,7 @@ def _build_compliance_report(_start_raw: str, _end_raw: str, start: date, end: d
     ]))
 
     notes = [
-        f"Compliance is defined as \u2265 {config.usage_threshold_hours} hours of therapy use per night, following standard Medicare criteria.",
+        f"Adherence is defined as \u2265 {config.usage_threshold_hours} hours of therapy use per night, following standard Medicare criteria.",
         "A night is counted as used when the device records at least 10 minutes of therapy data.",
     ]
     if len(nights) < 7:
@@ -625,8 +625,8 @@ def _build_compliance_report(_start_raw: str, _end_raw: str, start: date, end: d
     return buffer
 
 
-@router.get("/export/compliance/pdf")
-def export_compliance_pdf(
+@router.get("/export/adherence/pdf")
+def export_adherence_pdf(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
     current_user: dict = Depends(get_current_user),
@@ -637,12 +637,12 @@ def export_compliance_pdf(
     if end < start:
         raise HTTPException(status_code=400, detail="to must be on or after from")
 
-    settings = get_compliance_settings(db, current_user["id"])
-    config = ComplianceConfig(
+    settings = get_adherence_settings(db, current_user["id"])
+    config = AdherenceConfig(
         usage_threshold_hours=settings["usage_threshold_hours"],
         borderline_threshold_hours=settings["borderline_threshold_hours"],
-        target_compliance_pct=settings["target_compliance_pct"],
-        compliance_window_days=settings["compliance_window_days"],
+        target_adherence_pct=settings["target_adherence_pct"],
+        adherence_window_days=settings["adherence_window_days"],
         evaluation_period_days=settings["evaluation_period_days"],
         window_evaluation_logic=settings["window_evaluation_logic"],
         maintenance_lookback_days=settings["maintenance_lookback_days"],
@@ -692,8 +692,8 @@ def export_compliance_pdf(
         {"uid": current_user["id"], "start": start, "end": end},
     ).mappings().all()
 
-    pdf = _build_compliance_report(from_, to, start, end, [dict(row) for row in rows], config)
-    filename = f"sleeplab-compliance-{from_}-{to}.pdf"
+    pdf = _build_adherence_report(from_, to, start, end, [dict(row) for row in rows], config)
+    filename = f"sleeplab-adherence-{from_}-{to}.pdf"
     return StreamingResponse(
         pdf,
         media_type="application/pdf",
@@ -701,7 +701,7 @@ def export_compliance_pdf(
     )
 
 
-def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: ComplianceConfig) -> BytesIO:
+def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig) -> BytesIO:
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -757,7 +757,7 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
         NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds"))
         for n in nights
     ]
-    result = compute_compliance_modal(night_records, start, end, config)
+    result = _compute_adherence(night_records, start, end, config)
 
     overall_passes = result.overall.passes
     overall_badge = "PASS" if overall_passes else "FAIL"
@@ -770,13 +770,13 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
             device_serials.add(night["device_serial"])
 
     story = [
-        Paragraph("SleepLab Advanced Compliance Report", title_style),
+        Paragraph("SleepLab Advanced Adherence Report", title_style),
         Paragraph(_format_date_range(start, end), subtitle_style),
         Spacer(1, 0.08 * inch),
         Paragraph(
             f"Overall: <b>{overall_badge}</b> &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"{result.overall.compliance_pct:.1f}% compliant "
-            f"(target: \u2265 {config.target_compliance_pct:.0f}%) &nbsp;&nbsp;|&nbsp;&nbsp; "
+            f"{result.overall.adherence_pct:.1f}% adherent "
+            f"(target: \u2265 {config.target_adherence_pct:.0f}%) &nbsp;&nbsp;|&nbsp;&nbsp; "
             f"Threshold: {config.usage_threshold_hours}h/night",
             ParagraphStyle("OverallStatus", parent=body_style, fontSize=9, leading=12, textColor=colors.HexColor("#4b5563")),
         ),
@@ -789,7 +789,7 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
         best_rows = [
             ["Date range", f"{_format_date_range(best.start_date, best.end_date)}"],
             ["Compliant nights", f"{best.compliant_nights} / {best.total_nights}"],
-            ["Compliance rate", f"{best.compliance_pct:.1f}%"],
+            ["Adherence rate", f"{best.adherence_pct:.1f}%"],
             ["Average usage", f"{best.avg_hours:.1f} h/night"],
             ["Status", "PASS" if best.passes else "FAIL"],
         ]
@@ -816,7 +816,7 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
                 f"{w.total_nights}d",
                 f"{_format_date_range(w.start_date, w.end_date)}",
                 f"{w.compliant_nights}/{w.total_nights}",
-                f"{w.compliance_pct:.1f}%",
+                f"{w.adherence_pct:.1f}%",
                 "PASS" if w.passes else "FAIL",
             ])
         story.append(Table(window_header + window_rows, colWidths=[1.0 * inch, 2.4 * inch, 1.2 * inch, 0.9 * inch, 0.9 * inch], style=[
@@ -857,18 +857,18 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
 
     story.extend([
         Spacer(1, 0.06 * inch),
-        Image(_build_compliance_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
+        Image(_build_adherence_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
     ])
 
     story.append(Paragraph("Daily Usage", section_style))
     daily_header = [["Date", "Usage (hours)", f">= {config.usage_threshold_hours}h", "AHI", "Leak"]]
     daily_rows = []
     for day_night in result.nightly_breakdown:
-        if day_night["status"] == ComplianceStatus.NONE:
+        if day_night["status"] == AdherenceStatus.NONE:
             badge = "No data"
-        elif day_night["status"] == ComplianceStatus.FULL:
+        elif day_night["status"] == AdherenceStatus.FULL:
             badge = "Pass"
-        elif day_night["status"] == ComplianceStatus.BORDERLINE:
+        elif day_night["status"] == AdherenceStatus.BORDERLINE:
             badge = "Borderline"
         else:
             badge = "Fail"
@@ -895,9 +895,9 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
     equipment_candidates = [
         ("Device serial", ", ".join(_mask_device_serial(serial) for serial in sorted(device_serials)) or None),
         ("Evaluation logic", config.window_evaluation_logic.replace("_", " ").title()),
-        ("Window size", f"{config.compliance_window_days} days"),
+        ("Window size", f"{config.adherence_window_days} days"),
         ("Usage threshold", f"{config.usage_threshold_hours} hours/night"),
-        ("Target compliance", f"\u2265 {config.target_compliance_pct:.0f}%"),
+        ("Target adherence", f"\u2265 {config.target_adherence_pct:.0f}%"),
     ]
     if config.borderline_threshold_hours is not None:
         equipment_candidates.append(("Borderline threshold", f"{config.borderline_threshold_hours} hours/night"))
@@ -923,7 +923,7 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
     ])
 
     notes = [
-        "Compliance criteria are based on user-configurable settings and may not reflect all payer requirements.",
+        "Adherence criteria are based on user-configurable settings and may not reflect all payer requirements.",
         "A night is counted as used when the device records at least 10 minutes of therapy data.",
         "Missing days within the evaluation period are counted as non-compliant.",
     ]
@@ -945,8 +945,8 @@ def _build_advanced_compliance_report(_start_raw: str, _end_raw: str, start: dat
     return buffer
 
 
-@router.get("/export/compliance/advanced/pdf")
-def export_advanced_compliance_pdf(
+@router.get("/export/adherence/advanced/pdf")
+def export_advanced_adherence_pdf(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
     current_user: dict = Depends(get_current_user),
@@ -957,12 +957,12 @@ def export_advanced_compliance_pdf(
     if end < start:
         raise HTTPException(status_code=400, detail="to must be on or after from")
 
-    settings = get_compliance_settings(db, current_user["id"])
-    config = ComplianceConfig(
+    settings = get_adherence_settings(db, current_user["id"])
+    config = AdherenceConfig(
         usage_threshold_hours=settings["usage_threshold_hours"],
         borderline_threshold_hours=settings["borderline_threshold_hours"],
-        target_compliance_pct=settings["target_compliance_pct"],
-        compliance_window_days=settings["compliance_window_days"],
+        target_adherence_pct=settings["target_adherence_pct"],
+        adherence_window_days=settings["adherence_window_days"],
         evaluation_period_days=settings["evaluation_period_days"],
         window_evaluation_logic=settings["window_evaluation_logic"],
         maintenance_lookback_days=settings["maintenance_lookback_days"],
@@ -1012,8 +1012,8 @@ def export_advanced_compliance_pdf(
         {"uid": current_user["id"], "start": start, "end": end},
     ).mappings().all()
 
-    pdf = _build_advanced_compliance_report(from_, to, start, end, [dict(row) for row in rows], config)
-    filename = f"sleeplab-advanced-compliance-{from_}-{to}.pdf"
+    pdf = _build_advanced_adherence_report(from_, to, start, end, [dict(row) for row in rows], config)
+    filename = f"sleeplab-advanced-adherence-{from_}-{to}.pdf"
     return StreamingResponse(
         pdf,
         media_type="application/pdf",
