@@ -3,92 +3,105 @@
 # Common development tasks. All targets assume you are at the project root.
 # Backend commands use `uv`; frontend commands use `npm` (run inside frontend/).
 #
-# Usage:
-#   make <target>
-#
 # Quick-start:
-#   make install     — install all dependencies (backend + frontend)
-#   make dev         — start the FastAPI dev server on port 8000
-#   make ci          — run the full CI suite (lint, type-check, all tests)
+#   make install   — install all dependencies (backend + frontend)
+#   make dev       — start the FastAPI dev server (port 8000)
+#   make ci        — run the full CI suite (lint, type-check, all tests)
 
-.PHONY: help install install-backend install-frontend \
-        lint fmt \
-        test test-backend test-frontend \
-        typecheck build \
-        dev \
-        up down \
+.PHONY: help \
+        install install-backend install-frontend \
+        lint lint-backend lint-frontend \
+        fmt \
+        test test-backend test-backend-db test-frontend test-watch \
+        typecheck build preview \
+        check-migrations \
+        dev dev-frontend \
+        up up-advanced up-build down \
         ci
 
-# ── Utilities ────────────────────────────────────────────────────────────────
+# ── Help ─────────────────────────────────────────────────────────────────────
 
-## Print this help message
-help:
+help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} \
-	     /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	     /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
 
-## Install backend + frontend dependencies
-install: install-backend install-frontend
+install: install-backend install-frontend ## Install all dependencies (backend + frontend)
 
-## Install Python dependencies (including dev extras) via uv
-install-backend:
+install-backend: ## Install Python dependencies via uv (includes dev group)
 	uv sync --group dev
 
-## Install Node dependencies for the frontend
-install-frontend:
+install-frontend: ## Install Node dependencies for the frontend
 	npm ci --prefix frontend
 
 # ── Linting & Formatting ─────────────────────────────────────────────────────
 
-## Lint Python source and tests with ruff
-lint:
+lint: lint-backend lint-frontend ## Lint backend (ruff) and frontend (eslint)
+
+lint-backend: ## Lint Python tests/ with ruff
 	uv run ruff check tests/
 
-## Auto-format Python source with ruff
-fmt:
+lint-frontend: ## Lint frontend source with eslint
+	npm run lint --prefix frontend
+
+fmt: ## Auto-format Python source with ruff
 	uv run ruff format .
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 
-## Run backend + frontend tests
-test: test-backend test-frontend
+test: test-backend test-frontend ## Run all tests (backend + frontend)
 
-## Run backend tests with pytest (DB tests skipped without Postgres)
-test-backend:
+test-backend: ## Run backend tests with pytest (DB tests skipped without Postgres)
 	uv run pytest -v --tb=short
 
-## Run frontend unit tests with vitest
-test-frontend:
-	npx --prefix frontend vitest run
+test-backend-db: ## Run only DB-marked backend tests (requires Postgres)
+	uv run pytest -v --tb=short -m db
+
+test-frontend: ## Run frontend unit tests with vitest (single run)
+	npm test --prefix frontend
+
+test-watch: ## Run frontend tests in watch mode
+	npm run test:watch --prefix frontend
 
 # ── Type-checking & Build ────────────────────────────────────────────────────
 
-## Type-check the frontend with TypeScript
-typecheck:
+typecheck: ## Type-check the frontend with TypeScript
 	npx tsc --noEmit -p frontend/tsconfig.app.json
 
-## Build the frontend for production
-build:
+build: ## Build the frontend for production (tsc + vite)
 	npm run build --prefix frontend
 
-# ── Dev Server ────────────────────────────────────────────────────────────────
+preview: ## Preview the production frontend build locally
+	npm run preview --prefix frontend
 
-## Start the FastAPI development server (hot-reload, port 8000)
-dev:
+# ── Migrations ───────────────────────────────────────────────────────────────
+
+check-migrations: ## Verify migration files are sequentially numbered
+	uv run python scripts/check_migrations.py
+
+# ── Dev Servers ───────────────────────────────────────────────────────────────
+
+dev: ## Start the FastAPI backend with hot-reload (port 8000)
 	uv run uvicorn server:app --reload --host 0.0.0.0 --port 8000
+
+dev-frontend: ## Start the Vite frontend dev server
+	npm run dev --prefix frontend
 
 # ── Docker Compose ───────────────────────────────────────────────────────────
 
-## Start all services defined in compose.yaml
-up:
+up: ## Start all services (compose.yaml)
 	docker compose up
 
-## Stop and remove all compose services
-down:
+up-advanced: ## Start all services using the advanced compose config
+	docker compose -f compose.advanced.yaml up
+
+up-build: ## Rebuild images then start all services
+	docker compose up --build
+
+down: ## Stop and remove all compose services
 	docker compose down
 
 # ── CI ────────────────────────────────────────────────────────────────────────
 
-## Run the full CI suite: lint → typecheck → test-backend → test-frontend
-ci: lint typecheck test-backend test-frontend
+ci: lint typecheck test-backend test-frontend ## Full CI suite: lint → typecheck → test-backend → test-frontend
