@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import type { MetricsResponse } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
-import { computeMetricsDomain, emptyMetricPoint, metricsToPoints, type MetricKey } from './metricsChartDomain'
+import { addMetricGapBreaks, computeMetricsDomain, metricsToPoints, type MetricKey } from './metricsChartDomain'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 interface Props {
@@ -20,32 +20,13 @@ type PanelDefinition = {
   ticks: number[]
 }
 
-const GAP_THRESHOLD_MS = 5 * 60 * 1000
-
 export default function MetricsChartSplit({ metrics }: Props) {
   const rawData = metricsToPoints(metrics)
   const xDomain = computeMetricsDomain(rawData)
   const domainStart = xDomain?.[0] ?? 0
   const domainEnd = xDomain?.[1] ?? 0
 
-  const pressureVals = rawData.map(d => d.pressure).filter((p): p is number => p !== null && p > 0)
-  const MIN_PRESSURE = pressureVals.length > 0 ? Math.min(...pressureVals) : 4.0
-
-  const data: typeof rawData = []
-  let inGap = false
-  for (let i = 0; i < rawData.length; i++) {
-    const isGap = i > 0 && rawData[i].ts - rawData[i - 1].ts > GAP_THRESHOLD_MS
-    if (isGap) {
-      data.push(emptyMetricPoint(rawData[i - 1].ts + 1))
-      inGap = true
-    }
-    if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) <= MIN_PRESSURE) continue
-    if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) > MIN_PRESSURE) {
-      data.push(emptyMetricPoint(rawData[i].ts - 1))
-      inGap = false
-    }
-    data.push(rawData[i])
-  }
+  const data = addMetricGapBreaks(rawData)
   const domainData = xDomain ? data.filter((point) => point.ts >= domainStart && point.ts <= domainEnd) : data
 
   function fmtTs(ts: number) {

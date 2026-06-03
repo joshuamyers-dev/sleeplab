@@ -71,3 +71,19 @@ export function computeMetricsDomain(points: MetricPoint[]): [number, number] | 
 
   return [firstTs - DOMAIN_PADDING_MS, lastTs + DOMAIN_PADDING_MS]
 }
+
+export function addMetricGapBreaks(points: MetricPoint[]): MetricPoint[] {
+  const data: MetricPoint[] = []
+
+  for (let i = 0; i < points.length; i++) {
+    const previous = points[i - 1]
+    const point = points[i]
+    if (previous && point.ts - previous.ts > GAP_THRESHOLD_MS) {
+      data.push(emptyMetricPoint(previous.ts + 1))
+      data.push(emptyMetricPoint(point.ts - 1))
+    }
+    data.push(point)
+  }
+
+  return data
+}
