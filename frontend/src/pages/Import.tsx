@@ -268,12 +268,11 @@ export default function Import() {
               </div>
             ) : null}
             {uploadPhase === 'complete' ? (
-              <div className="flex items-start gap-3 rounded-[20px] border border-[rgba(106,161,54,0.24)] bg-[rgba(106,161,54,0.1)] p-4 text-[var(--olive-deep)]">
-                <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="flex items-start gap-3 rounded-[20px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 text-[var(--accent)]">
                 <div className="space-y-1">
-                  <p className="text-sm font-bold">Upload complete</p>
+                  <p className="text-sm font-bold">Upload received</p>
                   <p className="text-sm font-medium text-[var(--muted-foreground)]">
-                    Your files have been uploaded successfully. Synchronization is continuing in the background.
+                    Your files were uploaded. Synchronization is continuing in the background.
                   </p>
                 </div>
               </div>

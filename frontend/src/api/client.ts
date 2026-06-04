@@ -60,6 +60,8 @@ export interface StartImportResponse {
 export interface ImportStatusResponse {
   running: boolean
   started_at: string | null
+  status: 'running' | 'completed' | 'failed'
+  message: string | null
 }
 
 export interface OximeterImportResult {
@@ -72,6 +74,8 @@ export interface OximeterImportResult {
 }
 
 export interface OximeterImportResponse {
+  status: 'completed' | 'partial' | 'failed'
+  message: string
   imported: number
   skipped: number
   unmatched: number
@@ -173,6 +177,8 @@ export interface SessionDetail extends SessionSummary {
   device_serial: string | null
   therapy_score: TherapyScore
   score_vs_30d_avg: number | null
+  note: string | null
+  tags: string[]
   avg_resp_rate: number | null
   avg_tidal_vol: number | null
   avg_min_vent: number | null
@@ -184,6 +190,14 @@ export interface SessionDetail extends SessionSummary {
   mask_type: string | null
   humidity_level: number | null
   temperature_c: number | null
+}
+
+export interface TagInsight {
+  tag: string
+  night_count: number
+  avg_ahi: number | null
+  baseline_avg_ahi: number | null
+  delta_ahi: number | null
 }
 
 export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter'
@@ -421,6 +435,42 @@ async function request<T>(path: string, init?: RequestInit, params?: Record<stri
   return response.json() as Promise<T>
 }
 
+async function requestBlob(path: string, params?: Record<string, string | number | boolean>) {
+  const qs = params
+    ? '?' + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString()
+    : ''
+  const token = getStoredToken()
+
+  const response = await fetch(`${BASE}${path}${qs}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  if (response.status === 401) {
+    clearStoredToken()
+    if (path !== '/auth/me' && !path.startsWith('/auth/')) {
+      window.location.replace('/login')
+    }
+    throw new UnauthorizedError()
+  }
+
+  if (!response.ok) {
+    let message = `API ${response.status}: ${path}`
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        message = String(payload.detail)
+      }
+    } catch {
+      // Ignore non-JSON responses.
+    }
+    throw new Error(message)
+  }
+
+  return response.blob()
+}
+
 function get<T>(path: string, params?: Record<string, string | number | boolean>) {
   return request<T>(path, undefined, params)
 }
@@ -456,8 +506,14 @@ export const api = {
   getTrendAISummary: (force = false) => get<TrendAISummaryResponse>('/stats/trend-ai', { force }),
   getSessions: (params?: { per_page?: number; date_from?: string; date_to?: string }) =>
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
+  downloadSessionReportPdf: (from: string, to: string) => requestBlob('/sessions/export/pdf', { from, to }),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
+  getTagInsights: () => get<TagInsight[]>('/sessions/tag-insights'),
+  updateSessionNote: (id: string, note: string) =>
+    put<SessionDetail>(`/sessions/${id}/note`, { note }),
+  updateSessionTags: (id: string, tags: string[]) =>
+    put<SessionDetail>(`/sessions/${id}/tags`, { tags }),
   updateSessionTimezone: (id: string, machineTz: string) =>
     put<SessionDetail>(`/sessions/${id}/timezone`, { machine_tz: machineTz }),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 from typing import Dict, List, Literal, Optional
 from datetime import datetime, date
 
@@ -60,6 +60,8 @@ class SessionDetail(SessionSummary):
     device_serial: Optional[str]
     therapy_score: TherapyScore
     score_vs_30d_avg: Optional[float] = None
+    note: str | None = None
+    tags: list[str] = Field(default_factory=list)
     avg_resp_rate: Optional[float]
     avg_tidal_vol: Optional[float]
     avg_min_vent: Optional[float]
@@ -71,6 +73,14 @@ class SessionDetail(SessionSummary):
     mask_type: Optional[str]
     humidity_level: Optional[int]
     temperature_c: Optional[float]
+
+
+class TagInsight(BaseModel):
+    tag: str
+    night_count: int
+    avg_ahi: Optional[float]
+    baseline_avg_ahi: Optional[float]
+    delta_ahi: Optional[float]
 
 
 class EventRecord(BaseModel):

@@ -1,6 +1,7 @@
 import type { OximeterImportResponse, OximeterImportResult } from '../api/client'
 
 export default function OximeterImportSummary({ result }: { result: OximeterImportResponse }) {
+  const hasFailures = result.status === 'failed' || result.status === 'partial'
   const groups: Array<{ status: OximeterImportResult['status']; label: string; className: string }> = [
     { status: 'imported', label: 'Imported', className: 'text-[var(--olive-deep)]' },
     { status: 'skipped', label: 'Skipped', className: 'text-[var(--muted-foreground)]' },
@@ -10,6 +11,17 @@ export default function OximeterImportSummary({ result }: { result: OximeterImpo
 
   return (
     <div className="space-y-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+      {hasFailures ? (
+        <div
+          className={`rounded-[14px] border px-3 py-2 text-sm font-bold ${
+            result.status === 'failed'
+              ? 'border-[rgba(176,58,46,0.28)] bg-[rgba(176,58,46,0.08)] text-[var(--danger-text)]'
+              : 'border-[rgba(233,120,75,0.28)] bg-[rgba(233,120,75,0.08)] text-[var(--orange-700)]'
+          }`}
+        >
+          {result.message}
+        </div>
+      ) : null}
       <div className="grid grid-cols-4 gap-2 text-center text-xs">
         <ResultCount label="Imported" value={result.imported} />
         <ResultCount label="Skipped" value={result.skipped} />
