@@ -47,6 +47,8 @@ export default function SessionAICard({ sessionId }: { sessionId: string }) {
     if (aiConfigured !== true) {
       return
     }
+    // Reset the card before fetching so stale AI text is not shown for a new session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setData(null)
     setExpanded(false)

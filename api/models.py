@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 
 class SessionSummary(BaseModel):
@@ -60,12 +60,40 @@ class SessionSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TherapyScoreComponent(BaseModel):
+    score: int
+    max_score: int
+    label: str
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    unavailable_reason: Optional[str] = None
+
+
+class TherapyScoreComponents(BaseModel):
+    ahi: Optional[TherapyScoreComponent] = None
+    leak: Optional[TherapyScoreComponent] = None
+    duration: Optional[TherapyScoreComponent] = None
+    spo2: Optional[TherapyScoreComponent] = None
+
+
+class TherapyScore(BaseModel):
+    total: int
+    grade: Literal["A", "B", "C", "D", "F"]
+    low_confidence: bool
+    callout: str
+    components: TherapyScoreComponents
+
+
 class SessionDetail(SessionSummary):
     """Pydantic model representing detailed telemetry metrics of a CPAP session.
 
     Attributes:
         pld_start_datetime: The localized telemetry start datetime.
         device_serial: The serial number string of the CPAP device.
+        therapy_score: The computed therapy quality score for the session.
+        score_vs_30d_avg: Delta between this session's score and 30-day average.
+        note: Optional user-supplied note for the session.
+        tags: List of user-applied tags for the session.
         avg_resp_rate: The calculated average respiration rate.
         avg_tidal_vol: The calculated average tidal volume.
         avg_min_vent: The calculated average minute ventilation.
@@ -80,18 +108,30 @@ class SessionDetail(SessionSummary):
     """
 
     pld_start_datetime: datetime
-    device_serial: str | None
-    avg_resp_rate: float | None
-    avg_tidal_vol: float | None
-    avg_min_vent: float | None
-    avg_snore: float | None
-    avg_flow_lim: float | None
-    avg_spo2: float | None
-    min_spo2: float | None
-    therapy_mode: str | None
-    mask_type: str | None
-    humidity_level: int | None
-    temperature_c: float | None
+    device_serial: Optional[str]
+    therapy_score: TherapyScore
+    score_vs_30d_avg: Optional[float] = None
+    note: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    avg_resp_rate: Optional[float]
+    avg_tidal_vol: Optional[float]
+    avg_min_vent: Optional[float]
+    avg_snore: Optional[float]
+    avg_flow_lim: Optional[float]
+    avg_spo2: Optional[float]
+    min_spo2: Optional[float]
+    therapy_mode: Optional[str]
+    mask_type: Optional[str]
+    humidity_level: Optional[int]
+    temperature_c: Optional[float]
+
+
+class TagInsight(BaseModel):
+    tag: str
+    night_count: int
+    avg_ahi: Optional[float]
+    baseline_avg_ahi: Optional[float]
+    delta_ahi: Optional[float]
 
 
 class EventRecord(BaseModel):

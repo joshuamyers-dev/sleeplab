@@ -17,6 +17,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from db import (
+    clear_session_waveform,
     get_conn,
     get_session_db_id,
     replace_session_events,
@@ -57,14 +58,6 @@ def _machine_tz_for_user(conn, user_id: str) -> tuple[str, ZoneInfo]:
     return zone.key, zone
 
 
-def _machine_tz_for_session(conn, session_db_id: str) -> ZoneInfo:
-    with conn.cursor() as cur:
-        cur.execute("SELECT machine_tz FROM sessions WHERE id = %s", (session_db_id,))
-        row = cur.fetchone()
-    name = row[0] if row and row[0] else None
-    return _machine_tz(name)
-
-
 def discover_session_blocks(folder: Path) -> list:
     """
     Find all valid session blocks in a folder.
@@ -80,6 +73,7 @@ def discover_session_blocks(folder: Path) -> list:
         return []
 
     by_ts_type = {}
+    brp_paths = []
     for f in files:
         parts = f.stem.split("_")
         if len(parts) != 3:
@@ -88,6 +82,8 @@ def discover_session_blocks(folder: Path) -> list:
         ts = parts[0] + parts[1]
         ftype = parts[2]
         by_ts_type[(ts, ftype)] = f
+        if ftype == "BRP":
+            brp_paths.append(f)
 
     csl_timestamps = sorted(ts for (ts, t) in by_ts_type if t == "CSL")
     pld_timestamps = sorted(ts for (ts, t) in by_ts_type if t == "PLD")
@@ -106,17 +102,16 @@ def discover_session_blocks(folder: Path) -> list:
         if matching_csl is None:
             continue
 
-        blocks.append(
-            {
-                "csl_ts": matching_csl,
-                "csl_path": by_ts_type.get((matching_csl, "CSL")),
-                "eve_path": by_ts_type.get((matching_csl, "EVE")),
-                "pld_ts": pld_ts,
-                "pld_path": by_ts_type[(pld_ts, "PLD")],
-                "brp_path": by_ts_type.get((pld_ts, "BRP")),
-                "spo2_path": by_ts_type.get((pld_ts, "SA2")) or by_ts_type.get((pld_ts, "SAD")),
-            }
-        )
+        blocks.append({
+            'csl_ts':   matching_csl,
+            'csl_path': by_ts_type.get((matching_csl, 'CSL')),
+            'eve_path': by_ts_type.get((matching_csl, 'EVE')),
+            'pld_ts':   pld_ts,
+            'pld_path': by_ts_type[(pld_ts, 'PLD')],
+            'brp_path': by_ts_type.get((pld_ts, 'BRP')),
+            'brp_paths': sorted(brp_paths),
+            'spo2_path': by_ts_type.get((pld_ts, 'SA2')) or by_ts_type.get((pld_ts, 'SAD')),
+        })
 
     return blocks
 
@@ -169,6 +164,28 @@ def derive_summary(pld_channels: dict, events: list, duration_seconds: int) -> d
     }
 
 
+def dedupe_events(events: list) -> list:
+    deduped = []
+    seen = set()
+    for onset, duration, event_type in events:
+        key = (event_type, round(float(onset), 1), None if duration is None else round(float(duration), 1))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((onset, duration, event_type))
+    return deduped
+
+
+def events_for_block(events: list, csl_start: datetime, block_start: datetime, duration_seconds: int) -> list:
+    block_end = block_start + timedelta(seconds=duration_seconds)
+    assigned = []
+    for onset, duration, event_type in events:
+        event_dt = csl_start + timedelta(seconds=onset)
+        if block_start <= event_dt <= block_end:
+            assigned.append((onset, duration, event_type))
+    return assigned
+
+
 def import_folder(folder: Path, folder_date: date, conn, user_id: str):
     blocks = discover_session_blocks(folder)
     if not blocks:
@@ -181,24 +198,14 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
         session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
 
         try:
-            existing_session_db_id = get_session_db_id(conn, user_id, session_id)
-            if existing_session_db_id:
-                backfilled = backfill_waveform_for_block(conn, existing_session_db_id, block)
-                if backfilled:
-                    conn.commit()
-                    imported += 1
-                    print(f"    BACKFILL block {block_idx} ({session_id}): waveform")
-                else:
-                    print(f"    SKIP block {block_idx} ({session_id}): already imported")
-                continue
-
             # Parse PLD (required)
             pld_header, pld_channels = parse_pld(block["pld_path"])
 
             # Parse EVE (optional — some blocks may lack it)
             events = []
-            if block["eve_path"] and block["eve_path"].exists():
-                _, events = parse_eve(block["eve_path"])
+            if block['eve_path'] and block['eve_path'].exists():
+                _, events = parse_eve(block['eve_path'])
+            events = dedupe_events(events)
 
             # Get CSL start datetime for event absolute timestamps.
             # EDF timestamps are naive local machine time; attach MACHINE_TZ so
@@ -210,6 +217,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
 
             pld_start = _localize(pld_header.start_datetime, machine_tz)
             duration_s = int(pld_header.num_records * pld_header.duration_per_record)
+            events = events_for_block(events, csl_start, pld_start, duration_s)
 
             # Parse SA2/SAD (optional)
             spo2_data = None
@@ -218,13 +226,6 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             if block["spo2_path"] and block["spo2_path"].exists():
                 spo2_header, spo2_data = parse_sa2(block["spo2_path"])
                 spo2_start = _localize(spo2_header.start_datetime, machine_tz)
-
-            waveform = None
-            waveform_header = None
-            waveform_start = None
-            if block["brp_path"] and block["brp_path"].exists():
-                waveform_header, waveform = parse_brp(block["brp_path"])
-                waveform_start = _localize(waveform_header.start_datetime, machine_tz)
 
             summary = derive_summary(pld_channels, events, duration_s)
 
@@ -252,15 +253,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
 
             if spo2_data and spo2_header:
                 replace_session_spo2(conn, session_db_id, spo2_header, spo2_data, spo2_start)
-            if waveform and waveform_header and waveform_start:
-                replace_session_waveform(
-                    conn,
-                    session_db_id,
-                    waveform_header,
-                    waveform,
-                    events,
-                    start_datetime=waveform_start,
-                )
+            replace_waveforms_for_block(conn, session_db_id, block, events, csl_start, machine_tz)
 
             conn.commit()
             imported += 1
@@ -272,29 +265,30 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
     return imported
 
 
-def backfill_waveform_for_block(conn, session_db_id: str, block: dict) -> bool:
-    """Populate event-focused BRP waveform data for an existing imported session."""
-    if not block["brp_path"] or not block["brp_path"].exists():
+def replace_waveforms_for_block(conn, session_db_id: str, block: dict, events: list, csl_start, machine_tz: ZoneInfo) -> bool:
+    """Replace BRP waveform samples for a session using every BRP segment in the folder."""
+    brp_paths = [path for path in block.get("brp_paths", []) if path and path.exists()]
+    if not brp_paths or not events:
+        clear_session_waveform(conn, session_db_id)
         return False
 
-    events = []
-    if block["eve_path"] and block["eve_path"].exists():
-        _, events = parse_eve(block["eve_path"])
-    if not events:
-        return False
+    inserted = False
+    for brp_path in brp_paths:
+        waveform_header, waveform = parse_brp(brp_path)
+        waveform_start = _localize(waveform_header.start_datetime, machine_tz)
+        replace_session_waveform(
+            conn,
+            session_db_id,
+            waveform_header,
+            waveform,
+            events,
+            start_datetime=waveform_start,
+            csl_start_datetime=csl_start,
+            delete_existing=not inserted,
+        )
+        inserted = True
 
-    waveform_header, waveform = parse_brp(block["brp_path"])
-    waveform_start = _localize(waveform_header.start_datetime, _machine_tz_for_session(conn, session_db_id))
-    replace_session_waveform(
-        conn,
-        session_db_id,
-        waveform_header,
-        waveform,
-        events,
-        start_datetime=waveform_start,
-    )
-    return True
-
+    return inserted
 
 def run_local_import(user_id: str, datalog_path: str, from_date: str | None = None) -> dict:
     """

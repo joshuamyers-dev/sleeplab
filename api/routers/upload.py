@@ -1,3 +1,4 @@
+import logging
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from ..oximeter import OximeterParseError, OximeterRecording, parse_viatom_binar
 from ..settings_store import get_timezone_settings, normalize_timezone
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 IMPORTER_SCRIPT = Path(__file__).resolve().parent.parent.parent / "importer" / "import_sessions.py"
 
@@ -71,6 +73,8 @@ class OximeterImportResponse(BaseModel):
     """Pydantic model representing aggregated results for multiple oximeter file imports.
 
     Attributes:
+        status: Overall import outcome — completed, partial, or failed.
+        message: Human-readable summary message for the import run.
         imported: Total number of files successfully imported.
         skipped: Total number of files skipped (e.g. already had SpO2 data).
         unmatched: Total number of files that could not be matched to a session.
@@ -78,6 +82,8 @@ class OximeterImportResponse(BaseModel):
         results: Detailed list of import outcomes per file.
     """
 
+    status: Literal["completed", "partial", "failed"]
+    message: str
     imported: int
     skipped: int
     unmatched: int
@@ -96,6 +102,8 @@ class ImportJobStatus:
 
     running: bool
     started_at: str | None = None
+    status: Literal["running", "completed", "failed"] = "completed"
+    message: str | None = None
 
 
 IMPORT_JOBS: dict[str, ImportJobStatus] = {}
@@ -110,16 +118,29 @@ def _mark_import_running(user_id: str) -> None:
     IMPORT_JOBS[user_id] = ImportJobStatus(
         running=True,
         started_at=datetime.now(UTC).isoformat(),
+        status="running",
+        message="Import is running.",
     )
 
 
-def _mark_import_finished(user_id: str) -> None:
+def _mark_import_finished(
+    user_id: str,
+    status: Literal["completed", "failed"] = "completed",
+    message: str | None = None,
+) -> None:
     """Mark the import job status as inactive for a specific user.
 
     Args:
         user_id: The unique user identifier.
+        status: Final job status — completed or failed.
+        message: Optional message summarising the outcome.
     """
-    IMPORT_JOBS[user_id] = ImportJobStatus(running=False, started_at=None)
+    IMPORT_JOBS[user_id] = ImportJobStatus(
+        running=False,
+        started_at=None,
+        status=status,
+        message=message,
+    )
 
 
 def _run_import(datalog_path: str, user_id: str, from_date: str | None, cleanup_dir: str | None = None) -> None:
@@ -144,9 +165,16 @@ def _run_import(datalog_path: str, user_id: str, from_date: str | None, cleanup_
         cmd.extend(["--from", from_date])
 
     try:
-        subprocess.run(cmd, cwd=str(IMPORTER_SCRIPT.parent), check=False)
+        result = subprocess.run(cmd, cwd=str(IMPORTER_SCRIPT.parent), check=False)
+        if result.returncode == 0:
+            _mark_import_finished(user_id, "completed", "Import completed.")
+        else:
+            logger.error("DATALOG import failed for user %s with exit code %s", user_id, result.returncode)
+            _mark_import_finished(user_id, "failed", "Import failed. Check the uploaded files and try again.")
+    except Exception:
+        logger.exception("DATALOG import failed for user %s", user_id)
+        _mark_import_finished(user_id, "failed", "Import failed. Check the uploaded files and try again.")
     finally:
-        _mark_import_finished(user_id)
         if cleanup_dir:
             shutil.rmtree(cleanup_dir, ignore_errors=True)
 
@@ -322,10 +350,12 @@ def get_upload_status(current_user: dict = Depends(get_current_user)):
     """
     job = IMPORT_JOBS.get(current_user["id"])
     if job is None:
-        return {"running": False, "started_at": None}
+        return {"running": False, "started_at": None, "status": "completed", "message": None}
     return {
         "running": job.running,
         "started_at": job.started_at,
+        "status": job.status,
+        "message": job.message,
     }
 
 
@@ -360,15 +390,40 @@ async def upload_oximeter_files(
             results.append(_import_oximeter_recording(db, current_user["id"], filename, recording, overwrite))
         except OximeterParseError as exc:
             results.append(OximeterImportResult(filename=filename, status="failed", message=str(exc)))
+        except Exception:
+            logger.exception("Oximeter import failed for user %s file %s", current_user["id"], filename)
+            results.append(
+                OximeterImportResult(
+                    filename=filename,
+                    status="failed",
+                    message="Could not import this oximeter file. Check the file and try again.",
+                ),
+            )
         finally:
             await upload.close()
 
     db.commit()
+    imported = sum(1 for result in results if result.status == "imported")
+    skipped = sum(1 for result in results if result.status == "skipped")
+    unmatched = sum(1 for result in results if result.status == "unmatched")
+    failed = sum(1 for result in results if result.status == "failed")
+    status: Literal["completed", "partial", "failed"]
+    if failed and imported + skipped + unmatched == 0:
+        status = "failed"
+        message = "No oximeter files could be imported."
+    elif failed:
+        status = "partial"
+        message = "Some oximeter files could not be imported."
+    else:
+        status = "completed"
+        message = "Oximeter import completed."
     return OximeterImportResponse(
-        imported=sum(1 for result in results if result.status == "imported"),
-        skipped=sum(1 for result in results if result.status == "skipped"),
-        unmatched=sum(1 for result in results if result.status == "unmatched"),
-        failed=sum(1 for result in results if result.status == "failed"),
+        status=status,
+        message=message,
+        imported=imported,
+        skipped=skipped,
+        unmatched=unmatched,
+        failed=failed,
         results=results,
     )
 

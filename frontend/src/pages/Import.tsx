@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { api } from '../api/client'
-import type { OximeterImportResponse, OximeterImportResult } from '../api/client'
+import type { OximeterImportResponse } from '../api/client'
 import { CheckCircleIcon } from '../components/icons/ChevronIcons'
+import OximeterImportSummary from '../components/OximeterImportSummary'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { collectOximeterFilesFromInput } from '../lib/oximeterFiles'
 import { Link } from 'react-router-dom'
 
 const IMPORT_SYNC_STORAGE_KEY = 'cpap-import-sync-active'
@@ -266,12 +268,11 @@ export default function Import() {
               </div>
             ) : null}
             {uploadPhase === 'complete' ? (
-              <div className="flex items-start gap-3 rounded-[20px] border border-[rgba(106,161,54,0.24)] bg-[rgba(106,161,54,0.1)] p-4 text-[var(--olive-deep)]">
-                <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="flex items-start gap-3 rounded-[20px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 text-[var(--accent)]">
                 <div className="space-y-1">
-                  <p className="text-sm font-bold">Upload complete</p>
+                  <p className="text-sm font-bold">Upload received</p>
                   <p className="text-sm font-medium text-[var(--muted-foreground)]">
-                    Your files have been uploaded successfully. Synchronization is continuing in the background.
+                    Your files were uploaded. Synchronization is continuing in the background.
                   </p>
                 </div>
               </div>
@@ -403,54 +404,6 @@ export default function Import() {
   )
 }
 
-export function OximeterImportSummary({ result }: { result: OximeterImportResponse }) {
-  const groups: Array<{ status: OximeterImportResult['status']; label: string; className: string }> = [
-    { status: 'imported', label: 'Imported', className: 'text-[var(--olive-deep)]' },
-    { status: 'skipped', label: 'Skipped', className: 'text-[var(--muted-foreground)]' },
-    { status: 'unmatched', label: 'Unmatched', className: 'text-[var(--orange-700)]' },
-    { status: 'failed', label: 'Failed', className: 'text-[var(--danger-text)]' },
-  ]
-
-  return (
-    <div className="space-y-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
-      <div className="grid grid-cols-4 gap-2 text-center text-xs">
-        <ResultCount label="Imported" value={result.imported} />
-        <ResultCount label="Skipped" value={result.skipped} />
-        <ResultCount label="Unmatched" value={result.unmatched} />
-        <ResultCount label="Failed" value={result.failed} />
-      </div>
-      {groups.map(({ status, label, className }) => {
-        const rows = result.results.filter((row) => row.status === status)
-        if (!rows.length) return null
-        return (
-          <div key={status} className="rounded-[14px] border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2">
-            <p className={`text-xs font-bold uppercase tracking-[0.14em] ${className}`}>{label}</p>
-            <div className="mt-2 space-y-1">
-              {rows.map((row) => (
-                <p key={`${row.filename}-${row.status}`} className="text-xs text-[var(--muted-foreground)]">
-                  <span className="font-bold text-[var(--foreground)]">{row.filename}</span>
-                  {' · '}
-                  {row.message}
-                  {row.sample_count != null ? ` · ${row.sample_count} samples` : ''}
-                </p>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function ResultCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-[12px] bg-[var(--surface-strong)] px-2 py-2">
-      <p className="text-lg font-bold text-[var(--foreground)]">{value}</p>
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</p>
-    </div>
-  )
-}
-
 async function collectEdfFiles(
   directoryHandle: FileSystemDirectoryHandle,
   prefix = '',
@@ -486,20 +439,6 @@ function collectEdfFilesFromInput(files: File[], rootName: string): SelectedImpo
       relativePath: getRelativePathFromInput(file, rootName),
     }))
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
-}
-
-export function collectOximeterFilesFromInput(files: File[]): File[] {
-  return files
-    .filter((file) => {
-      const lowerName = file.name.toLowerCase()
-      const lastSegment = lowerName.split(/[\\/]/).pop() ?? lowerName
-      if (!lastSegment || lastSegment.startsWith('.')) {
-        return false
-      }
-      const hasExtension = lastSegment.includes('.') && !lastSegment.startsWith('.')
-      return !hasExtension || lowerName.endsWith('.bin') || lowerName.endsWith('.dat')
-    })
-    .sort((left, right) => left.name.localeCompare(right.name))
 }
 
 function getInputRootName(files: File[]) {

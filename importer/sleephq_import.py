@@ -74,6 +74,12 @@ _MAX_DELAY = 300.0  # 5 minutes
 #: Polite pause between successive paginated API requests.
 _PAGE_DELAY = 1.5  # seconds
 
+#: Number of days per batch when walking the full history.
+_BATCH_WINDOW = 30
+
+#: Delay in seconds between history batches to avoid rate limiting.
+_BATCH_DELAY = 90.0
+
 
 def _backoff_delay(attempt: int, retry_after_header: str | None = None) -> float:
     """
@@ -152,7 +158,7 @@ def create_sleephq_client(
     last_exc: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            return _sleephq_create_client(client_id=cid, client_secret=csecret)
+            return _sleephq_create_client(client_id=cid, client_secret=csecret, scope="read")
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code not in _RETRY_STATUSES:
                 raise
@@ -318,6 +324,46 @@ def fetch_machine_dates(
             break
 
         page += 1
+
+    return all_records
+
+
+def fetch_all_machine_dates(
+    client: AuthenticatedClient,
+    machine_id: int,
+) -> list:
+    """
+    Fetch every available machine_dates record by walking backwards in
+    30-day windows with a 90-second pause between each batch.
+
+    This avoids hammering the SleepHQ API with one giant paginated
+    request when importing years of history.
+    """
+    all_records: list = []
+    to_date = date.today()
+
+    while True:
+        from_date = to_date - timedelta(days=_BATCH_WINDOW)
+
+        batch = fetch_machine_dates(
+            client,
+            machine_id=machine_id,
+            from_date=from_date,
+            to_date=to_date,
+        )
+
+        if not batch:
+            break
+
+        all_records.extend(batch)
+        print(f"  Batch complete: {len(batch)} records, {len(all_records)} total so far")
+
+        to_date = from_date - timedelta(days=1)
+        if to_date < date(2000, 1, 1):
+            break
+
+        print(f"  Waiting {_BATCH_DELAY}s before next batch…")
+        time.sleep(_BATCH_DELAY)
 
     return all_records
 
@@ -649,13 +695,19 @@ def run_sleephq_import(
 
         print(f"SleepHQ import: team={resolved_team_id} machine={resolved_machine_id} user={user_id}")
 
-        records = fetch_machine_dates(
-            client,
-            machine_id=resolved_machine_id,
-            from_date=from_date,
-            to_date=to_date,
-            days=days,
-        )
+        if from_date or to_date:
+            records = fetch_machine_dates(
+                client,
+                machine_id=resolved_machine_id,
+                from_date=from_date,
+                to_date=to_date,
+                days=days,
+            )
+        else:
+            records = fetch_all_machine_dates(
+                client,
+                machine_id=resolved_machine_id,
+            )
         print(f"  Fetched {len(records)} record(s) from SleepHQ")
 
         if not records:

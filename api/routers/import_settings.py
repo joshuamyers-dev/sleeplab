@@ -302,7 +302,6 @@ def _run_sleephq_import_task(
     client_secret: str,
     team_id: int | None,
     machine_id: int | None,
-    lookback_days: int,
 ) -> None:
     try:
         sys.path.insert(0, str(SLEEPHQ_IMPORTER.parent))
@@ -310,7 +309,6 @@ def _run_sleephq_import_task(
 
         run_sleephq_import(
             user_id=user_id,
-            days=lookback_days,
             client_id=client_id,
             client_secret=client_secret,
             team_id=team_id,
@@ -392,7 +390,6 @@ def trigger_sleephq_import(
         row["sleephq_client_secret"],
         row["sleephq_team_id"],
         row["sleephq_machine_id"],
-        row["lookback_days"],
     )
 
     return {"status": "started", "message": "SleepHQ import started."}

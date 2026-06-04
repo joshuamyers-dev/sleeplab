@@ -8,14 +8,6 @@ updates:
       prefix: "fix(deps)"
       prefix-development: "chore(deps)"
 
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "fix(deps)"
-      prefix-development: "chore(deps)"
-
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
