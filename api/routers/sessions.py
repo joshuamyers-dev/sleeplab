@@ -25,6 +25,7 @@ from ..models import (
     TagInsight,
     WaveformResponse,
 )
+from ..therapy_score import compute_therapy_score
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt  # noqa: E402
@@ -618,6 +619,8 @@ def get_session(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
+                NULL AS manufacturer,
+                TRUE AS parser_validated,
                 (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
                 COALESCE((
                     SELECT s2.tags
@@ -637,7 +640,7 @@ def get_session(
     ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
-    return SessionDetail.model_validate(dict(row))
+    return _session_detail_response(row, current_user["id"], db)
 
 
 @router.put("/{session_id}/note", response_model=SessionDetail)
@@ -1079,6 +1082,57 @@ def _reinterpret_with_timezone(value, old_zone: ZoneInfo, new_zone: ZoneInfo):
     return wall_time.replace(tzinfo=new_zone)
 
 
+def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
+    data = dict(row)
+    therapy_score = compute_therapy_score(data)
+    data["therapy_score"] = therapy_score
+    data["score_vs_30d_avg"] = _score_vs_30d_avg(
+        user_id=user_id,
+        folder_date=data["folder_date"],
+        current_score=therapy_score.total,
+        db=db,
+    )
+    data.pop("manufacturer", None)
+    data.pop("parser_validated", None)
+    return SessionDetail.model_validate(data)
+
+
+def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: Session) -> float | None:
+    rows = db.execute(
+        text("""
+            SELECT
+                folder_date,
+                SUM(duration_seconds) AS duration_seconds,
+                SUM(total_ahi_events) AS total_ahi_events,
+                AVG(avg_leak) AS avg_leak,
+                BOOL_OR(has_spo2) AS has_spo2,
+                CASE WHEN SUM(duration_seconds) > 0
+                     THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
+                     ELSE NULL END AS ahi,
+                AVG(avg_spo2) AS avg_spo2,
+                MIN(min_spo2) AS min_spo2,
+                NULL AS manufacturer,
+                TRUE AS parser_validated
+            FROM sessions
+            WHERE user_id = CAST(:uid AS uuid)
+              AND duration_seconds >= 600
+              AND folder_date >= CAST(:folder_date AS date) - INTERVAL '30 days'
+              AND folder_date < CAST(:folder_date AS date)
+            GROUP BY folder_date
+            ORDER BY folder_date
+        """),
+        {"uid": user_id, "folder_date": folder_date},
+    ).mappings().all()
+    if not rows:
+        return None
+
+    scores = [compute_therapy_score(dict(row)).total for row in rows]
+    if not scores:
+        return None
+    average = sum(scores) / len(scores)
+    return round(current_score - average, 1)
+
+
 @router.delete("/all", status_code=204)
 def delete_all_sessions(
     current_user: dict = Depends(get_current_user),
@@ -1150,7 +1204,9 @@ def get_session_by_date(
                       AND s2.tags IS NOT NULL
                     ORDER BY s2.duration_seconds DESC
                     LIMIT 1
-                ), ARRAY[]::text[]) AS tags
+                ), ARRAY[]::text[]) AS tags,
+                NULL AS manufacturer,
+                TRUE AS parser_validated
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -1160,4 +1216,4 @@ def get_session_by_date(
     ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="No session found for this date")
-    return SessionDetail.model_validate(dict(row))
+    return _session_detail_response(row, current_user["id"], db)

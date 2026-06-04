@@ -39,6 +39,9 @@ def _seed_session(
     mask_type: str | None = None,
     manufacturer: str | None = None,
     include_manufacturer: bool = False,
+    has_spo2: bool = False,
+    avg_spo2: float | None = None,
+    min_spo2: float | None = None,
 ):
     if folder_date is None:
         folder_date = date.today()
@@ -50,11 +53,13 @@ def _seed_session(
             INSERT INTO sessions (
                 id, session_id, folder_date, start_datetime, pld_start_datetime,
                 duration_seconds, device_serial, has_spo2, user_id,
-                note, tags, total_ahi_events, avg_pressure, p95_pressure, avg_leak, therapy_mode, mask_type{manufacturer_column}
+                note, tags, total_ahi_events, avg_pressure, p95_pressure, avg_leak,
+                therapy_mode, mask_type, avg_spo2, min_spo2{manufacturer_column}
             ) VALUES (
                 CAST(:sid AS uuid), :sid, :fd, :start, :start,
-                :duration_seconds, :device_serial, FALSE, CAST(:uid AS uuid),
-                :note, CAST(:tags AS text[]), :total_ahi_events, :avg_pressure, :p95_pressure, :avg_leak, :therapy_mode, :mask_type{manufacturer_value}
+                :duration_seconds, :device_serial, :has_spo2, CAST(:uid AS uuid),
+                :note, CAST(:tags AS text[]), :total_ahi_events, :avg_pressure, :p95_pressure, :avg_leak,
+                :therapy_mode, :mask_type, :avg_spo2, :min_spo2{manufacturer_value}
             )
         """),
         {
@@ -73,6 +78,9 @@ def _seed_session(
             "therapy_mode": therapy_mode,
             "mask_type": mask_type,
             "manufacturer": manufacturer,
+            "has_spo2": has_spo2,
+            "avg_spo2": avg_spo2,
+            "min_spo2": min_spo2,
         },
     )
     db.commit()
@@ -109,6 +117,31 @@ class TestGetSession:
         assert data.get("machine_tz") is None
         assert data.get("note") is None
         assert data.get("tags") == []
+        assert data["therapy_score"]["total"] == 100
+        assert data["therapy_score"]["grade"] == "A"
+        assert data["score_vs_30d_avg"] is None
+
+    def test_get_detail_includes_score_vs_30d_avg(self, client: TestClient, auth_headers, test_user, db):
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=date(2025, 1, 14),
+            total_ahi_events=80,
+            avg_leak=0.8,
+            duration_seconds=4 * 3600,
+        )
+        sid = _seed_session(
+            db,
+            test_user["id"],
+            folder_date=date(2025, 1, 15),
+            total_ahi_events=4,
+            avg_leak=0.1,
+            duration_seconds=8 * 3600,
+        )
+
+        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["score_vs_30d_avg"] is not None
 
     def test_get_detail_includes_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Tried mouth tape")
