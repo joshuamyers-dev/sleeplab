@@ -31,9 +31,35 @@ class SessionSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TherapyScoreComponent(BaseModel):
+    score: int
+    max_score: int
+    label: str
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    unavailable_reason: Optional[str] = None
+
+
+class TherapyScoreComponents(BaseModel):
+    ahi: Optional[TherapyScoreComponent] = None
+    leak: Optional[TherapyScoreComponent] = None
+    duration: Optional[TherapyScoreComponent] = None
+    spo2: Optional[TherapyScoreComponent] = None
+
+
+class TherapyScore(BaseModel):
+    total: int
+    grade: Literal["A", "B", "C", "D", "F"]
+    low_confidence: bool
+    callout: str
+    components: TherapyScoreComponents
+
+
 class SessionDetail(SessionSummary):
     pld_start_datetime: datetime
     device_serial: Optional[str]
+    therapy_score: TherapyScore
+    score_vs_30d_avg: Optional[float] = None
     note: str | None = None
     tags: list[str] = Field(default_factory=list)
     avg_resp_rate: Optional[float]
