@@ -1097,7 +1097,7 @@ def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
     return SessionDetail.model_validate(data)
 
 
-def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: Session) -> Optional[float]:
+def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: Session) -> float | None:
     rows = db.execute(
         text("""
             SELECT
