@@ -9,7 +9,18 @@
     "build": "nx build frontend",
     "docs-capture": "nx run frontend:capture:ci",
     "storybook-capture": "nx run frontend:build-storybook && nx run frontend:capture:stories:ci",
-    "storybook-capture:no-build": "nx run frontend:capture:stories:ci"
+    "storybook-capture:no-build": "nx run frontend:capture:stories:ci",
+    "lint": "nx lint frontend",
+    "test": "nx run-many --target=test --projects=api,frontend",
+    "test:frontend": "nx test frontend",
+    "typecheck": "nx typecheck frontend",
+    "check:workspace-lockfile": "node scripts/check-workspace-lockfile.mjs"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.1.0",
+    "@rollup/rollup-linux-x64-gnu": "4.59.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.0",
+    "lightningcss-linux-x64-gnu": "1.32.0"
   },
   "devDependencies": {
     "@nx/js": "22.7.5",
@@ -25,9 +36,9 @@
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
-    "nx": "^22.7.4",
+    "nx": "^22.7.5",
     "prettier": "~3.6.2",
-    "semantic-release": "^24.2.9",
+    "semantic-release": "^25.0.3",
     "storybook": "10.4.2",
     "ts-node": "10.9.1",
     "typescript": "~5.9.2",

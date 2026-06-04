@@ -18,10 +18,24 @@
       },
       "outputs": ["{projectRoot}/dist"]
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run lint",
+        "cwd": "frontend"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
         "command": "npm run test",
+        "cwd": "frontend"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run typecheck",
         "cwd": "frontend"
       }
     },

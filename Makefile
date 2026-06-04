@@ -73,8 +73,8 @@ test-watch: ## Run frontend tests in watch mode
 typecheck: ## Type-check the frontend with TypeScript
 	npx tsc --noEmit -p frontend/tsconfig.app.json
 
-build: ## Build the frontend for production (tsc + vite) using Nx
-	npm run build
+build: ## Build the frontend for production (tsc + vite)
+	npm run build --prefix frontend
 
 preview: ## Preview the production frontend build locally
 	npm run preview --prefix frontend

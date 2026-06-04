@@ -103,6 +103,8 @@ export default function SettingsPage() {
     if (!user) {
       return
     }
+    // Mirror the authenticated profile into editable form fields when the user changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFirstName(user.first_name)
     setLastName(user.last_name)
     setEmail(user.email)
@@ -429,7 +431,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-2xl">SleepHQ API Import (Unofficial)</CardTitle>
           <CardDescription>
-            Import your CPAP history from SleepHQ. This is a one-time historical import — it pulls your existing records into SleepLab and does not stay connected or sync automatically. You can re-run it at any time to pull in newer sessions. OAuth credentials can be found in your SleepHQ developer settings.
+            Import your CPAP history from SleepHQ. This is a one-time historical import — it pulls your existing records into SleepLab and does not stay connected or sync automatically. You can re-run it at any time to pull in newer sessions. OAuth credentials can be found in your SleepHQ developer settings. Only read scope is requested — no data is written or deleted on SleepHQ.
           </CardDescription>
         </CardHeader>
         <CardContent>
