@@ -61,6 +61,17 @@ class SessionSummary(BaseModel):
 
 
 class TherapyScoreComponent(BaseModel):
+    """Score breakdown for a single therapy metric (AHI, leak, duration, or SpO2).
+
+    Attributes:
+        score: Points earned for this component.
+        max_score: Maximum possible points for this component.
+        label: Human-readable label for the component.
+        value: The underlying metric value, or None if unavailable.
+        unit: Unit string for the value (e.g. 'events/hr', 'L/min').
+        unavailable_reason: Explanation when value is None.
+    """
+
     score: int
     max_score: int
     label: str
@@ -70,6 +81,15 @@ class TherapyScoreComponent(BaseModel):
 
 
 class TherapyScoreComponents(BaseModel):
+    """Container for all four therapy score components.
+
+    Attributes:
+        ahi: AHI component score, or None if AHI data was unavailable.
+        leak: Leak component score, or None if leak data was unavailable.
+        duration: Duration component score, or None if duration was unavailable.
+        spo2: SpO2 component score, or None if oximetry data was unavailable.
+    """
+
     ahi: Optional[TherapyScoreComponent] = None
     leak: Optional[TherapyScoreComponent] = None
     duration: Optional[TherapyScoreComponent] = None
@@ -77,6 +97,16 @@ class TherapyScoreComponents(BaseModel):
 
 
 class TherapyScore(BaseModel):
+    """Overall nightly therapy quality score (0–100) with letter grade and component breakdown.
+
+    Attributes:
+        total: Aggregate score from 0 to 100.
+        grade: Letter grade derived from total (A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, F < 60).
+        low_confidence: True when the score is less reliable (e.g. non-validated parser data).
+        callout: Human-readable sentence identifying the biggest drag on the score.
+        components: Per-metric score breakdown.
+    """
+
     total: int
     grade: Literal["A", "B", "C", "D", "F"]
     low_confidence: bool
@@ -127,6 +157,17 @@ class SessionDetail(SessionSummary):
 
 
 class TagInsight(BaseModel):
+    """Aggregated AHI comparison for nights that carry a specific user tag.
+
+    Attributes:
+        tag: The session tag value this insight applies to.
+        night_count: Number of nights with this tag in the query range.
+        avg_ahi: Mean AHI across tagged nights, or None if no data.
+        baseline_avg_ahi: Mean AHI across untagged nights, or None if no baseline.
+        delta_ahi: Difference avg_ahi - baseline_avg_ahi; negative means the tag
+            correlates with better AHI.
+    """
+
     tag: str
     night_count: int
     avg_ahi: Optional[float]

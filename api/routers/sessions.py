@@ -42,14 +42,19 @@ DATE_PARAM_RE = re.compile(r"^\d{8}$")
 
 
 class SessionTimezoneUpdate(BaseModel):
+    """Request body for updating the CPAP machine timezone on a session."""
+
     machine_tz: str
 
 
 class SessionNoteUpdate(BaseModel):
+    """Request body for setting or clearing a free-text note on a session."""
+
     note: str | None = None
 
 
 def _parse_yyyymmdd(value: str, name: str) -> date:
+    """Parse a YYYYMMDD query parameter, raising HTTP 400 on format or calendar errors."""
     if not DATE_PARAM_RE.match(value):
         raise HTTPException(status_code=400, detail=f"{name} must use YYYYMMDD format")
     try:
@@ -59,6 +64,11 @@ def _parse_yyyymmdd(value: str, name: str) -> date:
 
 
 def _session_column_exists(db: Session, column_name: str) -> bool:
+    """Return True if the named column exists on the sessions table.
+
+    Used to gate SQL that references columns added in newer migrations so the
+    app stays compatible with databases that haven't been fully migrated yet.
+    """
     return bool(db.execute(
         text("""
             SELECT EXISTS (
@@ -73,6 +83,11 @@ def _session_column_exists(db: Session, column_name: str) -> bool:
 
 
 def _manufacturer_select_expression(db: Session) -> str:
+    """Return a SQL fragment that selects the dominant manufacturer for a night.
+
+    Falls back to the literal 'Unknown' when the manufacturer column doesn't exist
+    yet (older database schema), allowing queries to run without migration.
+    """
     if _session_column_exists(db, "manufacturer"):
         return (
             "COALESCE("
@@ -85,6 +100,7 @@ def _manufacturer_select_expression(db: Session) -> str:
 
 
 def _format_date_range(start: date, end: date) -> str:
+    """Format a date range as a compact human-readable string for PDF report headers."""
     start_month = start.strftime("%b")
     end_month = end.strftime("%b")
     if start == end:
@@ -97,12 +113,14 @@ def _format_date_range(start: date, end: date) -> str:
 
 
 def _format_metric(value, suffix: str = "") -> str:
+    """Format a metric value to one decimal place with a unit suffix, or 'Unavailable' if None."""
     if value is None:
         return "Unavailable"
     return f"{float(value):.1f}{suffix}"
 
 
 def _group_contiguous_dates(dates: list[date]) -> str:
+    """Collapse a sorted list of dates into a comma-separated string of contiguous ranges."""
     if not dates:
         return "Unavailable"
     ranges: list[str] = []
@@ -118,12 +136,14 @@ def _group_contiguous_dates(dates: list[date]) -> str:
 
 
 def _format_night_range(start: date, end: date) -> str:
+    """Return 'YYYY-MM-DD' for a single night or 'YYYY-MM-DD to YYYY-MM-DD' for a span."""
     if start == end:
         return start.isoformat()
     return f"{start.isoformat()} to {end.isoformat()}"
 
 
 def _mask_device_serial(serial: str) -> str:
+    """Return the last 5 characters of the device serial prefixed with '...', for display privacy."""
     value = serial.strip()
     if len(value) <= 5:
         return f"...{value}"
@@ -131,6 +151,7 @@ def _mask_device_serial(serial: str) -> str:
 
 
 def _build_ahi_chart(nights: list[dict]) -> BytesIO:
+    """Render a 30-night AHI trend line chart as a PNG-encoded BytesIO for PDF embedding."""
     chart_buffer = BytesIO()
     chart_nights = nights[-30:]
     labels = [night["folder_date"].strftime("%m/%d") for night in chart_nights]
@@ -170,6 +191,7 @@ def _build_ahi_chart(nights: list[dict]) -> BytesIO:
 
 
 def _footer(canvas, _doc):
+    """Draw the branded header bar and page-number footer on each PDF page."""
     canvas.saveState()
     width, height = letter
     canvas.setFillColor(colors.HexColor("#4f46a5"))
@@ -184,6 +206,7 @@ def _footer(canvas, _doc):
 
 
 def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict]) -> BytesIO:
+    """Build a ReportLab PDF therapy report for the given date range and return it as a BytesIO."""
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -433,6 +456,8 @@ ALLOWED_SESSION_TAGS = {
 
 
 class SessionTagsUpdate(BaseModel):
+    """Request body for replacing the tag list on a session."""
+
     tags: list[str]
 
 
@@ -505,6 +530,7 @@ def get_tag_insights(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Return per-tag AHI averages compared to untagged nights as a baseline."""
     rows = db.execute(
         text("""
             WITH night_metric AS (
@@ -654,6 +680,7 @@ def update_session_note(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Set or clear the user note for every block on the same calendar night as this session."""
     selected = db.execute(
         text("""
             SELECT folder_date
@@ -691,6 +718,7 @@ def update_session_tags(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Replace the tag list for every block on the same calendar night; validates against the allowed tag set."""
     selected = db.execute(
         text("""
             SELECT folder_date
@@ -959,6 +987,7 @@ def get_session_breath(
 
 
 def _empty_metrics_response() -> MetricsResponse:
+    """Return an all-empty MetricsResponse for sessions that have no metrics data."""
     return MetricsResponse(
         timestamps=[],
         mask_pressure=[],
@@ -974,6 +1003,7 @@ def _empty_metrics_response() -> MetricsResponse:
 
 
 def _metrics_response(rows) -> MetricsResponse:
+    """Assemble a MetricsResponse from raw DB rows, converting Decimal values to float."""
     return MetricsResponse(
         timestamps=[r["ts"].isoformat() for r in rows],
         mask_pressure=[_f(r["mask_pressure"]) for r in rows],
@@ -1124,6 +1154,7 @@ def update_session_timezone(
 
 
 def _require_session(session_id: str, user_id: str, db: Session) -> str:
+    """Assert the session exists and belongs to user_id, returning its DB id string or raising 404."""
     row = (
         db.execute(
             text("SELECT id::text AS id FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
@@ -1143,11 +1174,18 @@ def _f(val) -> float | None:
 
 
 def _reinterpret_with_timezone(value, old_zone: ZoneInfo, new_zone: ZoneInfo):
+    """Reinterpret a timestamp's wall-clock time as if it were in new_zone instead of old_zone.
+
+    Used when correcting sessions whose machine_tz was set incorrectly: the EDF
+    records naive local time, so we preserve the clock face while swapping the
+    timezone label rather than doing a UTC-based conversion.
+    """
     wall_time = value.astimezone(old_zone).replace(tzinfo=None)
     return wall_time.replace(tzinfo=new_zone)
 
 
 def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
+    """Build a SessionDetail from a raw DB row, computing the therapy score and 30-day delta."""
     data = dict(row)
     therapy_score = compute_therapy_score(data)
     data["therapy_score"] = therapy_score
@@ -1163,6 +1201,10 @@ def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
 
 
 def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: Session) -> float | None:
+    """Return the delta between current_score and the user's mean therapy score over the prior 30 nights.
+
+    Returns None when fewer than 3 prior nights are available (insufficient baseline).
+    """
     rows = db.execute(
         text("""
             SELECT

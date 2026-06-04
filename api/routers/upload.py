@@ -27,6 +27,12 @@ IMPORTER_SCRIPT = Path(__file__).resolve().parent.parent.parent / "importer" / "
 
 @dataclass
 class UploadSession:
+    """Transient state for a multi-batch DATALOG upload.
+
+    Created on POST /datalog/start and deleted once the import background task
+    is queued via POST /datalog/{upload_id}/finish.
+    """
+
     user_id: str
     temp_root: Path
     datalog_path: Path
@@ -435,6 +441,11 @@ def _import_oximeter_recording(
     recording: OximeterRecording,
     overwrite: bool,
 ) -> OximeterImportResult:
+    """Match a parsed oximeter recording to a session by date and import its SpO2/pulse samples.
+
+    Returns a result with status 'imported', 'skipped' (already has SpO2 data and overwrite=False),
+    'unmatched' (no session found for the recording date), or 'failed' (unexpected error).
+    """
     session = (
         db.execute(
             text("""
