@@ -41,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!authTokenStore.get()) {
+      // No async auth check is needed without a token; clear the loading gate immediately.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false)
       return
     }
@@ -85,10 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * Custom hook for managing use auth.
+ * Custom hook for managing useAuth.
  *
  * @returns Object containing hook state and controls.
  */
+// AuthProvider and useAuth intentionally live together so consumers share one context boundary.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) {

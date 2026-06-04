@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 
-import type { SummaryStats } from '../api/client'
+import type { SummaryStats, TagInsight } from '../api/client'
 import { api } from '../api/client'
 import AISummaryCard from '../components/AISummaryCard'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
-import { Card, CardContent } from '../components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+
+function formatAhi(value: number | null) {
+  return value == null ? 'N/A' : value.toFixed(1)
+}
 
 /**
  * React component or element to render the insights page.
@@ -13,6 +17,7 @@ import { Card, CardContent } from '../components/ui/card'
  */
 export default function InsightsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
+  const [tagInsights, setTagInsights] = useState<TagInsight[]>([])
   const [aiConfigured, setAiConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,11 +25,13 @@ export default function InsightsPage() {
   useEffect(() => {
     async function loadSummary() {
       try {
-        const [data, settings] = await Promise.all([
+        const [data, settings, tags] = await Promise.all([
           api.getSummary(),
           api.getImportSettings(),
+          api.getTagInsights(),
         ])
         setSummary(data)
+        setTagInsights(tags)
         setAiConfigured(settings.llm_configured)
         setError(null)
       } catch (err) {
@@ -71,6 +78,57 @@ export default function InsightsPage() {
           </CardContent>
         </Card> : null}
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Tag Insights</h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Average AHI by tags used on at least two recent nights.</p>
+        </div>
+        {tagInsights.length ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {tagInsights.map((insight) => {
+              const lowerOrEqual = insight.delta_ahi == null || insight.delta_ahi <= 0
+              return (
+                <Card key={insight.tag}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center justify-between gap-3 text-base">
+                      <span>{insight.tag}</span>
+                      <span className="rounded-full bg-[var(--surface-soft)] px-2.5 py-1 text-xs font-bold text-[var(--muted-foreground)]">
+                        {insight.night_count} nights
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Tagged AHI</p>
+                        <p className="mt-1 text-2xl font-semibold text-[var(--foreground)]">{formatAhi(insight.avg_ahi)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Baseline</p>
+                        <p className="mt-1 text-2xl font-semibold text-[var(--foreground)]">{formatAhi(insight.baseline_avg_ahi)}</p>
+                      </div>
+                    </div>
+                    <div className={`rounded-[12px] px-3 py-2 text-sm font-bold ${
+                      lowerOrEqual
+                        ? 'bg-[rgba(106,161,54,0.12)] text-[var(--green-700)]'
+                        : 'bg-[var(--danger-soft)] text-[var(--danger-text)]'
+                    }`}>
+                      {lowerOrEqual ? '↓' : '↑'} {formatAhi(insight.delta_ahi == null ? null : Math.abs(insight.delta_ahi))} vs baseline
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="px-6 py-5 text-sm text-[var(--muted-foreground)]">
+              Tag at least two nights from a session detail page to see tag insights.
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <AISummaryCard enabled={summary.nights_with_data > 0} />
     </div>

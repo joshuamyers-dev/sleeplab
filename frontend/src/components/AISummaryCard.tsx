@@ -7,11 +7,11 @@ import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 
 /**
- * React component or element to render the a i summary card.
+ * React component or element to render the AI summary card.
  *
  * @returns The rendered React element.
  */
-export default function AISummaryCard({ enabled }: { enabled: boolean }) {
+export default function AISummaryCard({ enabled, caveat }: { enabled: boolean; caveat?: string }) {
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function AISummaryCard({ enabled }: { enabled: boolean }) {
   if (aiConfigured !== true) {
     return null
   }
-  return <AIInsightsCard enabled={enabled} data={data} isLoading={isLoading} onRefresh={refresh} />
+  return <AIInsightsCard enabled={enabled} data={data} isLoading={isLoading} onRefresh={refresh} caveat={caveat} />
 }
 
 /**
@@ -37,13 +37,16 @@ export function AIInsightsCard({
   data,
   isLoading,
   onRefresh,
+  caveat,
 }: {
   enabled: boolean
   data: AISummaryResponse | null
   isLoading: boolean
   onRefresh?: () => void
+  caveat?: string
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [showMobileDetails, setShowMobileDetails] = useState(false)
 
   const headline = data?.headline ?? data?.insights
 
@@ -51,9 +54,14 @@ export function AIInsightsCard({
     <Card className="overflow-hidden border-[var(--border)] bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.10),_transparent_28%),radial-gradient(circle_at_90%_18%,_rgba(106,161,54,0.10),_transparent_20%),var(--surface-strong)]">
       <CardContent className="!p-6 sm:!p-8">
         <div className="flex min-h-10 items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">AI Insights</p>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">AI Insights</p>
+            </div>
+            {caveat && (
+              <p className="pl-4 text-xs text-[var(--muted-foreground)]">{caveat}</p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <div className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-bold text-[var(--accent)]">
@@ -88,35 +96,45 @@ export function AIInsightsCard({
               </p>
             )}
 
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              <InsightColumn
-                title="Observed"
-                items={data?.high_confidence_observations ?? data?.going_well ?? []}
-                accentClass="border-[var(--accent-border)]"
-                labelClass="text-[var(--accent)]"
-              />
-              <InsightColumn
-                title="Possible"
-                items={data?.possible_patterns ?? data?.whats_not ?? []}
-                accentClass="border-[rgba(233,120,75,0.35)]"
-                labelClass="text-[var(--orange-700)]"
-              />
-              <InsightColumn
-                title="Review"
-                items={data?.things_to_review ?? data?.recommended_changes ?? []}
-                accentClass="border-[rgba(106,161,54,0.35)]"
-                labelClass="text-[var(--green-700)]"
-              />
-            </div>
+            <button
+              type="button"
+              className="mt-4 w-full rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-2 text-sm font-bold text-[var(--accent)] transition hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] md:hidden"
+              onClick={() => setShowMobileDetails((value) => !value)}
+            >
+              {showMobileDetails ? 'Hide full analysis' : 'Show full analysis'}
+            </button>
 
-            {data?.missing_or_uncertain && data.missing_or_uncertain.length > 0 && (
-              <InsightColumn
-                title="Uncertain"
-                items={data.missing_or_uncertain}
-                accentClass="mt-5 border-[var(--border)]"
-                labelClass="text-[var(--muted-foreground)]"
-              />
-            )}
+            <div className={`${showMobileDetails ? 'block' : 'hidden'} md:block`}>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <InsightColumn
+                  title="Observed"
+                  items={data?.high_confidence_observations ?? data?.going_well ?? []}
+                  accentClass="border-[var(--accent-border)]"
+                  labelClass="text-[var(--accent)]"
+                />
+                <InsightColumn
+                  title="Possible"
+                  items={data?.possible_patterns ?? data?.whats_not ?? []}
+                  accentClass="border-[rgba(233,120,75,0.35)]"
+                  labelClass="text-[var(--orange-700)]"
+                />
+                <InsightColumn
+                  title="Review"
+                  items={data?.things_to_review ?? data?.recommended_changes ?? []}
+                  accentClass="border-[rgba(106,161,54,0.35)]"
+                  labelClass="text-[var(--green-700)]"
+                />
+              </div>
+
+              {data?.missing_or_uncertain && data.missing_or_uncertain.length > 0 && (
+                <InsightColumn
+                  title="Uncertain"
+                  items={data.missing_or_uncertain}
+                  accentClass="mt-5 border-[var(--border)]"
+                  labelClass="text-[var(--muted-foreground)]"
+                />
+              )}
+            </div>
 
             <div className="mt-5 border-t border-[var(--border)] pt-4">
               <button

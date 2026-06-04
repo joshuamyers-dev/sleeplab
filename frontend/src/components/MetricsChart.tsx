@@ -34,7 +34,7 @@ export default function MetricsChart({ metrics }: Props) {
   for (let i = 0; i < rawData.length; i++) {
     const isGap = i > 0 && rawData[i].ts - rawData[i - 1].ts > GAP_THRESHOLD_MS
     if (isGap) {
-      data.push({ ts: rawData[i - 1].ts + 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any })
+      data.push({ ts: rawData[i - 1].ts + 1, pressure: null, leak: null, resp_rate: null, flow_lim: null })
       inGap = true
     }
     // Skip leading ramp-up points at minimum pressure after a gap
@@ -42,7 +42,7 @@ export default function MetricsChart({ metrics }: Props) {
       continue
     }
     if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) > MIN_PRESSURE) {
-      data.push({ ts: rawData[i].ts - 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any })
+      data.push({ ts: rawData[i].ts - 1, pressure: null, leak: null, resp_rate: null, flow_lim: null })
       inGap = false
     }
     data.push(rawData[i])

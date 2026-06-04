@@ -284,6 +284,27 @@ Default local URLs:
 - Frontend: `http://127.0.0.1:5173`
 - API: `http://127.0.0.1:8000`
 
+## Development Commands
+
+Run these from the repository root:
+
+| Command | Checks |
+|---|---|
+| `npm run build` | Builds the frontend with TypeScript and Vite through Nx. |
+| `npm run lint` | Runs the frontend ESLint check through Nx. |
+| `npm run test` | Runs the existing backend and frontend test targets through Nx. |
+| `npm run typecheck` | Runs the frontend TypeScript check through Nx. |
+| `npm run test:frontend` | Runs only the frontend Vitest suite through Nx. |
+
+Run these from the root with npm workspace targeting:
+
+| Command | Checks |
+|---|---|
+| `npm run build -w frontend` | Builds the frontend directly from the frontend workspace. |
+| `npm run lint -w frontend` | Runs the frontend ESLint check directly. |
+| `npm run test -w frontend` | Runs the frontend Vitest suite directly. |
+| `npm run typecheck -w frontend` | Runs the frontend TypeScript check directly. |
+
 ## Timezones
 
 Two IANA timezone settings control how session data is interpreted and displayed.
@@ -461,8 +482,9 @@ Useful commands:
 ```bash
 npm run api
 npm run frontend
-cd frontend && npm run build
-cd frontend && npm run lint
+npm run build
+npm run lint
+npm run test
 ```
 
 Before opening a PR, make sure:
@@ -471,16 +493,6 @@ Before opening a PR, make sure:
 - lint passes for the frontend
 - any README or env changes are documented
 - self-hosting changes are reflected in [`docker-compose.yml`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/docker-compose.yml) and [`.env.selfhost.example`](/Users/joshuanissenbaum/Desktop/cpap-dashboard/.env.selfhost.example) where relevant
-
-## Useful Commands
-
-```bash
-npm run dev
-npm run api
-npm run frontend
-cd frontend && npm run build
-cd frontend && npm run lint
-```
 
 ## Notes
 
