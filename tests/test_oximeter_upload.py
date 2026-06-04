@@ -1,10 +1,12 @@
 import uuid
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from api.oximeter import build_legacy_viatom_fixture
+from api.routers import upload
 
 
 def _seed_session(db, user_id: str, start: datetime | None = None) -> str:
@@ -43,6 +45,22 @@ def _fixture(started_at: datetime | None = None) -> bytes:
     )
 
 
+def test_datalog_import_failure_records_failed_status(monkeypatch):
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(returncode=2)
+
+    user_id = str(uuid.uuid4())
+    upload.IMPORT_JOBS.clear()
+    monkeypatch.setattr(upload.subprocess, "run", fake_run)
+
+    upload._run_import("DATALOG", user_id, None)
+
+    status = upload.IMPORT_JOBS[user_id]
+    assert status.running is False
+    assert status.status == "failed"
+    assert status.message == "Import failed. Check the uploaded files and try again."
+
+
 class TestOximeterUpload:
     def test_unauthenticated(self, client: TestClient):
         resp = client.post(
@@ -63,6 +81,7 @@ class TestOximeterUpload:
 
         assert resp.status_code == 200
         data = resp.json()
+        assert data["status"] == "completed"
         assert data["imported"] == 1
         assert data["results"][0]["session_id"] == sid
         assert data["results"][0]["sample_count"] == 2
@@ -93,7 +112,9 @@ class TestOximeterUpload:
         )
 
         assert resp.status_code == 200
-        assert resp.json()["unmatched"] == 1
+        data = resp.json()
+        assert data["status"] == "completed"
+        assert data["unmatched"] == 1
         assert db.execute(text("SELECT COUNT(*) FROM session_spo2")).scalar_one() == 0
 
     def test_existing_spo2_skips_by_default_and_overwrites_when_requested(
@@ -142,3 +163,38 @@ class TestOximeterUpload:
             {"sid": sid},
         ).mappings().all()
         assert [(row["spo2"], row["pulse"]) for row in rows] == [(95, 64)]
+
+    def test_unsupported_upload_returns_failed_status(self, client: TestClient, auth_headers):
+        resp = client.post(
+            "/upload/oximeter",
+            headers=auth_headers,
+            files=[("files", ("unsupported.bin", b"not a viatom file", "application/octet-stream"))],
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "failed"
+        assert data["message"] == "No oximeter files could be imported."
+        assert data["failed"] == 1
+        assert data["results"][0]["status"] == "failed"
+        assert "Traceback" not in data["results"][0]["message"]
+
+    def test_parser_exception_returns_safe_failed_status(self, client: TestClient, auth_headers, monkeypatch):
+        def raise_parser_error(*args, **kwargs):
+            raise RuntimeError("Traceback: database password at /internal/path")
+
+        monkeypatch.setattr(upload, "parse_viatom_binary", raise_parser_error)
+
+        resp = client.post(
+            "/upload/oximeter",
+            headers=auth_headers,
+            files=[("files", ("broken.bin", b"broken", "application/octet-stream"))],
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "failed"
+        assert data["failed"] == 1
+        assert data["results"][0]["message"] == "Could not import this oximeter file. Check the file and try again."
+        assert "Traceback" not in resp.text
+        assert "database password" not in resp.text

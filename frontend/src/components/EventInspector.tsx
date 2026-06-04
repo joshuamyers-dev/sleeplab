@@ -13,7 +13,7 @@ import {
 import type { EventRecord, EventWindowResponse } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
 import { ChevronLeftIcon, ChevronRightIcon } from './icons/ChevronIcons'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 
 interface Props {
@@ -22,6 +22,7 @@ interface Props {
   windowMinutes: number
   hasPreviousEvent: boolean
   hasNextEvent: boolean
+  onClose?: () => void
   onWindowMinutesChange: (minutes: number) => void
   onPreviousEvent: () => void
   onNextEvent: () => void
@@ -155,6 +156,7 @@ export default function EventInspector({
   windowMinutes,
   hasPreviousEvent,
   hasNextEvent,
+  onClose,
   onWindowMinutesChange,
   onPreviousEvent,
   onNextEvent,
@@ -164,14 +166,32 @@ export default function EventInspector({
       <Card>
         <CardContent className="flex items-center justify-between gap-3 px-5 py-5 text-sm text-[var(--muted-foreground)]">
           <span>Loading event window...</span>
-          <WindowControls value={windowMinutes} onChange={onWindowMinutesChange} />
+          <div className="flex flex-wrap justify-end gap-2">
+            {onClose ? (
+              <Button variant="outline" size="sm" onClick={onClose}>
+                Hide inspector
+              </Button>
+            ) : null}
+            <WindowControls value={windowMinutes} onChange={onWindowMinutesChange} />
+          </div>
         </CardContent>
       </Card>
     )
   }
 
   if (!data) {
-    return null
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-3 px-5 py-5 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
+          <span>Event window data is not available for this event.</span>
+          {onClose ? (
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Hide inspector
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
+    )
   }
 
   const waveform = data.waveform.timestamps.map((ts, i) => ({
@@ -209,7 +229,7 @@ export default function EventInspector({
 
   return (
     <Card>
-      <CardHeader>
+      <div className="p-5 pb-0 sm:p-6 sm:pb-0">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>Event Inspector</CardTitle>
@@ -220,6 +240,11 @@ export default function EventInspector({
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <div className="flex flex-wrap justify-end gap-2">
+              {onClose ? (
+                <Button variant="outline" size="sm" onClick={onClose}>
+                  Hide inspector
+                </Button>
+              ) : null}
               <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-soft)] p-1">
                 <Button
                   variant="ghost"
@@ -266,7 +291,7 @@ export default function EventInspector({
             </div>
           </div>
         </div>
-      </CardHeader>
+      </div>
       <CardContent className="space-y-5">
         {waveform.length ? (
           <>

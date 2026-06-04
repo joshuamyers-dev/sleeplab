@@ -2,6 +2,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
 } from 'recharts'
+import { useState } from 'react'
 import type { MetricsResponse } from '../api/client'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
@@ -9,10 +10,20 @@ interface Props {
   metrics: MetricsResponse
 }
 
+type MetricPoint = {
+  ts: number
+  pressure: number | null
+  leak: number | null
+  resp_rate: number | null
+  flow_lim: number | null
+  snore: number | null
+  min_vent: number | null
+}
+
 export default function MetricsChartSplit({ metrics }: Props) {
   const GAP_THRESHOLD_MS = 5 * 60 * 1000
 
-  const rawData = metrics.timestamps.map((ts, i) => ({
+  const rawData: MetricPoint[] = metrics.timestamps.map((ts, i) => ({
     ts: new Date(ts).getTime(),
     pressure: metrics.pressure[i],
     leak: metrics.leak[i] != null ? metrics.leak[i]! * 1000 : null,
@@ -25,17 +36,17 @@ export default function MetricsChartSplit({ metrics }: Props) {
   const pressureVals = rawData.map(d => d.pressure).filter((p): p is number => p !== null && p > 0)
   const MIN_PRESSURE = pressureVals.length > 0 ? Math.min(...pressureVals) : 4.0
 
-  const data: typeof rawData = []
+  const data: MetricPoint[] = []
   let inGap = false
   for (let i = 0; i < rawData.length; i++) {
     const isGap = i > 0 && rawData[i].ts - rawData[i - 1].ts > GAP_THRESHOLD_MS
     if (isGap) {
-      data.push({ ts: rawData[i - 1].ts + 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any, snore: null as any, min_vent: null as any })
+      data.push({ ts: rawData[i - 1].ts + 1, pressure: null, leak: null, resp_rate: null, flow_lim: null, snore: null, min_vent: null })
       inGap = true
     }
     if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) <= MIN_PRESSURE) continue
     if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) > MIN_PRESSURE) {
-      data.push({ ts: rawData[i].ts - 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any, snore: null as any, min_vent: null as any })
+      data.push({ ts: rawData[i].ts - 1, pressure: null, leak: null, resp_rate: null, flow_lim: null, snore: null, min_vent: null })
       inGap = false
     }
     data.push(rawData[i])
@@ -53,9 +64,9 @@ export default function MetricsChartSplit({ metrics }: Props) {
   const firstTick = Math.ceil(minTs / TICK_INTERVAL_MS) * TICK_INTERVAL_MS
   for (let t = firstTick; t <= maxTs; t += TICK_INTERVAL_MS) xTicks.push(t)
 
-  function makeTicks(dataKey: string, padding: number): { domain: [number, number], ticks: number[] } {
+  function makeTicks(dataKey: keyof Omit<MetricPoint, 'ts'>, padding: number): { domain: [number, number], ticks: number[] } {
     const vals = data
-      .map(d => (d as any)[dataKey] as number | null)
+      .map(d => d[dataKey])
       .filter((v): v is number => v !== null && !isNaN(v))
     if (vals.length === 0) return { domain: [0, 10], ticks: [0, 2.5, 5, 7.5, 10] }
     const lo = Math.max(0, Math.floor(Math.min(...vals)) - padding)
@@ -73,6 +84,8 @@ export default function MetricsChartSplit({ metrics }: Props) {
     { title: 'Snore', dataKey: 'snore', stroke: '#a78bfa', unit: '', ...makeTicks('snore', 0) },
     { title: 'Min Ventilation', dataKey: 'min_vent', stroke: '#34d399', unit: 'L/min', ...makeTicks('min_vent', 1) },
   ]
+  const [activePanelKey, setActivePanelKey] = useState(panels[0].dataKey)
+  const activePanel = panels.find((panel) => panel.dataKey === activePanelKey) ?? panels[0]
 
   const commonXAxis = (
     <XAxis dataKey="ts" type="number" domain={['dataMin', 'dataMax']} scale="time"
@@ -87,35 +100,55 @@ export default function MetricsChartSplit({ metrics }: Props) {
         <CardTitle>Night Metrics</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {panels.map((panel) => (
-          <div key={panel.dataKey}>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)] mb-1">
-              {panel.title}{panel.unit ? ` (${panel.unit})` : ''}
-            </p>
-            <ResponsiveContainer width="100%" height={150}>
-              <LineChart {...commonProps}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                {commonXAxis}
-                <YAxis
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  domain={panel.domain}
-                  ticks={panel.ticks}
-                  width={36}
-                />
-                <Tooltip
-                  contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
-                  labelStyle={{ color: '#f8fafc' }}
-                  labelFormatter={(v) => fmtTs(Number(v))}
-                  formatter={(val) => [
-                    val != null ? `${(val as number).toFixed(2)} ${panel.unit}` : 'N/A',
-                    panel.title
-                  ]}
-                />
-                <Line type="monotone" dataKey={panel.dataKey} stroke={panel.stroke} dot={false} strokeWidth={1.5} connectNulls={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Night metric charts">
+          {panels.map((panel) => {
+            const selected = panel.dataKey === activePanel.dataKey
+            return (
+              <button
+                key={panel.dataKey}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls="night-metric-chart"
+                onClick={() => setActivePanelKey(panel.dataKey)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                  selected
+                    ? 'border-[var(--accent-border)] bg-[rgba(82,81,167,0.12)] text-[var(--accent)]'
+                    : 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--foreground)] shadow-sm hover:border-[var(--accent-border)] hover:text-[var(--accent)]'
+                }`}
+              >
+                {panel.title}
+              </button>
+            )
+          })}
+        </div>
+        <div id="night-metric-chart" role="tabpanel" aria-label={activePanel.title}>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            {activePanel.title}{activePanel.unit ? ` (${activePanel.unit})` : ''}
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart {...commonProps}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              {commonXAxis}
+              <YAxis
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                domain={activePanel.domain}
+                ticks={activePanel.ticks}
+                width={36}
+              />
+              <Tooltip
+                contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
+                labelStyle={{ color: '#f8fafc' }}
+                labelFormatter={(v) => fmtTs(Number(v))}
+                formatter={(val) => [
+                  val != null ? `${(val as number).toFixed(2)} ${activePanel.unit}` : 'N/A',
+                  activePanel.title
+                ]}
+              />
+              <Line type="monotone" dataKey={activePanel.dataKey} stroke={activePanel.stroke} dot={false} strokeWidth={1.5} connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )

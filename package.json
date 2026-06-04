@@ -6,7 +6,11 @@
     "api": "nx serve api",
     "frontend": "nx serve frontend",
     "dev": "nx run-many --target=serve --projects=api,frontend --parallel",
-    "build": "nx build frontend"
+    "build": "nx build frontend",
+    "lint": "nx lint frontend",
+    "test": "nx run-many --target=test --projects=api,frontend",
+    "test:frontend": "nx test frontend",
+    "typecheck": "nx typecheck frontend"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

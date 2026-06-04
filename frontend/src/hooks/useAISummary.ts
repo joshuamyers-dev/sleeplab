@@ -19,6 +19,8 @@ export function useAISummary(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
+      // Disabled summaries should synchronously clear stale AI content from the dashboard.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(null)
       setIsLoading(false)
       return
