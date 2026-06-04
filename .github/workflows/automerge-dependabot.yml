@@ -1,6 +1,8 @@
 name: Dependabot Auto-Merge
 
-on: pull_request
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 permissions:
   pull-requests: write
@@ -9,16 +11,9 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    # Only run this job if the PR was opened by Dependabot
+    # Safe check: Only run if the PR author is actually Dependabot
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      # Optional: Add conditions here if you only want to auto-merge patch/minor updates
       - name: Approve and Enable Auto-Merge
         run: |
           gh pr review --approve "$PR_URL"
