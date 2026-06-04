@@ -7,7 +7,8 @@
     "frontend": "nx serve frontend",
     "dev": "nx run-many --target=serve --projects=api,frontend --parallel",
     "build": "nx build frontend",
-    "docs-capture": "nx run frontend:capture:ci"
+    "docs-capture": "nx run frontend:capture:ci",
+    "storybook-capture": "nx run frontend:build-storybook && nx run frontend:capture:stories:ci"
   },
   "devDependencies": {
     "@nx/js": "22.7.5",

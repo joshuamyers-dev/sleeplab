@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:storybook": "vitest run -c vitest.storybook.ts",
     "capture:yaml": "node ../scripts/capture-yaml.js",
-    "capture:ci": "start-server-and-test preview http://127.0.0.1:4173 capture:yaml"
+    "capture:ci": "start-server-and-test preview http://127.0.0.1:4173 capture:yaml",
+    "capture:stories": "node ../scripts/capture-stories.js",
+    "capture:stories:ci": "start-server-and-test \"npx serve storybook-static -p 6006 --no-clipboard\" http://127.0.0.1:6006 capture:stories"
   },
   "dependencies": {
     "react": "^19.2.0",
