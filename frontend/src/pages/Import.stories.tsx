@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import Import, { OximeterImportSummary } from './Import';
+import Import from './Import';
+import OximeterImportSummary from '../components/OximeterImportSummary';
 
 const meta = {
   title: 'Pages/Import',
