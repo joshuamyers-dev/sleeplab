@@ -302,14 +302,13 @@ def _run_sleephq_import_task(
     client_secret: str,
     team_id: int | None,
     machine_id: int | None,
-    lookback_days: int,
 ) -> None:
     try:
         sys.path.insert(0, str(SLEEPHQ_IMPORTER.parent))
         from sleephq_import import run_sleephq_import  # type: ignore
+
         run_sleephq_import(
             user_id=user_id,
-            days=lookback_days,
             client_id=client_id,
             client_secret=client_secret,
             team_id=team_id,
@@ -323,10 +322,12 @@ def _run_sleephq_import_task(
 
 def _run_local_import_task(user_id: str, datalog_path: str) -> None:
     from ..database import SessionLocal  # import here to avoid circular import at module load
+
     status: str
     try:
         sys.path.insert(0, str(LOCAL_IMPORTER.parent))
         from import_sessions import run_local_import  # type: ignore
+
         stats = run_local_import(user_id=user_id, datalog_path=datalog_path)
         status = f"ok: {stats['imported']} sessions across {stats['folders']} nights"
     except Exception:
@@ -356,10 +357,14 @@ def trigger_sleephq_import(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    row = db.execute(
-        text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": current_user["id"]},
-    ).mappings().first()
+    row = (
+        db.execute(
+            text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
+            {"uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
 
     if os.environ.get("SLEEPHQ_ENABLED", "false").lower() != "true":
         raise HTTPException(
@@ -385,7 +390,6 @@ def trigger_sleephq_import(
         row["sleephq_client_secret"],
         row["sleephq_team_id"],
         row["sleephq_machine_id"],
-        row["lookback_days"],
     )
 
     return {"status": "started", "message": "SleepHQ import started."}
@@ -397,10 +401,14 @@ def trigger_local_import(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    row = db.execute(
-        text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": current_user["id"]},
-    ).mappings().first()
+    row = (
+        db.execute(
+            text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
+            {"uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
 
     if row is None or not row.get("local_datalog_path"):
         raise HTTPException(
@@ -440,9 +448,13 @@ def trigger_all_local_imports(
     if not secret or x_import_secret != secret:
         raise HTTPException(status_code=403, detail="Invalid or missing X-Import-Secret header.")
 
-    rows = db.execute(
-        text("SELECT user_id, local_datalog_path FROM user_import_settings WHERE local_datalog_path IS NOT NULL"),
-    ).mappings().all()
+    rows = (
+        db.execute(
+            text("SELECT user_id, local_datalog_path FROM user_import_settings WHERE local_datalog_path IS NOT NULL"),
+        )
+        .mappings()
+        .all()
+    )
 
     triggered = 0
     for row in rows:
@@ -482,10 +494,14 @@ def webhook_per_user(
     if not secret or x_import_secret != secret:
         raise HTTPException(status_code=403, detail="Invalid or missing X-Import-Secret header.")
 
-    row = db.execute(
-        text("SELECT user_id, local_datalog_path FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": str(user_id)},
-    ).mappings().first()
+    row = (
+        db.execute(
+            text("SELECT user_id, local_datalog_path FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
+            {"uid": str(user_id)},
+        )
+        .mappings()
+        .first()
+    )
 
     if row is None:
         raise HTTPException(status_code=404, detail="User not found or no import settings configured.")
