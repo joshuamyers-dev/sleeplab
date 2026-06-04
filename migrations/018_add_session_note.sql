@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE sessions
+    ADD COLUMN IF NOT EXISTS note TEXT;
+
+COMMIT;

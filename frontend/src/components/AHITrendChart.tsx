@@ -7,6 +7,10 @@ interface Props {
   trend: DailyStat[]
 }
 
+interface AHIChartClickPayload {
+  activePayload?: Array<{ payload?: { sessionId?: unknown; date?: unknown } }>
+}
+
 export default function AHITrendChart({ trend }: Props) {
   const navigate = useNavigate()
 
@@ -25,10 +29,10 @@ export default function AHITrendChart({ trend }: Props) {
       <CardContent>
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={data} onClick={(e) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const payload = e as any
-            if (payload?.activePayload?.[0]?.payload?.sessionId) {
-              navigate(`/sessions/${payload.activePayload[0].payload.date}`)
+            const payload = e as AHIChartClickPayload
+            const point = payload.activePayload?.[0]?.payload
+            if (typeof point?.sessionId === 'string' && typeof point.date === 'string') {
+              navigate(`/sessions/${point.date}`)
             }
           }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#d8dcdd" />

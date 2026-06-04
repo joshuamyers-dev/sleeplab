@@ -139,10 +139,13 @@ function AppLayout() {
   useEffect(() => {
     const storedTheme = window.localStorage.getItem('cpap-theme')
     if (storedTheme === 'light' || storedTheme === 'dark') {
+      // Preserve the existing localStorage-driven theme initialization.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(storedTheme)
       return
     }
 
+    // Preserve the previous explicit default write path for first-time users.
     setTheme('light')
   }, [])
 
@@ -153,6 +156,8 @@ function AppLayout() {
 
   useEffect(() => {
     if (!user || isLoading) {
+      // Keep this reset synchronous so import progress never leaks after logout.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSyncing(false)
       wasSyncingRef.current = false
       window.sessionStorage.removeItem(IMPORT_SYNC_STORAGE_KEY)

@@ -28,6 +28,7 @@ def _seed_session(
     user_id: str,
     folder_date: date | None = None,
     *,
+    note: str | None = None,
     total_ahi_events: int = 16,
     avg_pressure: float | None = 10.2,
     p95_pressure: float | None = 12.4,
@@ -48,11 +49,11 @@ def _seed_session(
             INSERT INTO sessions (
                 id, session_id, folder_date, start_datetime, pld_start_datetime,
                 duration_seconds, device_serial, has_spo2, user_id,
-                total_ahi_events, avg_pressure, p95_pressure, avg_leak, therapy_mode, mask_type{manufacturer_column}
+                total_ahi_events, avg_pressure, p95_pressure, avg_leak, therapy_mode, mask_type, note{manufacturer_column}
             ) VALUES (
                 CAST(:sid AS uuid), :sid, :fd, :start, :start,
                 28800, :device_serial, FALSE, CAST(:uid AS uuid),
-                :total_ahi_events, :avg_pressure, :p95_pressure, :avg_leak, :therapy_mode, :mask_type{manufacturer_value}
+                :total_ahi_events, :avg_pressure, :p95_pressure, :avg_leak, :therapy_mode, :mask_type, :note{manufacturer_value}
             )
         """),
         {
@@ -60,6 +61,7 @@ def _seed_session(
             "fd": folder_date,
             "start": datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC),
             "uid": user_id,
+            "note": note,
             "total_ahi_events": total_ahi_events,
             "avg_pressure": avg_pressure,
             "p95_pressure": p95_pressure,
@@ -102,6 +104,13 @@ class TestGetSession:
         assert data.get("humidity_level") is None
         assert data.get("temperature_c") is None
         assert data.get("machine_tz") is None
+        assert data.get("note") is None
+
+    def test_get_detail_includes_note(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"], note="Tried mouth tape")
+        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["note"] == "Tried mouth tape"
 
     def test_get_nonexistent(self, client: TestClient, auth_headers):
         fake_id = "00000000-0000-0000-0000-000000000000"
@@ -255,3 +264,46 @@ class TestExportSessionPdf:
         assert resp.status_code == 200
         assert resp.content.startswith(b"%PDF")
         assert b"Unavailable" in resp.content
+
+
+class TestSessionNotes:
+    def test_save_note_persists(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"])
+        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "Had 2 beers"})
+        assert resp.status_code == 200
+        assert resp.json()["note"] == "Had 2 beers"
+
+        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert detail.status_code == 200
+        assert detail.json()["note"] == "Had 2 beers"
+
+    def test_update_note_replaces_existing_note(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"], note="Old mask")
+        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "New mask cushion"})
+        assert resp.status_code == 200
+        assert resp.json()["note"] == "New mask cushion"
+
+    def test_whitespace_note_clears_existing_note(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"], note="Felt congested")
+        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "   "})
+        assert resp.status_code == 200
+        assert resp.json()["note"] is None
+
+        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert detail.status_code == 200
+        assert detail.json()["note"] is None
+
+    def test_save_note_for_missing_session_returns_safe_error(self, client: TestClient, auth_headers):
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        resp = client.put(f"/sessions/{fake_id}/note", headers=auth_headers, json={"note": "Used new pillow"})
+        assert resp.status_code == 404
+        assert resp.json() == {"detail": "Session not found"}
+
+    def test_invalid_note_payload_returns_validation_error(self, client: TestClient, auth_headers, test_user, db):
+        sid = _seed_session(db, test_user["id"], note="Keep my draft server-side")
+        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": {"text": "not plain text"}})
+        assert resp.status_code == 422
+
+        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        assert detail.status_code == 200
+        assert detail.json()["note"] == "Keep my draft server-side"

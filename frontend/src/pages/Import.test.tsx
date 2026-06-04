@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { OximeterImportSummary, collectOximeterFilesFromInput } from './Import'
+import OximeterImportSummary from '../components/OximeterImportSummary'
+import { collectOximeterFilesFromInput } from '../lib/oximeterFiles'
 
 function file(name: string) {
   return new File(['data'], name, { type: 'application/octet-stream' })

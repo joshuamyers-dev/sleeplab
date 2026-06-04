@@ -9,10 +9,22 @@ interface Props {
   metrics: MetricsResponse
 }
 
+type ChartPoint = {
+  ts: number
+  pressure: number | null
+  leak: number | null
+  resp_rate: number | null
+  flow_lim: number | null
+  snore: number | null
+  min_vent: number | null
+}
+
+type ChartMetricKey = Exclude<keyof ChartPoint, 'ts'>
+
 export default function MetricsChartSplit({ metrics }: Props) {
   const GAP_THRESHOLD_MS = 5 * 60 * 1000
 
-  const rawData = metrics.timestamps.map((ts, i) => ({
+  const rawData: ChartPoint[] = metrics.timestamps.map((ts, i) => ({
     ts: new Date(ts).getTime(),
     pressure: metrics.pressure[i],
     leak: metrics.leak[i] != null ? metrics.leak[i]! * 1000 : null,
@@ -30,12 +42,12 @@ export default function MetricsChartSplit({ metrics }: Props) {
   for (let i = 0; i < rawData.length; i++) {
     const isGap = i > 0 && rawData[i].ts - rawData[i - 1].ts > GAP_THRESHOLD_MS
     if (isGap) {
-      data.push({ ts: rawData[i - 1].ts + 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any, snore: null as any, min_vent: null as any })
+      data.push({ ts: rawData[i - 1].ts + 1, pressure: null, leak: null, resp_rate: null, flow_lim: null, snore: null, min_vent: null })
       inGap = true
     }
     if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) <= MIN_PRESSURE) continue
     if (inGap && rawData[i].pressure !== null && (rawData[i].pressure ?? 0) > MIN_PRESSURE) {
-      data.push({ ts: rawData[i].ts - 1, pressure: null as any, leak: null as any, resp_rate: null as any, flow_lim: null as any, snore: null as any, min_vent: null as any })
+      data.push({ ts: rawData[i].ts - 1, pressure: null, leak: null, resp_rate: null, flow_lim: null, snore: null, min_vent: null })
       inGap = false
     }
     data.push(rawData[i])
@@ -53,9 +65,9 @@ export default function MetricsChartSplit({ metrics }: Props) {
   const firstTick = Math.ceil(minTs / TICK_INTERVAL_MS) * TICK_INTERVAL_MS
   for (let t = firstTick; t <= maxTs; t += TICK_INTERVAL_MS) xTicks.push(t)
 
-  function makeTicks(dataKey: string, padding: number): { domain: [number, number], ticks: number[] } {
+  function makeTicks(dataKey: ChartMetricKey, padding: number): { domain: [number, number], ticks: number[] } {
     const vals = data
-      .map(d => (d as any)[dataKey] as number | null)
+      .map(d => d[dataKey])
       .filter((v): v is number => v !== null && !isNaN(v))
     if (vals.length === 0) return { domain: [0, 10], ticks: [0, 2.5, 5, 7.5, 10] }
     const lo = Math.max(0, Math.floor(Math.min(...vals)) - padding)
