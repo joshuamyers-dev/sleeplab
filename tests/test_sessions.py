@@ -27,6 +27,7 @@ def _seed_session(
     db,
     user_id: str,
     folder_date: date | None = None,
+    machine_tz: str | None = None,
     note: str | None = None,
     tags: list[str] | None = None,
     duration_seconds: int = 28800,
@@ -52,12 +53,12 @@ def _seed_session(
         text(f"""
             INSERT INTO sessions (
                 id, session_id, folder_date, start_datetime, pld_start_datetime,
-                duration_seconds, device_serial, has_spo2, user_id,
+                duration_seconds, device_serial, has_spo2, machine_tz, user_id,
                 note, tags, total_ahi_events, avg_pressure, p95_pressure, avg_leak,
                 therapy_mode, mask_type, avg_spo2, min_spo2{manufacturer_column}
             ) VALUES (
                 CAST(:sid AS uuid), :sid, :fd, :start, :start,
-                :duration_seconds, :device_serial, :has_spo2, CAST(:uid AS uuid),
+                :duration_seconds, :device_serial, :has_spo2, :machine_tz, CAST(:uid AS uuid),
                 :note, CAST(:tags AS text[]), :total_ahi_events, :avg_pressure, :p95_pressure, :avg_leak,
                 :therapy_mode, :mask_type, :avg_spo2, :min_spo2{manufacturer_value}
             )
@@ -66,6 +67,7 @@ def _seed_session(
             "sid": session_id,
             "fd": folder_date,
             "start": datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC),
+            "machine_tz": machine_tz,
             "uid": user_id,
             "note": note,
             "tags": tags,
@@ -187,6 +189,15 @@ class TestGetSession:
         fake_id = "00000000-0000-0000-0000-000000000000"
         resp = client.get(f"/sessions/{fake_id}", headers=auth_headers)
         assert resp.status_code == 404
+
+    def test_get_by_date_includes_machine_timezone(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2026, 6, 1)
+        _seed_session(db, test_user["id"], folder_date=folder_date, machine_tz="America/New_York")
+
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["machine_tz"] == "America/New_York"
 
 
 class TestExportSessionPdf:

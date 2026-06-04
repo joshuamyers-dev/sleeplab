@@ -122,9 +122,9 @@ def replace_session_events(conn, session_db_id: int, events: list, csl_start: da
         return
 
     rows = []
-    for onset, duration, event_type in events:
+    for onset, duration, event_type in _dedupe_events(events):
         event_dt = csl_start + timedelta(seconds=onset)
-        rows.append((session_db_id, event_type, onset, duration if duration else None, event_dt))
+        rows.append((session_db_id, event_type, onset, duration if duration is not None else None, event_dt))
 
     sql = """
     INSERT INTO session_events (session_id, event_type, onset_seconds, duration_seconds, event_datetime)
@@ -205,6 +205,8 @@ def replace_session_waveform(
     before_seconds: int = 120,
     after_seconds: int = 180,
     start_datetime=None,
+    csl_start_datetime=None,
+    delete_existing: bool = True,
 ):
     """
     Delete existing BRP waveform rows and bulk-insert event-focused samples.
@@ -213,8 +215,8 @@ def replace_session_waveform(
     The Event Inspector only needs windows around scored events, so by default
     we store merged event windows rather than the entire night.
     """
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM session_waveform WHERE session_id = %s", (session_db_id,))
+    if delete_existing:
+        clear_session_waveform(conn, session_db_id)
 
     flow_vals = channels.get("Flow.40ms")
     pressure_vals = channels.get("Press.40ms")
@@ -233,7 +235,11 @@ def replace_session_waveform(
     epoch = dur / spr
     start = start_datetime or header.start_datetime
     total_samples = spr * header.num_records
-    windows = _merge_waveform_windows(events or [], before_seconds, after_seconds)
+    windows = _merge_waveform_windows(
+        _events_relative_to_waveform(events or [], csl_start_datetime, start),
+        before_seconds,
+        after_seconds,
+    )
     if not windows:
         return
 
@@ -258,6 +264,35 @@ def replace_session_waveform(
     sql = "INSERT INTO session_waveform (session_id, ts, flow, pressure) VALUES %s"
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, rows, page_size=5000)
+
+
+def clear_session_waveform(conn, session_db_id: int):
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM session_waveform WHERE session_id = %s", (session_db_id,))
+
+
+def _dedupe_events(events: list) -> list:
+    deduped = []
+    seen = set()
+    for onset, duration, event_type in events:
+        key = (event_type, round(float(onset), 1), None if duration is None else round(float(duration), 1))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((onset, duration, event_type))
+    return deduped
+
+
+def _events_relative_to_waveform(events: list, csl_start: datetime | None, waveform_start: datetime) -> list:
+    if csl_start is None:
+        return events
+
+    relative_events = []
+    for onset, duration, event_type in events:
+        event_dt = csl_start + timedelta(seconds=onset)
+        relative_onset = (event_dt - waveform_start).total_seconds()
+        relative_events.append((relative_onset, duration, event_type))
+    return relative_events
 
 
 def _merge_waveform_windows(events: list, before_seconds: int, after_seconds: int) -> list[tuple[float, float]]:
