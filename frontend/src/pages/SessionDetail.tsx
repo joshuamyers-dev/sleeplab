@@ -15,6 +15,7 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { getSessionNavigation, type SessionNavigation } from './sessionNavigation'
 import { SESSION_TAGS } from '../lib/constants'
 
 function fmtDate(iso: string) {
@@ -80,7 +81,7 @@ export default function SessionDetail() {
   const [spo2, setSpo2] = useState<SpO2Response | null>(null)
   const [equipment, setEquipment] = useState<InferredEquipment | null>(null)
   const [loading, setLoading] = useState(true)
-  const [prevNext, setPrevNext] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
+  const [sessionNavigation, setSessionNavigation] = useState<SessionNavigation | null>(null)
   const [wearableData, setWearableData] = useState<WearableData | null>(null)
   const [timezoneDraft, setTimezoneDraft] = useState('')
   const [timezoneMessage, setTimezoneMessage] = useState<string | null>(null)
@@ -151,14 +152,7 @@ export default function SessionDetail() {
   useEffect(() => {
     if (!session) return
     api.getSessions({ per_page: 600 }).then(all => {
-      const sorted = all
-        
-        .sort((a, b) => a.folder_date.localeCompare(b.folder_date))
-      const idx = sorted.findIndex(s => s.folder_date === sessionDate)
-      setPrevNext({
-        prev: idx > 0 ? sorted[idx - 1].folder_date : null,
-        next: idx < sorted.length - 1 ? sorted[idx + 1].folder_date : null,
-      })
+      setSessionNavigation(getSessionNavigation(all, sessionDate))
     })
   }, [session, sessionDate])
 
@@ -342,16 +336,16 @@ export default function SessionDetail() {
           <span>All nights</span>
         </Link>
         <div className="flex gap-2">
-          {prevNext.prev && (
-            <Link to={`/sessions/${prevNext.prev}`}>
+          {sessionNavigation?.previousUrl && (
+            <Link to={sessionNavigation.previousUrl}>
               <Button variant="outline" size="sm">
                 <ChevronLeftIcon className="h-4 w-4" />
                 <span>Previous night</span>
               </Button>
             </Link>
           )}
-          {prevNext.next && (
-            <Link to={`/sessions/${prevNext.next}`}>
+          {sessionNavigation?.nextUrl && (
+            <Link to={sessionNavigation.nextUrl}>
               <Button variant="outline" size="sm">
                 <span>Next night</span>
                 <ChevronRightIcon className="h-4 w-4" />
