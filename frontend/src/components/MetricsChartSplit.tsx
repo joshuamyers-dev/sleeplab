@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import { useState } from 'react'
 import type { MetricsResponse } from '../api/client'
+import { getDisplayTz } from '../lib/displayTz'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 interface Props {
@@ -53,7 +54,7 @@ export default function MetricsChartSplit({ metrics }: Props) {
   }
 
   function fmtTs(ts: number) {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
   }
 
   const TICK_INTERVAL_MS = 30 * 60 * 1000
