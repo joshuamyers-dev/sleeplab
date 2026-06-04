@@ -10,7 +10,14 @@
     "lint": "nx lint frontend",
     "test": "nx run-many --target=test --projects=api,frontend",
     "test:frontend": "nx test frontend",
-    "typecheck": "nx typecheck frontend"
+    "typecheck": "nx typecheck frontend",
+    "check:workspace-lockfile": "node scripts/check-workspace-lockfile.mjs"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.0.2",
+    "@rollup/rollup-linux-x64-gnu": "4.59.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.0",
+    "lightningcss-linux-x64-gnu": "1.32.0"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
