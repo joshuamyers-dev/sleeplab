@@ -499,7 +499,7 @@ def list_sessions(
     return [SessionSummary.model_validate(dict(r)) for r in rows]
 
 
-@router.get("/tag-insights", response_model=List[TagInsight])
+@router.get("/tag-insights", response_model=list[TagInsight])
 def get_tag_insights(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
