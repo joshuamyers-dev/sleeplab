@@ -22,7 +22,6 @@ const lightningcss =
   packages["node_modules/lightningcss"] ?? packages["frontend/node_modules/lightningcss"];
 const tailwindOxide =
   packages["node_modules/@tailwindcss/oxide"] ?? packages["frontend/node_modules/@tailwindcss/oxide"];
-const rollup = packages["node_modules/rollup"] ?? packages["frontend/node_modules/rollup"];
 
 if (!rolldown) {
   console.error("rolldown is missing from the root workspace lockfile.");
@@ -39,21 +38,11 @@ if (!tailwindOxide) {
   process.exit(1);
 }
 
-if (!rollup) {
-  console.error("rollup is missing from the root workspace lockfile.");
-  process.exit(1);
-}
-
 const requiredBindings = [
   {
     name: "@rolldown/binding-linux-x64-gnu",
     owner: "rolldown",
     dependencies: rolldown.optionalDependencies ?? {},
-  },
-  {
-    name: "@rollup/rollup-linux-x64-gnu",
-    owner: "rollup",
-    dependencies: rollup.optionalDependencies ?? {},
   },
   {
     name: "@tailwindcss/oxide-linux-x64-gnu",
@@ -74,7 +63,9 @@ for (const binding of requiredBindings) {
   }
 }
 
-for (const bindingName of Object.keys(rootOptionalDependencies)) {
+for (const bindingName of Object.keys(rootOptionalDependencies).filter((name) =>
+  name.includes("linux-x64-gnu")
+)) {
   const bindingEntries = [`node_modules/${bindingName}`, `frontend/node_modules/${bindingName}`];
 
   if (!bindingEntries.some((entry) => packages[entry])) {
