@@ -340,7 +340,9 @@ export default function EventInspector({
           </>
         ) : (
           <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-soft)] p-5 text-sm text-[var(--muted-foreground)]">
-            No BRP waveform samples are stored for this event yet. Re-import this night after running the waveform migration.
+            No BRP waveform samples were found in this event window. The event may fall between BRP segments, the
+            source archive may not include BRP data for this time, or the night may need to be re-imported after
+            migrations.
           </div>
         )}
 
