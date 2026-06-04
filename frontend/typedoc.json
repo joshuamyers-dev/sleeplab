@@ -1,0 +1,11 @@
+{
+  "entryPoints": ["src/main.tsx", "src/App.tsx", "src/api/client.ts"],
+  "out": "../docs/api/frontend",
+  "plugin": ["typedoc-plugin-markdown"],
+  "hideBreadcrumbs": true,
+  "hidePageTitle": true,
+  "entryPointStrategy": "expand",
+  "exclude": ["**/*.test.tsx", "**/setupTests.ts"],
+  "skipErrorChecking": true,
+  "readme": "none"
+}
