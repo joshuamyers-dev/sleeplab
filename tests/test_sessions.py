@@ -444,28 +444,19 @@ class TestSessionTagInsights:
         _seed_session(
             db,
             test_user["id"],
-            folder_date=today,
-            tags=["Sick"],
+            folder_date=today - timedelta(days=120),
+            tags=["Travel"],
             duration_seconds=3600,
-            total_ahi_events=5,
+            total_ahi_events=100,
         )
 
         resp = client.get("/sessions/tag-insights", headers=auth_headers)
-
         assert resp.status_code == 200
-        assert resp.json() == [
-            {
-                "tag": "Sick",
-                "night_count": 2,
-                "avg_ahi": 15.0,
-                "baseline_avg_ahi": 12.5,
-                "delta_ahi": 2.5,
-            },
-            {
-                "tag": "Travel",
-                "night_count": 2,
-                "avg_ahi": 17.5,
-                "baseline_avg_ahi": 12.5,
-                "delta_ahi": 5.0,
-            },
-        ]
+        data = resp.json()
+        assert [row["tag"] for row in data] == ["Travel"]
+
+        travel = data[0]
+        assert travel["night_count"] == 2
+        assert travel["avg_ahi"] == 15.0
+        assert travel["baseline_avg_ahi"] == 20.0
+        assert travel["delta_ahi"] == -5.0
