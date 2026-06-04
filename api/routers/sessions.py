@@ -1057,6 +1057,10 @@ def update_session_timezone(
             text("UPDATE session_spo2 SET ts = ts + :delta WHERE session_id = CAST(:id AS uuid)"),
             {"id": row["id"], "delta": delta},
         )
+        db.execute(
+            text("UPDATE session_waveform SET ts = ts + :delta WHERE session_id = CAST(:id AS uuid)"),
+            {"id": row["id"], "delta": delta},
+        )
 
     db.commit()
     return get_session(session_id=session_id, current_user=current_user, db=db)

@@ -94,9 +94,7 @@ function AppLayout() {
     }
     api.getImportSettings()
       .then((settings) => {
-        if (settings.has_display_tz) {
-          setDisplayTz(settings.display_tz)
-        }
+        setDisplayTz(settings.display_tz)
       })
       .catch(() => {})
   }, [user, isLoading])
