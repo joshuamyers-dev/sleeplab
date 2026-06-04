@@ -411,6 +411,42 @@ async function request<T>(path: string, init?: RequestInit, params?: Record<stri
   return response.json() as Promise<T>
 }
 
+async function requestBlob(path: string, params?: Record<string, string | number | boolean>) {
+  const qs = params
+    ? '?' + new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString()
+    : ''
+  const token = getStoredToken()
+
+  const response = await fetch(`${BASE}${path}${qs}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  if (response.status === 401) {
+    clearStoredToken()
+    if (path !== '/auth/me' && !path.startsWith('/auth/')) {
+      window.location.replace('/login')
+    }
+    throw new UnauthorizedError()
+  }
+
+  if (!response.ok) {
+    let message = `API ${response.status}: ${path}`
+    try {
+      const payload = await response.json()
+      if (payload?.detail) {
+        message = String(payload.detail)
+      }
+    } catch {
+      // Ignore non-JSON responses.
+    }
+    throw new Error(message)
+  }
+
+  return response.blob()
+}
+
 function get<T>(path: string, params?: Record<string, string | number | boolean>) {
   return request<T>(path, undefined, params)
 }
@@ -446,6 +482,7 @@ export const api = {
   getTrendAISummary: (force = false) => get<TrendAISummaryResponse>('/stats/trend-ai', { force }),
   getSessions: (params?: { per_page?: number; date_from?: string; date_to?: string }) =>
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
+  downloadSessionReportPdf: (from: string, to: string) => requestBlob('/sessions/export/pdf', { from, to }),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
   getTagInsights: () => get<TagInsight[]>('/sessions/tag-insights'),
