@@ -38,6 +38,7 @@ CREATE TABLE sessions (
     avg_spo2                NUMERIC(5,1),
     min_spo2                NUMERIC(5,1),
     note                    TEXT,
+    tags                    TEXT[],
     created_at              TIMESTAMPTZ DEFAULT NOW(),
     updated_at              TIMESTAMPTZ DEFAULT NOW()
 );

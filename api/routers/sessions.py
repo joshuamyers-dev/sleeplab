@@ -14,12 +14,15 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import (
+    EquipmentResponse,
     EventRecord,
     EventWindowResponse,
+    InferredEquipment,
     MetricsResponse,
     SessionDetail,
     SessionSummary,
     SpO2Response,
+    TagInsight,
     WaveformResponse,
 )
 
@@ -415,6 +418,23 @@ def export_sessions_pdf(
     )
 
 
+ALLOWED_SESSION_TAGS = {
+    "Travel",
+    "Alcohol",
+    "Sick",
+    "New mask",
+    "Mouth tape",
+    "Back sleeper",
+    "Bad sleep",
+    "Good sleep",
+    "Camping",
+}
+
+
+class SessionTagsUpdate(BaseModel):
+    tags: list[str]
+
+
 @router.get("/", response_model=list[SessionSummary])
 def list_sessions(
     page: int = Query(1, ge=1),
@@ -479,6 +499,77 @@ def list_sessions(
     return [SessionSummary.model_validate(dict(r)) for r in rows]
 
 
+@router.get("/tag-insights", response_model=List[TagInsight])
+def get_tag_insights(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        text("""
+            WITH night_metric AS (
+                SELECT
+                    user_id,
+                    folder_date,
+                    CASE
+                        WHEN SUM(duration_seconds) > 0
+                        THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
+                        ELSE NULL
+                    END AS ahi
+                FROM sessions
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND folder_date >= CURRENT_DATE - INTERVAL '90 days'
+                  AND duration_seconds >= 600
+                GROUP BY user_id, folder_date
+            ),
+            night AS (
+                SELECT
+                    night_metric.user_id,
+                    night_metric.folder_date,
+                    night_metric.ahi,
+                    COALESCE((
+                        SELECT s2.tags
+                        FROM sessions s2
+                        WHERE s2.user_id = night_metric.user_id
+                          AND s2.folder_date = night_metric.folder_date
+                          AND s2.duration_seconds >= 600
+                          AND s2.tags IS NOT NULL
+                        ORDER BY s2.duration_seconds DESC
+                        LIMIT 1
+                    ), ARRAY[]::text[]) AS tags
+                FROM night_metric
+            ),
+            baseline AS (
+                SELECT ROUND(AVG(ahi)::numeric, 2) AS baseline_avg_ahi
+                FROM night
+            ),
+            tagged AS (
+                SELECT
+                    tag,
+                    COUNT(*) AS night_count,
+                    ROUND(AVG(ahi)::numeric, 2) AS avg_ahi
+                FROM night
+                CROSS JOIN LATERAL unnest(tags) AS tag
+                GROUP BY tag
+                HAVING COUNT(*) >= 2
+            )
+            SELECT
+                tagged.tag,
+                tagged.night_count,
+                tagged.avg_ahi,
+                baseline.baseline_avg_ahi,
+                CASE
+                    WHEN tagged.avg_ahi IS NULL OR baseline.baseline_avg_ahi IS NULL THEN NULL
+                    ELSE ROUND((tagged.avg_ahi - baseline.baseline_avg_ahi)::numeric, 2)
+                END AS delta_ahi
+            FROM tagged
+            CROSS JOIN baseline
+            ORDER BY tagged.tag
+        """),
+        {"uid": current_user["id"]},
+    ).mappings().all()
+    return [TagInsight.model_validate(dict(r)) for r in rows]
+
+
 @router.get("/{session_id}", response_model=SessionDetail)
 def get_session(
     session_id: str,
@@ -527,7 +618,16 @@ def get_session(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
-                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
+                COALESCE((
+                    SELECT s2.tags
+                    FROM sessions s2
+                    JOIN night n2 ON s2.folder_date = n2.folder_date AND s2.user_id = n2.user_id
+                    WHERE s2.duration_seconds >= 600
+                      AND s2.tags IS NOT NULL
+                    ORDER BY s2.duration_seconds DESC
+                    LIMIT 1
+                ), ARRAY[]::text[]) AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
@@ -572,6 +672,46 @@ def update_session_note(
               AND folder_date = :folder_date
         """),
         {"note": note, "uid": current_user["id"], "folder_date": selected["folder_date"]},
+    )
+    db.commit()
+    return get_session(session_id=session_id, current_user=current_user, db=db)
+
+
+@router.put("/{session_id}/tags", response_model=SessionDetail)
+def update_session_tags(
+    session_id: str,
+    body: SessionTagsUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    selected = db.execute(
+        text("""
+            SELECT folder_date
+            FROM sessions
+            WHERE id::text = :id
+              AND user_id = CAST(:uid AS uuid)
+        """),
+        {"id": session_id, "uid": current_user["id"]},
+    ).mappings().first()
+    if not selected:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    tags = []
+    for tag in body.tags:
+        if tag not in ALLOWED_SESSION_TAGS:
+            raise HTTPException(status_code=422, detail=f"Invalid session tag: {tag}")
+        if tag not in tags:
+            tags.append(tag)
+
+    db.execute(
+        text("""
+            UPDATE sessions
+            SET tags = CAST(:tags AS text[]),
+                updated_at = NOW()
+            WHERE user_id = CAST(:uid AS uuid)
+              AND folder_date = :folder_date
+        """),
+        {"tags": tags, "uid": current_user["id"], "folder_date": selected["folder_date"]},
     )
     db.commit()
     return get_session(session_id=session_id, current_user=current_user, db=db)
@@ -1001,7 +1141,16 @@ def get_session_by_date(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
-                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note
+                (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
+                COALESCE((
+                    SELECT s2.tags
+                    FROM sessions s2
+                    JOIN night n2 ON s2.folder_date = n2.folder_date AND s2.user_id = n2.user_id
+                    WHERE s2.duration_seconds >= 600
+                      AND s2.tags IS NOT NULL
+                    ORDER BY s2.duration_seconds DESC
+                    LIMIT 1
+                ), ARRAY[]::text[]) AS tags
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600

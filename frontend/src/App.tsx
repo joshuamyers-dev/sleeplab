@@ -84,6 +84,7 @@ function AppLayout() {
   const [latestVersion, setLatestVersion] = useState<string | null>(null)
   const [releaseUrl, setReleaseUrl] = useState<string | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const wasSyncingRef = useRef(false)
 
@@ -159,6 +160,7 @@ function AppLayout() {
       // Keep this reset synchronous so import progress never leaks after logout.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSyncing(false)
+      setImportError(null)
       wasSyncingRef.current = false
       window.sessionStorage.removeItem(IMPORT_SYNC_STORAGE_KEY)
       return
@@ -180,10 +182,16 @@ function AppLayout() {
         const hadBeenSyncing = wasSyncingRef.current
         setIsSyncing(status.running)
         if (status.running) {
+          setImportError(null)
           wasSyncingRef.current = true
           window.sessionStorage.setItem(IMPORT_SYNC_STORAGE_KEY, 'true')
         } else {
-          if (hadBeenSyncing && user) {
+          if (status.status === 'failed' && (hadBeenSyncing || hasPendingSync)) {
+            setImportError(status.message || 'Import failed. Check the uploaded files and try again.')
+          } else {
+            setImportError(null)
+          }
+          if (hadBeenSyncing && user && status.status === 'completed') {
             notifyImportCompleted()
           }
           wasSyncingRef.current = false
@@ -409,6 +417,14 @@ function AppLayout() {
                   <p className="text-sm font-medium text-[var(--accent)]/80">
                     We are importing your sleep data, so visualisations may be out of date.
                   </p>
+                </div>
+              </div>
+            ) : null}
+            {user && !isLoading && importError ? (
+              <div className="flex items-start gap-3 rounded-[18px] border border-[rgba(176,58,46,0.28)] bg-[rgba(176,58,46,0.08)] px-4 py-3 text-[var(--danger-text)]">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold">Import failed</p>
+                  <p className="text-sm font-medium">{importError}</p>
                 </div>
               </div>
             ) : null}
