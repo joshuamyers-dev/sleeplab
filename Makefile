@@ -110,8 +110,9 @@ down: ## Stop and remove all compose services
 
 ci: lint typecheck test-backend test-frontend ## Full CI suite: lint → typecheck → test-backend → test-frontend
 
-docs-capture: build ## Orchestrates the Vite preview server and Playwright script
+docs-capture: build docs-storybook ## Capture full-page app screenshots and all Storybook story PNGs
 	npm run docs-capture
+	npm run storybook-capture:no-build
 
 storybook: ## Start the Storybook server
 	npx nx run frontend:storybook
