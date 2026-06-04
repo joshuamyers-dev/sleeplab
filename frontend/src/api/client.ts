@@ -153,6 +153,8 @@ export interface SessionSummary {
 export interface SessionDetail extends SessionSummary {
   pld_start_datetime: string
   device_serial: string | null
+  note: string | null
+  tags: string[]
   avg_resp_rate: number | null
   avg_tidal_vol: number | null
   avg_min_vent: number | null
@@ -164,6 +166,14 @@ export interface SessionDetail extends SessionSummary {
   mask_type: string | null
   humidity_level: number | null
   temperature_c: number | null
+}
+
+export interface TagInsight {
+  tag: string
+  night_count: number
+  avg_ahi: number | null
+  baseline_avg_ahi: number | null
+  delta_ahi: number | null
 }
 
 export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter'
@@ -438,6 +448,11 @@ export const api = {
     get<SessionSummary[]>('/sessions/', params as Record<string, string | number> | undefined),
   getSession: (id: string) => get<SessionDetail>(`/sessions/${id}`),
   getSessionByDate: (date: string) => get<SessionDetail>(`/sessions/by-date/${date}`),
+  getTagInsights: () => get<TagInsight[]>('/sessions/tag-insights'),
+  updateSessionNote: (id: string, note: string) =>
+    put<SessionDetail>(`/sessions/${id}/note`, { note }),
+  updateSessionTags: (id: string, tags: string[]) =>
+    put<SessionDetail>(`/sessions/${id}/tags`, { tags }),
   updateSessionTimezone: (id: string, machineTz: string) =>
     put<SessionDetail>(`/sessions/${id}/timezone`, { machine_tz: machineTz }),
   getEvents: (id: string) => get<EventRecord[]>(`/sessions/${id}/events`),
