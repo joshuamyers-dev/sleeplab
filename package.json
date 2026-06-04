@@ -10,7 +10,11 @@
     "lint": "nx lint frontend",
     "test": "nx run-many --target=test --projects=api,frontend",
     "test:frontend": "nx test frontend",
-    "typecheck": "nx typecheck frontend"
+    "typecheck": "nx typecheck frontend",
+    "check:workspace-lockfile": "node scripts/check-workspace-lockfile.mjs"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.0.2"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
