@@ -467,6 +467,7 @@ export interface ImportSettings {
   evaluation_period_days: number
   window_evaluation_logic: string
   maintenance_lookback_days: number
+  adherence_enabled: boolean
 }
 
 /**

@@ -1070,7 +1070,12 @@ export default function TrendsPage() {
   const [metricKey, setMetricKey] = useState<MetricKey>('ahi')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
   const metric = getMetric(metricKey)
+
+  useEffect(() => {
+    api.getImportSettings().then((s) => setAdherenceEnabled(s.adherence_enabled ?? true)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     async function loadTrends() {
@@ -1139,7 +1144,7 @@ export default function TrendsPage() {
         </Card>
       </div>
 
-      <AdherenceCard days={rangeDays} />
+      {adherenceEnabled && <AdherenceCard days={rangeDays} />}
 
       <Card>
         <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">

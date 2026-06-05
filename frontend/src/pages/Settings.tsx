@@ -104,7 +104,8 @@ export default function SettingsPage() {
   const [wearableError, setWearableError] = useState<string | null>(null)
   const [isWearableSubmitting, setIsWearableSubmitting] = useState(false)
 
-  // Compliance settings
+  // Adherence settings
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
   const [usageThresholdHours, setUsageThresholdHours] = useState(4.0)
   const [borderlineThresholdHours, setBorderlineThresholdHours] = useState<number | null>(null)
   const [targetAdherencePct, setTargetAdherencePct] = useState(70.0)
@@ -149,6 +150,7 @@ export default function SettingsPage() {
       setLlmModel(settings.llm_model ?? '')
       setLlmApiKeySaved(settings.has_llm_api_key)
       // wearable_api_key is always null from server — leave blank
+      setAdherenceEnabled(settings.adherence_enabled ?? true)
       setUsageThresholdHours(settings.usage_threshold_hours ?? 4.0)
       setBorderlineThresholdHours(settings.borderline_threshold_hours ?? null)
       setTargetAdherencePct(settings.target_adherence_pct ?? 70.0)
@@ -327,6 +329,7 @@ export default function SettingsPage() {
     setIsComplianceSubmitting(true)
     try {
       await api.saveImportSettings({
+        adherence_enabled: adherenceEnabled,
         usage_threshold_hours: usageThresholdHours,
         borderline_threshold_hours: borderlineThresholdHours ?? null,
         target_adherence_pct: targetAdherencePct,
@@ -813,11 +816,28 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Adherence</CardTitle>
           <CardDescription>
-            Configure how therapy adherence is calculated. These settings affect the adherence report, dashboard charts, and the daily usage bar chart. Defaults follow OSCAR and standard Medicare criteria — consult your insurer or clinician for plan-specific requirements.
+            Configure how therapy adherence is calculated. These settings affect the adherence report, dashboard charts, and the daily usage bar chart.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" onSubmit={handleAdherenceSubmit}>
+            <div className="flex items-center justify-between rounded-lg border border-[var(--border)] px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">Enable adherence tracking</p>
+                <p className="text-xs text-[var(--muted-foreground)]">Show the Adherence Report button on the dashboard and include adherence data in exports.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={adherenceEnabled}
+                onClick={() => setAdherenceEnabled((v) => !v)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${adherenceEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${adherenceEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-3">
                 <Label htmlFor="usageThresholdHours">Usage threshold (hours)</Label>

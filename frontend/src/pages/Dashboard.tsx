@@ -102,11 +102,9 @@ export default function Dashboard() {
   const [reportFrom, setReportFrom] = useState(initialReportRange.from)
   const [reportTo, setReportTo] = useState(initialReportRange.to)
   const [reportLoading, setReportLoading] = useState(false)
-  const [reportError, setReportError] = useState<string | null>(null)
-  const [adherenceReportFrom, setAdherenceReportFrom] = useState(initialReportRange.from)
-  const [adherenceReportTo, setAdherenceReportTo] = useState(initialReportRange.to)
   const [adherenceReportLoading, setAdherenceReportLoading] = useState(false)
-  const [adherenceReportError, setAdherenceReportError] = useState<string | null>(null)
+  const [reportError, setReportError] = useState<string | null>(null)
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -134,6 +132,8 @@ export default function Dashboard() {
     }
 
     void loadDashboard()
+
+    api.getImportSettings().then((s) => setAdherenceEnabled(s.adherence_enabled ?? true)).catch(() => {})
 
     function handleImportCompleted() {
       setLoading(true)
@@ -316,18 +316,18 @@ export default function Dashboard() {
   }
 
   async function handleDownloadAdherenceReport() {
-    setAdherenceReportError(null)
-    if (!adherenceReportFrom || !adherenceReportTo) {
-      setAdherenceReportError('Choose a start and end date.')
+    setReportError(null)
+    if (!reportFrom || !reportTo) {
+      setReportError('Choose a start and end date.')
       return
     }
-    if (adherenceReportTo < adherenceReportFrom) {
-      setAdherenceReportError('End date must be on or after start date.')
+    if (reportTo < reportFrom) {
+      setReportError('End date must be on or after start date.')
       return
     }
 
-    const fromCompact = compactDate(adherenceReportFrom)
-    const toCompact = compactDate(adherenceReportTo)
+    const fromCompact = compactDate(reportFrom)
+    const toCompact = compactDate(reportTo)
     setAdherenceReportLoading(true)
     try {
       const blob = await api.downloadAdherenceReportPdf(fromCompact, toCompact)
@@ -340,7 +340,7 @@ export default function Dashboard() {
       anchor.remove()
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      setAdherenceReportError(err instanceof Error ? err.message : 'Could not download report.')
+      setReportError(err instanceof Error ? err.message : 'Could not download report.')
     } finally {
       setAdherenceReportLoading(false)
     }
@@ -546,11 +546,11 @@ export default function Dashboard() {
 
       <Card className="order-5">
         <CardHeader>
-          <CardTitle>Doctor Report</CardTitle>
-          <CardDescription>Export a PDF therapy summary for a selected date range.</CardDescription>
+          <CardTitle>Export Reports</CardTitle>
+          <CardDescription>Export a PDF for a selected date range.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] mb-4">
             <div className="space-y-1.5">
               <Label htmlFor="report-from">From</Label>
               <Input
@@ -569,47 +569,19 @@ export default function Dashboard() {
                 onChange={(event) => setReportTo(event.target.value)}
               />
             </div>
-            <Button className="w-full sm:w-auto" onClick={() => void handleDownloadReport()} disabled={reportLoading}>
-              {reportLoading ? 'Downloading...' : 'Download Report'}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {adherenceEnabled && (
+              <Button onClick={() => void handleDownloadAdherenceReport()} disabled={adherenceReportLoading}>
+                {adherenceReportLoading ? 'Downloading...' : 'Adherence Report'}
+              </Button>
+            )}
+            <Button onClick={() => void handleDownloadReport()} disabled={reportLoading}>
+              {reportLoading ? 'Downloading...' : "Clinician's Report"}
             </Button>
           </div>
           {reportError && (
             <p className="mt-3 text-sm font-semibold text-[var(--danger-text)]">{reportError}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Adherence Report</CardTitle>
-          <CardDescription>Export a PDF adherence summary showing qualifying nights, streaks, and window evaluation against the configured threshold.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="adherence-from">From</Label>
-              <Input
-                id="adherence-from"
-                type="date"
-                value={adherenceReportFrom}
-                onChange={(event) => setAdherenceReportFrom(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="adherence-to">To</Label>
-              <Input
-                id="adherence-to"
-                type="date"
-                value={adherenceReportTo}
-                onChange={(event) => setAdherenceReportTo(event.target.value)}
-              />
-            </div>
-            <Button className="w-full sm:w-auto" onClick={() => void handleDownloadAdherenceReport()} disabled={adherenceReportLoading}>
-              {adherenceReportLoading ? 'Downloading...' : 'Download Report'}
-            </Button>
-          </div>
-          {adherenceReportError && (
-            <p className="mt-3 text-sm font-semibold text-[var(--danger-text)]">{adherenceReportError}</p>
           )}
         </CardContent>
       </Card>

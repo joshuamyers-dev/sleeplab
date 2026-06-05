@@ -443,8 +443,7 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
     ]
     if adherence_config is not None:
         notes.append(
-            f'Adherence is defined as \u2265 {adherence_config.usage_threshold_hours} hours of therapy use per night, '
-            f"following standard Medicare criteria."
+            f'Adherence is defined as \u2265 {adherence_config.usage_threshold_hours} hours of therapy use per night.'
         )
     if missing_equipment_details:
         notes.append("Some equipment details were not available for this device.")
@@ -711,7 +710,7 @@ def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: da
     ]))
 
     notes = [
-        f"Adherence is defined as \u2265 {config.usage_threshold_hours} hours of therapy use per night, following standard Medicare criteria.",
+        f"Adherence is defined as \u2265 {config.usage_threshold_hours} hours of therapy use per night.",
         "A night is counted as used when the device records at least 10 minutes of therapy data.",
     ]
     if len(nights) < 7:

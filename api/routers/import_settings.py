@@ -66,6 +66,7 @@ class ImportSettingsResponse(BaseModel):
     evaluation_period_days: int = 90
     window_evaluation_logic: str = "best_consecutive"
     maintenance_lookback_days: int = 90
+    adherence_enabled: bool = True
 
 
 class WebhookPayload(BaseModel):
@@ -98,6 +99,7 @@ class ImportSettingsUpdate(BaseModel):
     evaluation_period_days: int | None = None
     window_evaluation_logic: str | None = None
     maintenance_lookback_days: int | None = None
+    adherence_enabled: bool | None = None
 
 
 def _validate_local_path(raw: str) -> Path:
@@ -144,6 +146,7 @@ def get_import_settings(
         )
 
     last_at = row["last_local_import_at"]
+    adherence_enabled_val = row["adherence_enabled"] if row["adherence_enabled"] is not None else True
     return ImportSettingsResponse(
         sleephq_client_id=row["sleephq_client_id"],
         sleephq_client_secret=None,  # never expose
@@ -170,6 +173,7 @@ def get_import_settings(
         llm_api_key=None,
         has_llm_api_key=bool(row["llm_api_key"]),
         llm_configured=llm_configured,
+        adherence_enabled=adherence_enabled_val,
         **comp,
     )
 
@@ -206,7 +210,7 @@ def save_import_settings(
                      adherence_threshold_hours, adherence_borderline_hours,
                      adherence_target_pct, adherence_window_days,
                      adherence_evaluation_days, adherence_window_logic,
-                     adherence_lookback_days)
+                     adherence_lookback_days, adherence_enabled)
                 VALUES
                     (CAST(:uid AS uuid), :client_id, :client_secret,
                      :team_id, :machine_id,
@@ -218,7 +222,7 @@ def save_import_settings(
                      :adherence_threshold_hours, :adherence_borderline_hours,
                      :adherence_target_pct, :adherence_window_days,
                      :adherence_evaluation_days, :adherence_window_logic,
-                     :adherence_lookback_days)
+                     :adherence_lookback_days, :adherence_enabled)
             """),
             {
                 "uid": current_user["id"],
@@ -246,6 +250,7 @@ def save_import_settings(
                 "adherence_evaluation_days": body.evaluation_period_days if body.evaluation_period_days is not None else 90,
                 "adherence_window_logic": body.window_evaluation_logic or "best_consecutive",
                 "adherence_lookback_days": body.maintenance_lookback_days if body.maintenance_lookback_days is not None else 90,
+                "adherence_enabled": body.adherence_enabled if body.adherence_enabled is not None else True,
             },
         )
     else:
@@ -347,6 +352,10 @@ def save_import_settings(
         if "maintenance_lookback_days" in body.model_fields_set:
             set_clauses.append("adherence_lookback_days = :adherence_lookback_days")
             fields["adherence_lookback_days"] = body.maintenance_lookback_days
+
+        if "adherence_enabled" in body.model_fields_set:
+            set_clauses.append("adherence_enabled = :adherence_enabled")
+            fields["adherence_enabled"] = body.adherence_enabled
 
         db.execute(
             text(f"UPDATE user_import_settings SET {', '.join(set_clauses)} WHERE user_id = CAST(:uid AS uuid)"),
