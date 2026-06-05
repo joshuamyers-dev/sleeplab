@@ -52,6 +52,32 @@ class SessionNoteUpdate(BaseModel):
 
 
 
+def _session_column_exists(db: Session, column_name: str) -> bool:
+    return bool(db.execute(
+        text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'sessions'
+                  AND column_name = :column_name
+            )
+        """),
+        {"column_name": column_name},
+    ).scalar())
+
+
+def _manufacturer_select_expression(db: Session) -> str:
+    if _session_column_exists(db, "manufacturer"):
+        return (
+            "COALESCE("
+            "(array_agg(s.manufacturer ORDER BY s.duration_seconds DESC) "
+            "FILTER (WHERE s.manufacturer IS NOT NULL AND s.manufacturer <> ''))[1], "
+            "'Unknown'"
+            ") AS manufacturer"
+        )
+    return "'Unknown'::text AS manufacturer"
+
+
 def _format_metric(value, suffix: str = "") -> str:
     if value is None:
         return "Unavailable"
