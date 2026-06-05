@@ -11,6 +11,7 @@ from api.oximeter import (
 
 
 def test_parse_legacy_viatom_records():
+    """Test parse legacy viatom records."""
     started_at = datetime(2025, 1, 15, 22, 0, 0)
     payload = build_legacy_viatom_fixture(
         signature=0x0005,
@@ -31,6 +32,7 @@ def test_parse_legacy_viatom_records():
 
 
 def test_parse_legacy_deduplicates_double_reported_samples():
+    """Test parse legacy deduplicates double reported samples."""
     started_at = datetime(2025, 1, 15, 22, 0, 0)
     payload = build_legacy_viatom_fixture(
         signature=0x0003,
@@ -52,6 +54,7 @@ def test_parse_legacy_deduplicates_double_reported_samples():
 
 
 def test_parse_invalid_samples_as_none():
+    """Test parse invalid samples as none."""
     started_at = datetime(2025, 1, 15, 22, 0, 0)
     payload = build_legacy_viatom_fixture(
         signature=0x0005,
@@ -70,6 +73,7 @@ def test_parse_invalid_samples_as_none():
 
 
 def test_filename_timestamp_overrides_header_timestamp():
+    """Test filename timestamp overrides header timestamp."""
     payload = build_legacy_viatom_fixture(
         signature=0x0005,
         started_at=datetime(2025, 1, 15, 21, 45, 0),
@@ -83,6 +87,7 @@ def test_filename_timestamp_overrides_header_timestamp():
 
 
 def test_parse_o2ring_s_records():
+    """Test parse o2ring s records."""
     payload = build_o2ring_s_fixture(
         records=[
             (97, 61, 0),
@@ -100,6 +105,7 @@ def test_parse_o2ring_s_records():
 
 
 def test_o2ring_s_requires_filename_timestamp():
+    """Test o2ring s requires filename timestamp."""
     payload = build_o2ring_s_fixture(records=[(97, 61, 0)])
 
     with pytest.raises(OximeterParseError, match="timestamp"):

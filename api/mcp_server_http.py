@@ -65,10 +65,7 @@ def _resolve_token() -> str:
 def _get(path: str, params: dict | None = None) -> str:
     token = _resolve_token()
     if not token:
-        return (
-            "Error: no authentication configured. "
-            "Set SLEEP_LAB_API_TOKEN or SLEEP_LAB_EMAIL + SLEEP_LAB_PASSWORD."
-        )
+        return "Error: no authentication configured. Set SLEEP_LAB_API_TOKEN or SLEEP_LAB_EMAIL + SLEEP_LAB_PASSWORD."
     try:
         resp = httpx.get(
             f"{API_URL}{path}",
@@ -159,9 +156,7 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "UUID"}
-                },
+                "properties": {"session_id": {"type": "string", "description": "UUID"}},
                 "required": ["session_id"],
             },
         ),
@@ -197,9 +192,7 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "UUID"}
-                },
+                "properties": {"session_id": {"type": "string", "description": "UUID"}},
                 "required": ["session_id"],
             },
         ),
@@ -212,9 +205,7 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "days": {"type": "integer", "default": 30, "minimum": 1}
-                },
+                "properties": {"days": {"type": "integer", "default": 30, "minimum": 1}},
             },
         ),
         Tool(
@@ -298,9 +289,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     if name == "get_session_metrics":
         sid = arguments["session_id"]
-        return _text(
-            _get(f"/sessions/{sid}/metrics", {"downsample": arguments.get("downsample", 30)})
-        )
+        return _text(_get(f"/sessions/{sid}/metrics", {"downsample": arguments.get("downsample", 30)}))
 
     if name == "get_session_spo2":
         sid = arguments["session_id"]
@@ -315,10 +304,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "get_session_breath":
         sid = arguments["session_id"]
         return _text(
-            _get(f"/sessions/{sid}/breath", {
-                "offset_minutes": arguments.get("offset_minutes", 0),
-                "window_minutes": arguments.get("window_minutes", 10),
-            })
+            _get(
+                f"/sessions/{sid}/breath",
+                {
+                    "offset_minutes": arguments.get("offset_minutes", 0),
+                    "window_minutes": arguments.get("window_minutes", 10),
+                },
+            )
         )
 
     if name == "check_server_health":
@@ -339,9 +331,7 @@ sse = SseServerTransport("/messages/")
 
 
 async def handle_sse(request: Request) -> Response:
-    async with sse.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
+    async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
         await server.run(streams[0], streams[1], server.create_initialization_options())
     return Response()
 

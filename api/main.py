@@ -3,26 +3,31 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import List
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth as auth_router
+from .env import load_env
 from .routers import (
     ai_summary,
     config,
-    equipment as equipment_router,
-    import_settings as import_settings_router,
     llm,
     sessions,
     stats,
     upload,
+)
+from .routers import auth as auth_router
+from .routers import (
+    equipment as equipment_router,
+)
+from .routers import (
+    import_settings as import_settings_router,
+)
+from .routers import (
     wearable as wearable_router,
 )
-from .env import load_env
 
 load_env()
 
@@ -34,6 +39,14 @@ _release_cache: dict[str, object] = {"checked_at": 0.0, "payload": None}
 
 
 def normalize_version(version: str | None) -> str | None:
+    """Normalize a version string by removing whitespace and leading 'v' prefix.
+
+    Args:
+        version: The raw version string to normalize.
+
+    Returns:
+        The normalized version string, or None if the input is empty or invalid.
+    """
     if not version:
         return None
     normalized = version.strip()
@@ -43,6 +56,15 @@ def normalize_version(version: str | None) -> str | None:
 
 
 def parse_version_parts(version: str | None) -> tuple[int, ...] | None:
+    """Parse a normalized version string into a tuple of integers for comparison.
+
+    Args:
+        version: The normalized version string (e.g., '1.2.3').
+
+    Returns:
+        A tuple of integers (e.g., (1, 2, 3)) representing the version parts,
+        or None if the version is invalid or empty.
+    """
     normalized = normalize_version(version)
     if not normalized:
         return None
@@ -56,6 +78,16 @@ def parse_version_parts(version: str | None) -> tuple[int, ...] | None:
 
 
 def is_newer_version(candidate: str | None, current: str) -> bool:
+    """Check if a candidate version is newer than the current version.
+
+    Args:
+        candidate: The candidate version string to check.
+        current: The current version string to compare against.
+
+    Returns:
+        True if the candidate version is strictly newer than the current version,
+        False otherwise.
+    """
     candidate_parts = parse_version_parts(candidate)
     current_parts = parse_version_parts(current)
     if candidate_parts is None or current_parts is None:
@@ -64,6 +96,13 @@ def is_newer_version(candidate: str | None, current: str) -> bool:
 
 
 def get_latest_release() -> dict[str, str | None]:
+    """Fetch the latest release information from the GitHub repository API.
+
+    Uses an in-memory cache with a TTL of 6 hours to prevent rate limits.
+
+    Returns:
+        A dictionary containing the latest version and the release HTML URL.
+    """
     now = time.time()
     cached_payload = _release_cache.get("payload")
     checked_at = float(_release_cache.get("checked_at") or 0.0)
@@ -96,6 +135,14 @@ def get_latest_release() -> dict[str, str | None]:
 
 
 def get_app_version() -> str:
+    """Retrieve the application's current version.
+
+    First checks the 'SLEEPLAB_VERSION' environment variable. If empty,
+    reads and parses the local 'VERSION' file.
+
+    Returns:
+        The current version string, falling back to '0.0.0-dev' if not found.
+    """
     configured = os.environ.get("SLEEPLAB_VERSION", "").strip()
     if configured:
         return configured
@@ -116,7 +163,7 @@ def get_app_version() -> str:
 app = FastAPI(title="SleepLab API", version=get_app_version())
 
 
-def _get_allowed_origins() -> List[str]:
+def _get_allowed_origins() -> list[str]:
     configured = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
     if configured:
         if configured == "*":

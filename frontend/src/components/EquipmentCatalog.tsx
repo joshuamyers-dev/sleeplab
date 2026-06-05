@@ -6,6 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 
+/**
+ * React component or element to render the t y p e_ l a b e l s.
+ *
+ * @returns The rendered React element.
+ */
 const TYPE_LABELS: Record<EquipmentType, string> = {
   cushion: 'Cushion / Pillow',
   headgear: 'Headgear',
@@ -16,8 +21,16 @@ const TYPE_LABELS: Record<EquipmentType, string> = {
 
 const MASK_CATEGORIES = ['Nasal', 'Nasal Pillows', 'Full Face', 'Hybrid']
 
+/**
+ * Type definition for the replacement unit.
+ */
 type ReplacementUnit = 'days' | 'weeks' | 'months' | 'years'
 
+/**
+ * React component or element to render the r e p l a c e m e n t_ u n i t_ d a y s.
+ *
+ * @returns The rendered React element.
+ */
 const REPLACEMENT_UNIT_DAYS: Record<ReplacementUnit, number> = {
   days: 1,
   weeks: 7,
@@ -35,11 +48,17 @@ const DEFAULT_REPLACEMENT_DAYS: Record<EquipmentType, number> = {
   filter: 30,
 }
 
+/**
+ * Helper function for cushion days for category.
+ */
 function cushionDaysForCategory(category: string | null): number {
   if (category === 'Full Face' || category === 'Hybrid') return 30
   return 15
 }
 
+/**
+ * Helper function for replacement status.
+ */
 function replacementStatus(item: Equipment): { label: string; className: string } | null {
   if (!item.replacement_days || item.days_in_use == null) return null
   const remaining = item.replacement_days - item.days_in_use
@@ -49,15 +68,24 @@ function replacementStatus(item: Equipment): { label: string; className: string 
   return { label: `${remaining}d until replacement`, className: 'text-[var(--muted-foreground)]' }
 }
 
+/**
+ * Helper function for remaining replacement days.
+ */
 function remainingReplacementDays(item: Equipment): number | null {
   if (!item.replacement_days || item.days_in_use == null) return null
   return item.replacement_days - item.days_in_use
 }
 
+/**
+ * Helper function for equipment label.
+ */
 function equipmentLabel(item: Equipment): string {
   return [item.brand, item.model].filter(Boolean).join(' ') || TYPE_LABELS[item.equipment_type]
 }
 
+/**
+ * Helper function for reminder message.
+ */
 function reminderMessage(remaining: number): string {
   if (remaining < 0) return `${Math.abs(remaining)}d overdue`
   if (remaining === 0) return 'Due today'
@@ -65,6 +93,9 @@ function reminderMessage(remaining: number): string {
   return `Due in ${remaining}d`
 }
 
+/**
+ * Helper function for infer replacement unit.
+ */
 function inferReplacementUnit(days: number | null | undefined): ReplacementUnit {
   if (!days) return 'days'
   if (days % REPLACEMENT_UNIT_DAYS.years === 0) return 'years'
@@ -73,12 +104,20 @@ function inferReplacementUnit(days: number | null | undefined): ReplacementUnit 
   return 'days'
 }
 
+/**
+ * Helper function for replacement interval value.
+ */
 function replacementIntervalValue(days: number | null | undefined, unit: ReplacementUnit): string {
   if (!days) return ''
   const value = days / REPLACEMENT_UNIT_DAYS[unit]
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
 }
 
+/**
+ * React component or element to render the e m p t y_ f o r m.
+ *
+ * @returns The rendered React element.
+ */
 const EMPTY_FORM: EquipmentCreate = {
   equipment_type: 'cushion',
   start_date: new Date().toISOString().slice(0, 10),
@@ -89,6 +128,11 @@ const EMPTY_FORM: EquipmentCreate = {
   notes: null,
 }
 
+/**
+ * React component or element to render the equipment catalog.
+ *
+ * @returns The rendered React element.
+ */
 export default function EquipmentCatalog() {
   const [items, setItems] = useState<Equipment[]>([])
   const [showForm, setShowForm] = useState(false)

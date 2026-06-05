@@ -5,6 +5,7 @@ import type { SessionSummary } from '../api/client'
 
 export type CalendarMetric = 'ahi' | 'usage' | 'leak'
 
+/** Properties and structure for the props. */
 interface Props {
   sessions: SessionSummary[]
   metric?: CalendarMetric
@@ -19,6 +20,9 @@ interface CalendarEntry {
   durationSeconds: number
 }
 
+/**
+ * Helper function for get ahi color.
+ */
 function getAhiColor(ahi: number | null): string {
   if (ahi === null) return 'var(--calendar-empty)'
   if (ahi < 5) return '#6AA136'
@@ -27,6 +31,9 @@ function getAhiColor(ahi: number | null): string {
   return '#8E3D40'
 }
 
+/**
+ * Helper function for get ahi label.
+ */
 function getAhiLabel(ahi: number | null): string {
   if (ahi === null) return 'No data'
   if (ahi < 5) return 'Normal'
@@ -129,6 +136,11 @@ function buildMonthDays(year: number, month: number, padToSixWeeks = false): (Da
   return days
 }
 
+/**
+ * React component or element to render the calendar heatmap.
+ *
+ * @returns The rendered React element.
+ */
 export default function CalendarHeatmap({ sessions, metric = 'ahi', mode = 'all', collapseOnMobile = false }: Props) {
   const navigate = useNavigate()
   const [selectedMonth, setSelectedMonth] = useState<{ year: number; month: number } | null>(null)

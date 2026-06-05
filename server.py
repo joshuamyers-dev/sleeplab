@@ -14,12 +14,14 @@ def run_migrations() -> None:
     baseline_migration_prefixes = {f"{index:03d}" for index in range(1, 6)}
 
     with engine.connect() as conn:
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 filename TEXT PRIMARY KEY,
                 applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
-        """))
+        """)
+        )
         conn.commit()
 
         applied_count = conn.execute(text("SELECT COUNT(*) FROM schema_migrations")).scalar_one()

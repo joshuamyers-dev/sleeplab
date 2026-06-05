@@ -8,6 +8,11 @@ import { Label } from '../components/ui/label'
 import { getIsUserRegistrationDisabled } from '../config'
 import { useAuth } from '../context/AuthContext'
 
+/**
+ * React component or element to render the register.
+ *
+ * @returns The rendered React element.
+ */
 export default function Register() {
   const navigate = useNavigate()
   const { register, user, isLoading } = useAuth()

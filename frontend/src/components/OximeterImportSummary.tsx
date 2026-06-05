@@ -1,5 +1,11 @@
 import type { OximeterImportResponse, OximeterImportResult } from '../api/client'
 
+/**
+ * Displays the outcome of an oximeter import: overall status banner, per-category counts,
+ * and a per-file breakdown grouped by imported / skipped / unmatched / failed.
+ *
+ * @returns The rendered React element.
+ */
 export default function OximeterImportSummary({ result }: { result: OximeterImportResponse }) {
   const hasFailures = result.status === 'failed' || result.status === 'partial'
   const groups: Array<{ status: OximeterImportResult['status']; label: string; className: string }> = [

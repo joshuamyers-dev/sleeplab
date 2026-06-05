@@ -2,10 +2,18 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import type { WearableData } from '../api/client'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   stages: WearableData['stages']
 }
 
+/**
+ * React component or element to render the s t a g e_ l a b e l s.
+ *
+ * @returns The rendered React element.
+ */
 const STAGE_LABELS: Record<number, string> = {
   1: 'Awake',
   2: 'Light',
@@ -13,14 +21,25 @@ const STAGE_LABELS: Record<number, string> = {
   4: 'REM',
 }
 
+/**
+ * Helper function for invert stage.
+ */
 function invertStage(stage: number): number {
   return 5 - stage
 }
 
+/**
+ * Helper function for format tick.
+ */
 function formatTick(iso: unknown): string {
   return new Date(String(iso ?? '')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * React component or element to render the wearable sleep stage chart.
+ *
+ * @returns The rendered React element.
+ */
 export default function WearableSleepStageChart({ stages }: Props) {
   if (stages.length === 0) return null
 

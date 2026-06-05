@@ -66,18 +66,22 @@ def _get_adapter_for_user(user_id: str, db: Session):
         A WearableAdapter instance, or None if no provider is configured
         or the provider name is unrecognized.
     """
-    row = db.execute(
-        text("""
+    row = (
+        db.execute(
+            text("""
             SELECT wearable_provider, wearable_base_url, wearable_api_key
             FROM user_import_settings
             WHERE user_id = CAST(:uid AS uuid)
         """),
-        {"uid": user_id},
-    ).mappings().first()
+            {"uid": user_id},
+        )
+        .mappings()
+        .first()
+    )
 
     provider = (row and row["wearable_provider"]) or os.environ.get("WEARABLE_DEFAULT_PROVIDER", "")
     base_url = (row and row["wearable_base_url"]) or os.environ.get("WEARABLE_DEFAULT_BASE_URL", "")
-    api_key  = (row and row["wearable_api_key"])  or os.environ.get("WEARABLE_DEFAULT_API_KEY", "")
+    api_key = (row and row["wearable_api_key"]) or os.environ.get("WEARABLE_DEFAULT_API_KEY", "")
 
     if not provider:
         return None
@@ -203,15 +207,17 @@ def get_wearable_summary(
             hr_vals = [s.value for s in payload.hr]
             spo2_vals = [s.value for s in payload.spo2]
             stage_hours = _stages_to_hours(payload.stages)
-            results.append(WearableDailySummary(
-                date=current.isoformat(),
-                avg_hr=round(mean(hr_vals), 1) if hr_vals else None,
-                avg_spo2=round(mean(spo2_vals), 1) if spo2_vals else None,
-                awake_h=round(stage_hours[1], 2),
-                light_h=round(stage_hours[2], 2),
-                deep_h=round(stage_hours[3], 2),
-                rem_h=round(stage_hours[4], 2),
-            ))
+            results.append(
+                WearableDailySummary(
+                    date=current.isoformat(),
+                    avg_hr=round(mean(hr_vals), 1) if hr_vals else None,
+                    avg_spo2=round(mean(spo2_vals), 1) if spo2_vals else None,
+                    awake_h=round(stage_hours[1], 2),
+                    light_h=round(stage_hours[2], 2),
+                    deep_h=round(stage_hours[3], 2),
+                    rem_h=round(stage_hours[4], 2),
+                )
+            )
 
         current += timedelta(days=1)
 

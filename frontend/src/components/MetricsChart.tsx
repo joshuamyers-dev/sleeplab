@@ -6,10 +6,18 @@ import type { MetricsResponse } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   metrics: MetricsResponse
 }
 
+/**
+ * React component or element to render the metrics chart.
+ *
+ * @returns The rendered React element.
+ */
 export default function MetricsChart({ metrics }: Props) {
   const GAP_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
   const rawData = metrics.timestamps.map((ts, i) => ({

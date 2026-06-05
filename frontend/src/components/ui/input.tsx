@@ -2,6 +2,11 @@ import type { InputHTMLAttributes } from 'react'
 
 import { cn } from '../../lib/utils'
 
+/**
+ * React component to render the input.
+ *
+ * @returns The rendered React element.
+ */
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input

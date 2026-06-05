@@ -9,6 +9,11 @@ import { Label } from '../components/ui/label'
 import { useAuth } from '../context/AuthContext'
 import { setDisplayTz as applyDisplayTz } from '../lib/displayTz'
 
+/**
+ * React component or element to render the settings page.
+ *
+ * @returns The rendered React element.
+ */
 export default function SettingsPage() {
   const { user, isLoading, updateProfile } = useAuth()
   const [firstName, setFirstName] = useState('')

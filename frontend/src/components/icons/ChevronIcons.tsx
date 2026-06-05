@@ -1,5 +1,10 @@
 import type { SVGProps } from 'react'
 
+/**
+ * React component to render the chevron right icon.
+ *
+ * @returns The rendered React element.
+ */
 export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -14,6 +19,11 @@ export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the chevron left icon.
+ *
+ * @returns The rendered React element.
+ */
 export function ChevronLeftIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -28,6 +38,11 @@ export function ChevronLeftIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the home icon.
+ *
+ * @returns The rendered React element.
+ */
 export function HomeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -36,6 +51,11 @@ export function HomeIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the calendar icon.
+ *
+ * @returns The rendered React element.
+ */
 export function CalendarIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -45,6 +65,11 @@ export function CalendarIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the activity icon.
+ *
+ * @returns The rendered React element.
+ */
 export function ActivityIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -53,6 +78,11 @@ export function ActivityIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the equipment icon.
+ *
+ * @returns The rendered React element.
+ */
 export function EquipmentIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -62,6 +92,11 @@ export function EquipmentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the sparkles icon.
+ *
+ * @returns The rendered React element.
+ */
 export function SparklesIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -71,6 +106,11 @@ export function SparklesIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the sun icon.
+ *
+ * @returns The rendered React element.
+ */
 export function SunIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -80,6 +120,11 @@ export function SunIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the moon icon.
+ *
+ * @returns The rendered React element.
+ */
 export function MoonIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>
@@ -88,6 +133,11 @@ export function MoonIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * React component to render the check circle icon.
+ *
+ * @returns The rendered React element.
+ */
 export function CheckCircleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden={true} {...props}>

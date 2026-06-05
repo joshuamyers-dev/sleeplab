@@ -19,15 +19,24 @@ import { Label } from '../components/ui/label'
 import { getSessionNavigation, type SessionNavigation } from './sessionNavigation'
 import { SESSION_TAGS } from '../lib/constants'
 
+/**
+ * Helper function for fmt date.
+ */
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: getDisplayTz() })
 }
 
+/**
+ * Helper function for fmt time.
+ */
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
 
+/**
+ * Helper function for ahi badge.
+ */
 function ahiBadge(ahi: number | null): { label: string; className: string } {
   if (ahi === null) return { label: 'No data', className: 'bg-[var(--surface-soft)] text-[var(--muted-foreground)]' }
   if (ahi < 5)  return { label: 'Good night', className: 'bg-[rgba(106,161,54,0.14)] text-[var(--green-700)]' }
@@ -49,12 +58,22 @@ const EVENT_WINDOW_PRESETS: Record<number, { before: number; after: number }> = 
   5: { before: 120, after: 180 },
 }
 
+/**
+ * React component or element to render the e v e n t_ w i n d o w_ d o w n s a m p l e.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_WINDOW_DOWNSAMPLE: Record<number, number> = {
   1: 1,
   3: 2,
   5: 3,
 }
 
+/**
+ * React component or element to render the e v e n t_ c o d e s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_CODES: Record<string, string> = {
   'Central Apnea': 'CA',
   'Obstructive Apnea': 'OA',
@@ -63,6 +82,11 @@ const EVENT_CODES: Record<string, string> = {
   'Arousal': 'RE',
 }
 
+/**
+ * React component or element to render the e v e n t_ c o l o r s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_COLORS: Record<string, string> = {
   'Central Apnea': '#5251A7',
   'Obstructive Apnea': '#8E3D40',
@@ -78,6 +102,11 @@ const THERAPY_COMPONENTS: Array<{ key: keyof SessionDetailType['therapy_score'][
   { key: 'spo2', label: 'SpO2' },
 ]
 
+/**
+ * React component or element to render the session detail.
+ *
+ * @returns The rendered React element.
+ */
 export default function SessionDetail() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
@@ -727,6 +756,11 @@ export default function SessionDetail() {
   )
 }
 
+/**
+ * React component or element to render the event table.
+ *
+ * @returns The rendered React element.
+ */
 function EventTable({
   events,
   selectedEventId,

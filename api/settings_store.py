@@ -43,10 +43,14 @@ def _row_value(row: Mapping[str, object] | None, key: str) -> str | None:
 
 
 def get_user_import_settings_row(db: Session, user_id: str) -> Mapping[str, object] | None:
-    return db.execute(
-        text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
-        {"uid": user_id},
-    ).mappings().first()
+    return (
+        db.execute(
+            text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
+            {"uid": user_id},
+        )
+        .mappings()
+        .first()
+    )
 
 
 def get_timezone_settings(db: Session, user_id: str) -> dict[str, str]:

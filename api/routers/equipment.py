@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -37,16 +37,20 @@ def list_equipment(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             SELECT id::text AS id, equipment_type, start_date, replacement_days,
                    mask_category, brand, model, notes, created_at, updated_at
             FROM user_equipment
             WHERE user_id = CAST(:uid AS uuid)
             ORDER BY equipment_type, start_date DESC
         """),
-        {"uid": current_user["id"]},
-    ).mappings().all()
+            {"uid": current_user["id"]},
+        )
+        .mappings()
+        .all()
+    )
     today = date.today()
     return [_row_to_response(dict(r), today) for r in rows]
 
@@ -57,8 +61,9 @@ def create_equipment(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    row = db.execute(
-        text("""
+    row = (
+        db.execute(
+            text("""
             INSERT INTO user_equipment
                 (user_id, equipment_type, start_date, replacement_days,
                  mask_category, brand, model, notes)
@@ -68,17 +73,20 @@ def create_equipment(
             RETURNING id::text AS id, equipment_type, start_date, replacement_days,
                       mask_category, brand, model, notes, created_at, updated_at
         """),
-        {
-            "uid": current_user["id"],
-            "equipment_type": body.equipment_type,
-            "start_date": body.start_date,
-            "replacement_days": body.replacement_days,
-            "mask_category": body.mask_category,
-            "brand": body.brand,
-            "model": body.model,
-            "notes": body.notes,
-        },
-    ).mappings().first()
+            {
+                "uid": current_user["id"],
+                "equipment_type": body.equipment_type,
+                "start_date": body.start_date,
+                "replacement_days": body.replacement_days,
+                "mask_category": body.mask_category,
+                "brand": body.brand,
+                "model": body.model,
+                "notes": body.notes,
+            },
+        )
+        .mappings()
+        .first()
+    )
     db.commit()
     return _row_to_response(dict(row), date.today())
 
@@ -106,16 +114,20 @@ def update_equipment(
             set_clauses.append(f"{field} = :{field}")
             params[field] = val
 
-    row = db.execute(
-        text(f"""
+    row = (
+        db.execute(
+            text(f"""
             UPDATE user_equipment
-            SET {', '.join(set_clauses)}
+            SET {", ".join(set_clauses)}
             WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)
             RETURNING id::text AS id, equipment_type, start_date, replacement_days,
                       mask_category, brand, model, notes, created_at, updated_at
         """),
-        params,
-    ).mappings().first()
+            params,
+        )
+        .mappings()
+        .first()
+    )
     db.commit()
     return _row_to_response(dict(row), date.today())
 
@@ -147,8 +159,9 @@ def get_inferred_equipment(
     result: dict = {"cushion": None, "headgear": None, "tubing": None, "humidifier_chamber": None, "filter": None}
 
     for eq_type in result:
-        row = db.execute(
-            text("""
+        row = (
+            db.execute(
+                text("""
                 SELECT id::text AS id, equipment_type, start_date, replacement_days,
                        mask_category, brand, model, notes, created_at, updated_at
                 FROM user_equipment
@@ -158,8 +171,11 @@ def get_inferred_equipment(
                 ORDER BY start_date DESC
                 LIMIT 1
             """),
-            {"uid": current_user["id"], "equipment_type": eq_type, "ref_date": ref_date},
-        ).mappings().first()
+                {"uid": current_user["id"], "equipment_type": eq_type, "ref_date": ref_date},
+            )
+            .mappings()
+            .first()
+        )
         if row:
             result[eq_type] = _row_to_response(dict(row), ref_date)
 

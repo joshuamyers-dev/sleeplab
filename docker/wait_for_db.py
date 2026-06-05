@@ -3,7 +3,6 @@ import time
 
 from sqlalchemy import create_engine, text
 
-
 database_url = os.environ["DATABASE_URL"]
 deadline = time.time() + 60
 

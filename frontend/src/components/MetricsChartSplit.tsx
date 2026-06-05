@@ -7,6 +7,9 @@ import { getDisplayTz } from '../lib/displayTz'
 import { addMetricGapBreaks, computeMetricsDomain, metricsToPoints, type MetricKey } from './metricsChartDomain'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   metrics: MetricsResponse
 }
@@ -20,6 +23,11 @@ type PanelDefinition = {
   ticks: number[]
 }
 
+/**
+ * React component or element to render the metrics chart split.
+ *
+ * @returns The rendered React element.
+ */
 export default function MetricsChartSplit({ metrics }: Props) {
   const rawData = metricsToPoints(metrics)
   const xDomain = computeMetricsDomain(rawData)

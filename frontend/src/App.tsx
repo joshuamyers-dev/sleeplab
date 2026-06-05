@@ -32,8 +32,16 @@ import {
   notifyImportCompleted,
 } from './lib/aiSummaryCache'
 
+/**
+ * Type definition for the theme mode.
+ */
 type ThemeMode = 'light' | 'dark'
 
+/**
+ * React component or element to render the protected route.
+ *
+ * @returns The rendered React element.
+ */
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
   const location = useLocation()
@@ -49,6 +57,11 @@ function ProtectedRoute({ children }: { children: ReactElement }) {
   return children
 }
 
+/**
+ * React component or element to render the root route.
+ *
+ * @returns The rendered React element.
+ */
 function RootRoute() {
   const { user, isLoading } = useAuth()
 
@@ -63,6 +76,9 @@ function RootRoute() {
   return <Navigate to="/login" replace />
 }
 
+/**
+ * Helper function for get user initials.
+ */
 function getUserInitials(firstName: string, lastName: string, email: string) {
   const firstInitial = firstName.trim().charAt(0)
   const lastInitial = lastName.trim().charAt(0)
@@ -73,6 +89,11 @@ function getUserInitials(firstName: string, lastName: string, email: string) {
   return email.trim().charAt(0).toUpperCase() || '?'
 }
 
+/**
+ * React component or element to render the app layout.
+ *
+ * @returns The rendered React element.
+ */
 function AppLayout() {
   const { user, logout, isLoading } = useAuth()
   const navigate = useNavigate()
@@ -452,6 +473,11 @@ function AppLayout() {
   )
 }
 
+/**
+ * React component or element to render the app.
+ *
+ * @returns The rendered React element.
+ */
 export default function App() {
   return (
     <BrowserRouter>

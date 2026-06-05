@@ -3,6 +3,9 @@ import { useState } from 'react'
 import type { EventRecord } from '../api/client'
 import { getDisplayTz } from '../lib/displayTz'
 
+/**
+ * Properties and structure for the props.
+ */
 interface Props {
   events: EventRecord[]
   durationSeconds: number
@@ -12,6 +15,11 @@ interface Props {
   onSelectEvent?: (event: EventRecord) => void
 }
 
+/**
+ * React component or element to render the e v e n t_ c o l o r s.
+ *
+ * @returns The rendered React element.
+ */
 const EVENT_COLORS: Record<string, string> = {
   'Central Apnea':     '#5251A7',
   'Obstructive Apnea': '#8E3D40',
@@ -20,16 +28,25 @@ const EVENT_COLORS: Record<string, string> = {
   'Arousal':           '#6AA136',
 }
 
+/**
+ * Formats a timestamp into the user's configured display timezone.
+ */
 function fmtTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
+/**
+ * Returns the best available timestamp for an event.
+ */
 function eventTimestamp(event: EventRecord, startTs: number): number {
   const ts = new Date(event.event_datetime).getTime()
   return Number.isFinite(ts) ? ts : startTs + event.onset_seconds * 1000
 }
 
+/**
+ * Renders a proportional event timeline for the current session.
+ */
 export default function EventTimeline({ events, durationSeconds, startDatetime, timeDomain, selectedEventId, onSelectEvent }: Props) {
   const [activeTooltip, setActiveTooltip] = useState<{
     eventType: string

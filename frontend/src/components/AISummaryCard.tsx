@@ -6,6 +6,11 @@ import GlossaryText from './GlossaryText'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 
+/**
+ * React component or element to render the AI summary card.
+ *
+ * @returns The rendered React element.
+ */
 export default function AISummaryCard({ enabled, caveat }: { enabled: boolean; caveat?: string }) {
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
 
@@ -22,6 +27,11 @@ export default function AISummaryCard({ enabled, caveat }: { enabled: boolean; c
   return <AIInsightsCard enabled={enabled} data={data} isLoading={isLoading} onRefresh={refresh} caveat={caveat} />
 }
 
+/**
+ * React component to render the a i insights card.
+ *
+ * @returns The rendered React element.
+ */
 export function AIInsightsCard({
   enabled,
   data,
@@ -151,6 +161,11 @@ export function AIInsightsCard({
   )
 }
 
+/**
+ * React component or element to render the insight column.
+ *
+ * @returns The rendered React element.
+ */
 function InsightColumn({
   title,
   items,

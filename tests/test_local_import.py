@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 
 def test_save_local_path_roundtrip(client, auth_headers):
+    """Test save local path roundtrip."""
     resp = client.put(
         "/import/settings",
         json={"local_datalog_path": "/data/DATALOG"},
@@ -14,6 +15,7 @@ def test_save_local_path_roundtrip(client, auth_headers):
 
 
 def test_save_local_path_traversal_rejected(client, auth_headers):
+    """Test save local path traversal rejected."""
     resp = client.put(
         "/import/settings",
         json={"local_datalog_path": "../../etc/passwd"},
@@ -23,6 +25,7 @@ def test_save_local_path_traversal_rejected(client, auth_headers):
 
 
 def test_save_local_path_subdir_accepted(client, auth_headers):
+    """Test save local path subdir accepted."""
     resp = client.put(
         "/import/settings",
         json={"local_datalog_path": "/data/cpap/DATALOG"},
@@ -33,16 +36,19 @@ def test_save_local_path_subdir_accepted(client, auth_headers):
 
 
 def test_trigger_local_no_path(client, auth_headers):
+    """Test trigger local no path."""
     resp = client.post("/import/trigger-local", headers=auth_headers)
     assert resp.status_code == 400
 
 
 def test_trigger_all_no_secret(client):
+    """Test trigger all no secret."""
     resp = client.post("/import/trigger/all")
     assert resp.status_code == 403
 
 
 def test_trigger_all_wrong_secret(client):
+    """Test trigger all wrong secret."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             "/import/trigger/all",
@@ -52,6 +58,7 @@ def test_trigger_all_wrong_secret(client):
 
 
 def test_trigger_all_correct_secret_no_users(client):
+    """Test trigger all correct secret no users."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             "/import/trigger/all",
@@ -62,6 +69,7 @@ def test_trigger_all_correct_secret_no_users(client):
 
 
 def test_save_local_frequency(client, auth_headers):
+    """Test save local frequency."""
     resp = client.put(
         "/import/settings",
         json={"local_import_frequency": "hourly"},
@@ -72,6 +80,7 @@ def test_save_local_frequency(client, auth_headers):
 
 
 def test_trigger_local_path_not_found(client, auth_headers):
+    """Test trigger local path not found."""
     client.put(
         "/import/settings",
         json={"local_datalog_path": "/data/nonexistent-path"},
@@ -84,17 +93,21 @@ def test_trigger_local_path_not_found(client, auth_headers):
 
 # ── per-user webhook tests ──────────────────────────────────────────────────
 
+
 def _webhook_url(user_id: str) -> str:
+    """Test  webhook url."""
     return f"/import/webhook/{user_id}"
 
 
 def test_webhook_per_user_no_secret(client, test_user):
+    """Test webhook per user no secret."""
     url = _webhook_url(test_user["id"])
     resp = client.post(url, json={"event": "cpap_sync_session", "status": "success"})
     assert resp.status_code == 403
 
 
 def test_webhook_per_user_wrong_secret(client, test_user):
+    """Test webhook per user wrong secret."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             _webhook_url(test_user["id"]),
@@ -105,6 +118,7 @@ def test_webhook_per_user_wrong_secret(client, test_user):
 
 
 def test_webhook_per_user_malformed_uuid(client):
+    """Test webhook per user malformed uuid."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             "/import/webhook/not-a-uuid",
@@ -115,6 +129,7 @@ def test_webhook_per_user_malformed_uuid(client):
 
 
 def test_webhook_per_user_unknown_uuid(client):
+    """Test webhook per user unknown uuid."""
     unknown = str(uuid.uuid4())
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
@@ -127,6 +142,7 @@ def test_webhook_per_user_unknown_uuid(client):
 
 def test_webhook_per_user_status_error_skipped(client, auth_headers, test_user):
     # Ensure import settings row exists
+    """Test webhook per user status error skipped."""
     client.put("/import/settings", json={"local_datalog_path": "/data/DATALOG"}, headers=auth_headers)
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
@@ -144,6 +160,7 @@ def test_webhook_per_user_status_error_skipped(client, auth_headers, test_user):
 
 def test_webhook_per_user_no_path_configured(client, test_user):
     # Insert settings row with no path
+    """Test webhook per user no path configured."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             _webhook_url(test_user["id"]),

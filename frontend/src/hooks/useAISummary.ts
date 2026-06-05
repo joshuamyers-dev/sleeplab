@@ -3,6 +3,11 @@ import { useEffect, useState } from 'react'
 import { api, type AISummaryResponse } from '../api/client'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
 
+/**
+ * Custom hook for managing use a i summary.
+ *
+ * @returns Object containing hook state and controls.
+ */
 export function useAISummary(enabled: boolean) {
   const [data, setData] = useState<AISummaryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)

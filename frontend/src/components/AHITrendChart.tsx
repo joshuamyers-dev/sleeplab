@@ -26,6 +26,7 @@ interface FlaggedNight {
   severity: 'high' | 'warn'
 }
 
+/** Properties and structure for the props. */
 interface Props {
   trend: DailyStat[]
   perDayData?: Record<string, PerDayExtra>

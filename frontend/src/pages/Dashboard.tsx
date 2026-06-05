@@ -16,6 +16,9 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { IMPORT_COMPLETED_EVENT } from '../lib/aiSummaryCache'
 
+/**
+ * Helper function for ahi tone.
+ */
 function ahiTone(ahi: number | null) {
   if (ahi == null) return 'text-[var(--muted-foreground)]'
   if (ahi < 5) return 'text-[var(--green-700)]'
@@ -23,6 +26,9 @@ function ahiTone(ahi: number | null) {
   return 'text-[var(--orange-700)]'
 }
 
+/**
+ * Helper function for current streak.
+ */
 function currentStreak(sessions: SessionSummary[]) {
   const uniqueDates = [...new Set(sessions.map((session) => session.folder_date))].sort().reverse()
   if (uniqueDates.length === 0) return 0
@@ -80,6 +86,11 @@ function defaultReportRange() {
   }
 }
 
+/**
+ * React component or element to render the dashboard.
+ *
+ * @returns The rendered React element.
+ */
 export default function Dashboard() {
   const initialReportRange = defaultReportRange()
   const [summary, setSummary] = useState<SummaryStats | null>(null)

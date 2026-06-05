@@ -31,6 +31,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# TypeDoc output
+site/
+
 # Frontend build output
 frontend/dist/
 frontend/dist-ssr/

@@ -1,12 +1,18 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+/**
+ * Type definition for the glossary entry.
+ */
 type GlossaryEntry = {
   title: string
   definition: string
   aliases: string[]
 }
 
+/**
+ * Type definition for the active glossary.
+ */
 type ActiveGlossary = {
   entry: GlossaryEntry
   x: number
@@ -14,6 +20,11 @@ type ActiveGlossary = {
   placement: 'top' | 'bottom'
 }
 
+/**
+ * React component or element to render the g l o s s a r y.
+ *
+ * @returns The rendered React element.
+ */
 const GLOSSARY: GlossaryEntry[] = [
   {
     title: 'APAP',
@@ -98,6 +109,11 @@ const GLOSSARY_PATTERN = new RegExp(
   'gi',
 )
 
+/**
+ * React component or element to render the glossary text.
+ *
+ * @returns The rendered React element.
+ */
 export default function GlossaryText({
   text,
   className,
@@ -202,6 +218,9 @@ export default function GlossaryText({
   )
 }
 
+/**
+ * Helper function for split by glossary.
+ */
 function splitByGlossary(text: string): Array<string | { alias: string; entry: GlossaryEntry }> {
   const fragments: Array<string | { alias: string; entry: GlossaryEntry }> = []
   const seenEntries = new Set<string>()
@@ -235,6 +254,9 @@ function splitByGlossary(text: string): Array<string | { alias: string; entry: G
   return fragments.length > 0 ? fragments : [text]
 }
 
+/**
+ * Helper function for escape reg exp.
+ */
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

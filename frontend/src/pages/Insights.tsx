@@ -10,6 +10,11 @@ function formatAhi(value: number | null) {
   return value == null ? 'N/A' : value.toFixed(1)
 }
 
+/**
+ * React component or element to render the insights page.
+ *
+ * @returns The rendered React element.
+ */
 export default function InsightsPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [tagInsights, setTagInsights] = useState<TagInsight[]>([])

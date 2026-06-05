@@ -11,13 +11,24 @@ import { Link } from 'react-router-dom'
 
 const IMPORT_SYNC_STORAGE_KEY = 'cpap-import-sync-active'
 
+/**
+ * Type definition for the selected import file.
+ */
 type SelectedImportFile = {
   file: File
   relativePath: string
 }
 
+/**
+ * Type definition for the upload phase.
+ */
 type UploadPhase = 'idle' | 'uploading' | 'complete'
 
+/**
+ * React component or element to render the import.
+ *
+ * @returns The rendered React element.
+ */
 export default function Import() {
   const directoryInputRef = useRef<HTMLInputElement | null>(null)
   const oximeterInputRef = useRef<HTMLInputElement | null>(null)
@@ -431,6 +442,9 @@ async function collectEdfFiles(
   return entries.sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 }
 
+/**
+ * Helper function for collect edf files from input.
+ */
 function collectEdfFilesFromInput(files: File[], rootName: string): SelectedImportFile[] {
   return files
     .filter((file) => file.name.toLowerCase().endsWith('.edf'))
@@ -441,6 +455,7 @@ function collectEdfFilesFromInput(files: File[], rootName: string): SelectedImpo
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 }
 
+/** Helper function for get input root name. */
 function getInputRootName(files: File[]) {
   const firstWithPath = files.find((file) => getRelativePathFromInput(file).includes('/'))
   if (firstWithPath) {
@@ -450,6 +465,9 @@ function getInputRootName(files: File[]) {
   return 'DATALOG'
 }
 
+/**
+ * Helper function for get relative path from input.
+ */
 function getRelativePathFromInput(file: File, rootName?: string) {
   const rawPath = file.webkitRelativePath || file.name
   if (!rootName) {
@@ -460,10 +478,16 @@ function getRelativePathFromInput(file: File, rootName?: string) {
   return rawPath.startsWith(prefix) ? rawPath.slice(prefix.length) : rawPath
 }
 
+/**
+ * Helper function for supports directory selection.
+ */
 function supportsDirectorySelection() {
   return 'showDirectoryPicker' in window || supportsWebkitDirectoryInput()
 }
 
+/**
+ * Helper function for supports webkit directory input.
+ */
 function supportsWebkitDirectoryInput() {
   return 'webkitdirectory' in document.createElement('input')
 }

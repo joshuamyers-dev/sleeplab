@@ -3,6 +3,9 @@ import { getApiBaseUrl } from '../config'
 const BASE = getApiBaseUrl()
 const TOKEN_STORAGE_KEY = 'cpap_auth_token'
 
+/**
+ * Class representing the unauthorized error.
+ */
 export class UnauthorizedError extends Error {
   constructor(message = 'Authentication required') {
     super(message)
@@ -10,53 +13,93 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/**
+ * Represents the version status payload returned by the SleepLab backend API.
+ */
 export interface VersionResponse {
+  /** The current installed application version string. */
   version: string
+  /** The latest available release version string on GitHub, or null if checking failed. */
   latest_version: string | null
+  /** Flag indicating whether a newer release version is available for upgrade. */
   update_available: boolean
+  /** The URL string pointing to the latest release details on GitHub, or null. */
   release_url: string | null
 }
 
+/**
+ * Profile details of an authenticated SleepLab user.
+ */
 export interface AuthUser {
+  /** The unique UUID string identifying the user. */
   user_id: string
+  /** The verified email address of the user. */
   email: string
+  /** The user's first name. */
   first_name: string
+  /** The user's last name. */
   last_name: string
 }
 
+/**
+ * Successful authentication response containing the bearer token and user profile details.
+ */
 export interface AuthResponse {
+  /** The signed JWT access token. */
   token: string
+  /** The profile info of the authenticated user. */
   user: AuthUser
 }
 
+/**
+ * Request payload structure for user login credentials.
+ */
 export interface LoginRequest {
+  /** The user's email address candidate. */
   email: string
+  /** The plain text password candidate. */
   password: string
 }
 
+/** Properties and structure for the register request. */
 export type RegisterRequest = LoginRequest
 
+/**
+ * Properties and structure for the update profile request.
+ */
 export interface UpdateProfileRequest {
   first_name: string
   last_name: string
   email: string
 }
 
+/**
+ * Properties and structure for the change password request.
+ */
 export interface ChangePasswordRequest {
   current_password: string
   new_password: string
 }
 
+/**
+ * Properties and structure for the import response.
+ */
 export interface ImportResponse {
   status: string
   message: string
 }
 
+/**
+ * Properties and structure for the start import response.
+ */
 export interface StartImportResponse {
   upload_id: string
   message: string
 }
 
+/**
+ * Properties and structure for the import status response.
+ */
 export interface ImportStatusResponse {
   running: boolean
   started_at: string | null
@@ -64,6 +107,9 @@ export interface ImportStatusResponse {
   message: string | null
 }
 
+/**
+ * Properties and structure for the oximeter import result.
+ */
 export interface OximeterImportResult {
   filename: string
   status: 'imported' | 'skipped' | 'unmatched' | 'failed'
@@ -73,6 +119,9 @@ export interface OximeterImportResult {
   sample_count?: number | null
 }
 
+/**
+ * Properties and structure for the oximeter import response.
+ */
 export interface OximeterImportResponse {
   status: 'completed' | 'partial' | 'failed'
   message: string
@@ -83,6 +132,9 @@ export interface OximeterImportResponse {
   results: OximeterImportResult[]
 }
 
+/**
+ * Properties and structure for the a i summary response.
+ */
 export interface AISummaryResponse {
   headline?: string | null
   therapy_quality?: string | null
@@ -100,6 +152,9 @@ export interface AISummaryResponse {
   error?: string | null
 }
 
+/**
+ * Properties and structure for the session a i summary response.
+ */
 export interface SessionAISummaryResponse {
   headline?: string | null
   therapy_quality?: string | null
@@ -114,6 +169,9 @@ export interface SessionAISummaryResponse {
   error?: string | null
 }
 
+/**
+ * Properties and structure for the trend a i summary response.
+ */
 export interface TrendAISummaryResponse {
   headline?: string | null
   therapy_quality?: string | null
@@ -128,6 +186,9 @@ export interface TrendAISummaryResponse {
   error?: string | null
 }
 
+/**
+ * Properties and structure for the session summary.
+ */
 export interface SessionSummary {
   id: string
   session_id: string
@@ -151,6 +212,7 @@ export interface SessionSummary {
   machine_tz: string | null
 }
 
+/** Score breakdown for a single therapy metric (AHI, leak, duration, or SpO2). */
 export interface TherapyScoreComponent {
   score: number
   max_score: number
@@ -160,6 +222,7 @@ export interface TherapyScoreComponent {
   unavailable_reason: string | null
 }
 
+/** Overall nightly therapy quality score (0–100) with letter grade and per-metric breakdown. */
 export interface TherapyScore {
   total: number
   grade: 'A' | 'B' | 'C' | 'D' | 'F'
@@ -173,6 +236,7 @@ export interface TherapyScore {
   }
 }
 
+/** Properties and structure for the session detail. */
 export interface SessionDetail extends SessionSummary {
   pld_start_datetime: string
   device_serial: string | null
@@ -193,6 +257,7 @@ export interface SessionDetail extends SessionSummary {
   temperature_c: number | null
 }
 
+/** Aggregated AHI comparison for nights carrying a specific user-applied tag vs. untagged baseline. */
 export interface TagInsight {
   tag: string
   night_count: number
@@ -201,8 +266,12 @@ export interface TagInsight {
   delta_ahi: number | null
 }
 
+/** Type definition for the equipment type. */
 export type EquipmentType = 'cushion' | 'headgear' | 'tubing' | 'humidifier_chamber' | 'filter'
 
+/**
+ * Properties and structure for the equipment.
+ */
 export interface Equipment {
   id: string
   equipment_type: EquipmentType
@@ -217,6 +286,9 @@ export interface Equipment {
   updated_at: string
 }
 
+/**
+ * Properties and structure for the equipment create.
+ */
 export interface EquipmentCreate {
   equipment_type: EquipmentType
   start_date: string
@@ -227,6 +299,9 @@ export interface EquipmentCreate {
   notes?: string | null
 }
 
+/**
+ * Properties and structure for the equipment update.
+ */
 export interface EquipmentUpdate {
   start_date?: string
   replacement_days?: number | null
@@ -236,6 +311,9 @@ export interface EquipmentUpdate {
   notes?: string | null
 }
 
+/**
+ * Properties and structure for the inferred equipment.
+ */
 export interface InferredEquipment {
   cushion: Equipment | null
   headgear: Equipment | null
@@ -244,6 +322,9 @@ export interface InferredEquipment {
   filter: Equipment | null
 }
 
+/**
+ * Properties and structure for the event record.
+ */
 export interface EventRecord {
   id: number
   event_type: string
@@ -252,6 +333,9 @@ export interface EventRecord {
   event_datetime: string
 }
 
+/**
+ * Properties and structure for the metrics response.
+ */
 export interface MetricsResponse {
   timestamps: string[]
   mask_pressure: (number | null)[]
@@ -265,18 +349,27 @@ export interface MetricsResponse {
   flow_lim: (number | null)[]
 }
 
+/**
+ * Properties and structure for the sp o2 response.
+ */
 export interface SpO2Response {
   timestamps: string[]
   spo2: (number | null)[]
   pulse: (number | null)[]
 }
 
+/**
+ * Properties and structure for the waveform response.
+ */
 export interface WaveformResponse {
   timestamps: string[]
   flow: (number | null)[]
   pressure: (number | null)[]
 }
 
+/**
+ * Properties and structure for the event window response.
+ */
 export interface EventWindowResponse {
   event: EventRecord
   neighboring_events: EventRecord[]
@@ -284,6 +377,9 @@ export interface EventWindowResponse {
   waveform: WaveformResponse
 }
 
+/**
+ * Properties and structure for the daily stat.
+ */
 export interface DailyStat {
   folder_date: string
   ahi: number | null
@@ -291,6 +387,9 @@ export interface DailyStat {
   session_id: string
 }
 
+/**
+ * Properties and structure for the overview daily stat.
+ */
 export interface OverviewDailyStat {
   folder_date: string
   session_id: string
@@ -317,15 +416,24 @@ export interface OverviewDailyStat {
   equipment_age_days: number | null
 }
 
+/**
+ * Properties and structure for the overview stats.
+ */
 export interface OverviewStats {
   nights: OverviewDailyStat[]
 }
 
+/**
+ * Properties and structure for the app config.
+ */
 export interface AppConfig {
   display_tz: string
   machine_tz: string
 }
 
+/**
+ * Properties and structure for the import settings.
+ */
 export interface ImportSettings {
   sleephq_client_id: string | null
   sleephq_client_secret: string | null
@@ -361,12 +469,18 @@ export interface ImportSettings {
   maintenance_lookback_days: number
 }
 
+/**
+ * Properties and structure for the wearable data.
+ */
 export interface WearableData {
   hr: { timestamp: string; value: number }[]
   spo2: { timestamp: string; value: number }[]
   stages: { timestamp: string; stage: number }[]
 }
 
+/**
+ * Properties and structure for the wearable daily summary.
+ */
 export interface WearableDailySummary {
   date: string
   avg_hr: number | null
@@ -377,6 +491,9 @@ export interface WearableDailySummary {
   rem_h: number
 }
 
+/**
+ * Properties and structure for the summary stats.
+ */
 export interface SummaryStats {
   total_nights: number
   nights_with_data: number
@@ -422,14 +539,23 @@ export interface AdherenceStats {
   target_adherence_pct: number
 }
 
+/**
+ * Helper function for get stored token.
+ */
 function getStoredToken() {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
+/**
+ * Helper function for set stored token.
+ */
 function setStoredToken(token: string) {
   window.localStorage.setItem(TOKEN_STORAGE_KEY, token)
 }
 
+/**
+ * Helper function for clear stored token.
+ */
 function clearStoredToken() {
   window.localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
@@ -514,10 +640,14 @@ async function requestBlob(path: string, params?: Record<string, string | number
   return response.blob()
 }
 
+/** Helper function for get. */
 function get<T>(path: string, params?: Record<string, string | number | boolean>) {
   return request<T>(path, undefined, params)
 }
 
+/**
+ * Helper function for post.
+ */
 function post<T>(path: string, body?: unknown) {
   return request<T>(path, {
     method: 'POST',
@@ -525,6 +655,9 @@ function post<T>(path: string, body?: unknown) {
   })
 }
 
+/**
+ * Helper function for put.
+ */
 function put<T>(path: string, body?: unknown) {
   return request<T>(path, {
     method: 'PUT',
@@ -532,6 +665,9 @@ function put<T>(path: string, body?: unknown) {
   })
 }
 
+/**
+ * Helper function for post form.
+ */
 function postForm<T>(path: string, formData: FormData) {
   return request<T>(path, {
     method: 'POST',
