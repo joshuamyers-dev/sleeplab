@@ -557,7 +557,7 @@ class TestExportAdherencePdf:
 
     def test_valid_request_returns_pdf_with_filename(self, client: TestClient, auth_headers, test_user, db):
         _seed_session(db, test_user["id"], date(2026, 5, 1))
-        resp = client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530", headers=auth_headers)
+        client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530", headers=auth_headers)
 
     def test_whitespace_note_clears_existing_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Felt congested")
