@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.3.0...v1.3.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **docker:** use workspace lockfile for frontend build ([63a9012](https://github.com/joshuamyers-dev/sleeplab/commit/63a90127b69b50e7d01c4027eefe7122522c78a2))
+
 # [1.3.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.2.1...v1.3.0) (2026-06-05)
 
 
