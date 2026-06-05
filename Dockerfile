@@ -1,12 +1,12 @@
-FROM node:20-bookworm AS frontend-build
+FROM node:22-bookworm AS frontend-build
 
 WORKDIR /build
 
-COPY frontend/package.json frontend/package-lock.json ./frontend/
-RUN cd frontend && npm ci
-
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
 COPY frontend ./frontend
-RUN cd frontend && npm run build
+RUN npm ci
+
+RUN npm run build
 
 
 FROM python:3.12-slim AS runtime
