@@ -509,8 +509,6 @@ class TestSessionNotes:
         resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "New mask cushion"})
         assert resp.status_code == 200
         assert resp.json()["note"] == "New mask cushion"
-        assert resp.content.startswith(b"%PDF")
-        assert b"Adherence" in resp.content
 
 
 class TestExportAdherencePdf:
