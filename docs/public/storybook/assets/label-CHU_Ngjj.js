@@ -1,0 +1,1 @@
+import{j as t}from"./iframe-CnI2o-UJ.js";import{c as m}from"./utils-2dOUpm6k.js";function r({className:e,...o}){return t.jsx("label",{className:m("mb-2 block text-sm font-medium text-[var(--foreground)]",e),...o})}r.__docgenInfo={description:"",methods:[],displayName:"Label"};export{r as L};

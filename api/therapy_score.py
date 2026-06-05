@@ -19,6 +19,12 @@ RESMED_LARGE_LEAK_LPM = 24.0
 
 @dataclass(frozen=True)
 class _AvailableComponent:
+    """Internal scoring component used during a single score computation.
+
+    Holds the normalised score percentage for one metric so that max-score
+    redistribution and callout generation can inspect all components together.
+    """
+
     key: str
     base_weight: int
     label: str
@@ -127,6 +133,7 @@ def compute_therapy_score(session: Mapping[str, object]) -> TherapyScore:
 
 
 def grade_for_score(score: int) -> str:
+    """Convert a 0–100 integer score to a letter grade (A/B/C/D/F)."""
     if score >= 90:
         return "A"
     if score >= 80:
@@ -139,6 +146,7 @@ def grade_for_score(score: int) -> str:
 
 
 def _score_ahi(ahi: float) -> float:
+    """Return a 0–1 score for AHI; penalises non-linearly above the therapy target of 5."""
     ahi = _clamp(ahi, 0.0, 20.0)
     if ahi <= 5:
         return _clamp(1.0 - 0.15 * (ahi / 5) ** 1.5, 0.0, 1.0)
@@ -146,6 +154,7 @@ def _score_ahi(ahi: float) -> float:
 
 
 def _score_leak(leak_lps: float, threshold_lps: float) -> float:
+    """Return a 0–1 score for mask leak; full credit at or below threshold, linear decay to zero at 2.5× threshold."""
     if leak_lps <= threshold_lps:
         return 1.0
     zero_at = threshold_lps * 2.5
@@ -153,6 +162,7 @@ def _score_leak(leak_lps: float, threshold_lps: float) -> float:
 
 
 def _score_duration(duration_hours: float) -> float:
+    """Return a 0–1 score for therapy duration; full credit ≥ 7 h, zero credit < 2 h, linear between."""
     if duration_hours >= 7:
         return 1.0
     if duration_hours < 2:
@@ -161,6 +171,7 @@ def _score_duration(duration_hours: float) -> float:
 
 
 def _score_spo2(avg_spo2: float | None, min_spo2: float | None) -> float:
+    """Return a 0–1 score for SpO2; caps at 0.45 for severe desaturation (min < 85%) and 0.65 for moderate (min < 88%)."""
     avg_score = 1.0
     if avg_spo2 is not None:
         avg_score = _clamp((avg_spo2 - 88) / 7, 0.0, 1.0)
@@ -171,6 +182,11 @@ def _score_spo2(avg_spo2: float | None, min_spo2: float | None) -> float:
 
 
 def _large_leak_threshold_lps(session: Mapping[str, object]) -> float | None:
+    """Return the large-leak threshold in L/s for this session's manufacturer, or None if unknown.
+
+    Currently only ResMed devices have a defined threshold (24 L/min = 0.4 L/s).  Unknown
+    manufacturers return None, which excludes the leak component from scoring.
+    """
     manufacturer = str(session.get("manufacturer") or "").strip().lower()
     if manufacturer == "resmed":
         return RESMED_LARGE_LEAK_LPM / 60
@@ -178,6 +194,11 @@ def _large_leak_threshold_lps(session: Mapping[str, object]) -> float | None:
 
 
 def _redistributed_max_scores(components: list[_AvailableComponent]) -> dict[str, int]:
+    """Redistribute 100 points proportionally across available components, using largest-remainder rounding.
+
+    Missing components (e.g. no SpO2 data) lose their weight budget, which is
+    redistributed among present components so the total always sums to 100.
+    """
     total_weight = sum(component.base_weight for component in components)
     raw = [(component.key, component.base_weight * 100 / total_weight) for component in components]
     floors = {key: int(value) for key, value in raw}
@@ -193,6 +214,12 @@ def _callout(
     session: Mapping[str, object],
     leak_threshold_lps: float | None,
 ) -> str:
+    """Return a human-readable callout sentence identifying the worst-scoring component.
+
+    When leak is the worst component and AHI is also very low (< 3), adds a caveat that
+    the AHI may be understated because leak exceeded the large-leak threshold, which can
+    artificially lower the event count on some devices.
+    """
     worst = max(available, key=lambda component: 1.0 - component.percent)
     messages = {
         "ahi": "AHI was the biggest drag on tonight's score.",
@@ -213,6 +240,7 @@ def _callout(
 
 
 def _number(value: object) -> float | None:
+    """Safely cast value to float, returning None for None, non-numeric, or non-finite inputs."""
     if value is None:
         return None
     try:
@@ -223,8 +251,10 @@ def _number(value: object) -> float | None:
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
+    """Clamp value to [minimum, maximum]."""
     return max(minimum, min(maximum, value))
 
 
 def _clamp_int(value: int, minimum: int, maximum: int) -> int:
+    """Clamp integer value to [minimum, maximum]."""
     return max(minimum, min(maximum, value))

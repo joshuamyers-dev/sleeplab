@@ -7,6 +7,12 @@
     "frontend": "nx serve frontend",
     "dev": "nx run-many --target=serve --projects=api,frontend --parallel",
     "build": "nx build frontend",
+    "docs-capture": "nx run frontend:capture:ci",
+    "storybook-capture": "nx run frontend:build-storybook && nx run frontend:capture:stories:ci",
+    "storybook-capture:no-build": "nx run frontend:capture:stories:ci",
+    "docs:build": "npm run docs:frontend && uv run mkdocs build",
+    "docs:serve": "npm run docs:frontend && uv run mkdocs serve",
+    "docs:frontend": "cd frontend && npx typedoc",
     "lint": "nx lint frontend",
     "test": "nx run-many --target=test --projects=api,frontend",
     "test:frontend": "nx test frontend",
@@ -20,12 +26,28 @@
     "lightningcss-linux-x64-gnu": "1.32.0"
   },
   "devDependencies": {
+    "@nx/js": "22.7.5",
+    "@nx/react": "^22.7.5",
+    "@nx/storybook": "^22.7.5",
+    "@nx/web": "22.7.5",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.8",
+    "@storybook/addon-vitest": "^10.4.2",
+    "@storybook/react-vite": "10.4.2",
+    "@swc-node/register": "~1.11.1",
+    "@swc/core": "~1.15.5",
+    "@swc/helpers": "~0.5.18",
     "nx": "^22.7.5",
-    "semantic-release": "^25.0.3"
+    "prettier": "~3.6.2",
+    "semantic-release": "^25.0.3",
+    "storybook": "10.4.2",
+    "ts-node": "10.9.1",
+    "typescript": "~5.9.2",
+    "vite": "^8.0.0",
+    "@vitest/browser-playwright": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.7"
   },
   "workspaces": [
     "frontend"

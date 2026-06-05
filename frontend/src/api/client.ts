@@ -195,6 +195,7 @@ export interface SessionSummary {
   folder_date: string
   block_index: number
   start_datetime: string
+  end_datetime: string | null
   duration_seconds: number
   duration_hours: number
   ahi: number | null

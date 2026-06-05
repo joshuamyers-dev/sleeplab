@@ -78,15 +78,16 @@ which this project inherits accordingly.
 
 | Library | License |
 |---------|---------|
-| [vite](https://github.com/vitejs/vite) | MIT |
-| [vitest](https://github.com/vitest-dev/vitest) | MIT |
-| [typescript](https://github.com/microsoft/TypeScript) | Apache-2.0 |
-| [tailwindcss](https://github.com/tailwindlabs/tailwindcss) | MIT |
+| [@nx/storybook](https://github.com/nrwl/nx) | MIT |
+| [@testing-library/jest-dom](https://github.com/testing-library/jest-dom) | MIT |
+| [@testing-library/react](https://github.com/testing-library/react-testing-library) | MIT |
 | [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react) | MIT |
 | [eslint](https://github.com/eslint/eslint) | MIT |
-| [@testing-library/react](https://github.com/testing-library/react-testing-library) | MIT |
-| [@testing-library/jest-dom](https://github.com/testing-library/jest-dom) | MIT |
 | [jsdom](https://github.com/jsdom/jsdom) | MIT |
+| [tailwindcss](https://github.com/tailwindlabs/tailwindcss) | MIT |
+| [typescript](https://github.com/microsoft/TypeScript) | Apache-2.0 |
+| [vite](https://github.com/vitejs/vite) | MIT |
+| [vitest](https://github.com/vitest-dev/vitest) | MIT |
 
 ---
 

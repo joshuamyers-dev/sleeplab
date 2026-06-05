@@ -7,11 +7,10 @@ Key ResMed deviation from EDF+ spec:
   - ResMed:   +onset\x15duration\x14annotation\x14
 """
 
-import struct
 import re
+import struct
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 
 @dataclass
@@ -50,46 +49,60 @@ class EDFHeader:
 
 
 def _parse_header(data: bytes) -> EDFHeader:
-    """Parse the 256-byte main EDF header + signal headers from raw bytes."""
-    startdate = data[168:176].decode('ascii').strip()   # DD.MM.YY
-    starttime = data[176:184].decode('ascii').strip()   # HH.MM.SS
-    recording = data[88:168].decode('ascii')
+    """Parse the main 256-byte EDF header and signal headers from raw bytes.
 
-    dd, mm, yy = startdate.split('.')
-    hh, mi, ss = starttime.split('.')
+    Args:
+        data: The raw binary data containing the concatenated EDF headers.
+
+    Returns:
+        An EDFHeader data structure populated with the parsed configuration.
+    """
+    startdate = data[168:176].decode("ascii").strip()  # DD.MM.YY
+    starttime = data[176:184].decode("ascii").strip()  # HH.MM.SS
+    recording = data[88:168].decode("ascii")
+
+    dd, mm, yy = startdate.split(".")
+    hh, mi, ss = starttime.split(".")
     year = 2000 + int(yy)
     start_dt = datetime(year, int(mm), int(dd), int(hh), int(mi), int(ss))
 
-    srn_match = re.search(r'SRN=(\S+)', recording)
-    device_serial = srn_match.group(1) if srn_match else ''
+    srn_match = re.search(r"SRN=(\S+)", recording)
+    device_serial = srn_match.group(1) if srn_match else ""
 
     ns = int(data[252:256].strip())
     num_records = int(data[236:244].strip())
-    duration_str = data[244:252].strip().decode('ascii')
+    duration_str = data[244:252].strip().decode("ascii")
     duration = float(duration_str) if duration_str else 0.0
-    reserved = data[192:236].decode('ascii').strip()
-    is_edfplus = reserved.startswith('EDF+')
+    reserved = data[192:236].decode("ascii").strip()
+    is_edfplus = reserved.startswith("EDF+")
 
     # Signal headers: each field stored as ns-length arrays
     sig_raw = data[256 : 256 + ns * 256]
 
     signals = []
     for i in range(ns):
-        label = sig_raw[i*16        : (i+1)*16].decode('ascii').strip()
-        dim   = sig_raw[ns*96+i*8   : ns*96+(i+1)*8].decode('ascii').strip()
-        pmin  = float(sig_raw[ns*104+i*8 : ns*104+(i+1)*8].strip())
-        pmax  = float(sig_raw[ns*112+i*8 : ns*112+(i+1)*8].strip())
-        dmin  = float(sig_raw[ns*120+i*8 : ns*120+(i+1)*8].strip())
-        dmax  = float(sig_raw[ns*128+i*8 : ns*128+(i+1)*8].strip())
-        spr   = int(sig_raw[ns*216+i*8  : ns*216+(i+1)*8].strip())
+        label = sig_raw[i * 16 : (i + 1) * 16].decode("ascii").strip()
+        dim = sig_raw[ns * 96 + i * 8 : ns * 96 + (i + 1) * 8].decode("ascii").strip()
+        pmin = float(sig_raw[ns * 104 + i * 8 : ns * 104 + (i + 1) * 8].strip())
+        pmax = float(sig_raw[ns * 112 + i * 8 : ns * 112 + (i + 1) * 8].strip())
+        dmin = float(sig_raw[ns * 120 + i * 8 : ns * 120 + (i + 1) * 8].strip())
+        dmax = float(sig_raw[ns * 128 + i * 8 : ns * 128 + (i + 1) * 8].strip())
+        spr = int(sig_raw[ns * 216 + i * 8 : ns * 216 + (i + 1) * 8].strip())
         signals.append(EDFSignal(label, dim, pmin, pmax, dmin, dmax, spr))
 
     return EDFHeader(start_dt, num_records, duration, device_serial, signals, is_edfplus)
 
 
 def read_header(path: str) -> EDFHeader:
-    """Read only the EDF header from a file (fast, no data read)."""
-    with open(path, 'rb') as f:
+    """Read and parse only the EDF header block from a file without loading data.
+
+    Args:
+        path: The absolute filesystem path to the EDF file.
+
+    Returns:
+        The parsed EDFHeader containing recording metadata and signal layout.
+    """
+    with open(path, "rb") as f:
         raw = f.read(256)
         ns = int(raw[252:256].strip())
         sig_bytes = f.read(ns * 256)
@@ -97,14 +110,18 @@ def read_header(path: str) -> EDFHeader:
 
 
 def parse_pld(path: str) -> tuple:
-    """
-    Parse a PLD (processed/derived metrics) EDF file.
+    """Parse a PLD (processed/derived metrics) EDF file.
+
+    Excludes the Crc16 channel and scales all raw values to physical units.
+
+    Args:
+        path: The absolute filesystem path to the PLD EDF file.
 
     Returns:
-        (EDFHeader, dict[label -> list[float]])
-        Crc16 channel is excluded. All values are in physical units.
+        A tuple of (EDFHeader, dict[str, list[float]]) containing the parsed
+        header and a mapping of signal labels to physical values.
     """
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         raw = f.read(256)
         ns = int(raw[252:256].strip())
         sig_bytes = f.read(ns * 256)
@@ -112,20 +129,20 @@ def parse_pld(path: str) -> tuple:
 
     header = _parse_header(raw + sig_bytes)
     samples_per_record = sum(s.num_samples_per_record for s in header.signals)
-    channels = {s.label: [] for s in header.signals if s.label != 'Crc16'}
+    channels = {s.label: [] for s in header.signals if s.label != "Crc16"}
 
     for rec in range(header.num_records):
         start = rec * samples_per_record * 2
         record_bytes = data_bytes[start : start + samples_per_record * 2]
         if len(record_bytes) < samples_per_record * 2:
             break
-        all_samples = struct.unpack(f'<{samples_per_record}h', record_bytes)
+        all_samples = struct.unpack(f"<{samples_per_record}h", record_bytes)
 
         idx = 0
         for sig in header.signals:
             raw_vals = all_samples[idx : idx + sig.num_samples_per_record]
             idx += sig.num_samples_per_record
-            if sig.label == 'Crc16':
+            if sig.label == "Crc16":
                 continue
             channels[sig.label].extend(sig.scale(v) for v in raw_vals)
 
@@ -133,29 +150,35 @@ def parse_pld(path: str) -> tuple:
 
 
 def parse_brp(path: str) -> tuple:
-    """
-    Parse a BRP (breath/pressure waveform) EDF file.
-
-    Returns:
-        (EDFHeader, dict[label -> list[float]])
+    """Parse a BRP (breath/pressure waveform) EDF file.
 
     ResMed BRP files typically contain Flow.40ms and Press.40ms, sampled
     1500 times per 60-second record (25 Hz).
+
+    Args:
+        path: The absolute filesystem path to the BRP EDF file.
+
+    Returns:
+        A tuple of (EDFHeader, dict[str, list[float]]) containing the parsed
+        header and a mapping of signal labels to physical waveform values.
     """
     return parse_pld(path)
 
 
 def parse_eve(path: str) -> tuple:
-    """
-    Parse an EVE (events) EDF+ file.
+    """Parse an EVE (events) EDF+ file.
+
+    Note that ResMed uses a non-standard byte \\x15 to separate onset and duration
+    within event TALs (standard uses \\x14).
+
+    Args:
+        path: The absolute filesystem path to the EVE EDF+ file.
 
     Returns:
-        (EDFHeader, list of (onset_seconds: float, duration_seconds: float, event_type: str))
-        'Recording starts' annotations are excluded.
-
-    CRITICAL: ResMed uses \\x15 between onset and duration (not \\x14 as per EDF+ spec).
+        A tuple of (EDFHeader, list[tuple[float, float, str]]) where the list
+        contains event records in the format (onset_seconds, duration_seconds, event_type).
     """
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         raw = f.read(256)
         ns = int(raw[252:256].strip())
         sig_bytes = f.read(ns * 256)
@@ -176,28 +199,28 @@ def parse_eve(path: str) -> tuple:
         ann_bytes = record[:ann_bytes_per_record]
 
         # TALs are null-terminated within the annotation signal
-        tals = ann_bytes.split(b'\x00')
+        tals = ann_bytes.split(b"\x00")
         for tal in tals:
-            tal = tal.rstrip(b'\x00')
-            if not tal or tal[0:1] not in (b'+', b'-'):
+            tal = tal.rstrip(b"\x00")
+            if not tal or tal[0:1] not in (b"+", b"-"):
                 continue
 
-            if b'\x15' in tal:
+            if b"\x15" in tal:
                 # ResMed event TAL: +onset\x15duration\x14annotation\x14...
-                sep_idx = tal.index(b'\x15')
+                sep_idx = tal.index(b"\x15")
                 try:
-                    onset = float(tal[1:sep_idx].decode('ascii'))
+                    onset = float(tal[1:sep_idx].decode("ascii"))
                 except ValueError:
                     continue
-                rest = tal[sep_idx + 1:]
-                parts = rest.split(b'\x14')
+                rest = tal[sep_idx + 1 :]
+                parts = rest.split(b"\x14")
                 try:
-                    duration = float(parts[0].decode('ascii')) if parts[0] else 0.0
+                    duration = float(parts[0].decode("ascii")) if parts[0] else 0.0
                 except ValueError:
                     duration = 0.0
                 for ann_part in parts[1:]:
-                    txt = ann_part.decode('ascii', errors='ignore').strip('\x00 ')
-                    if txt and txt != 'Recording starts':
+                    txt = ann_part.decode("ascii", errors="ignore").strip("\x00 ")
+                    if txt and txt != "Recording starts":
                         events.append((onset, duration, txt))
             # TALs with only \x14\x14 are timekeeping markers — skip
 
@@ -205,16 +228,17 @@ def parse_eve(path: str) -> tuple:
 
 
 def parse_sa2(path: str) -> tuple:
-    """
-    Parse an SA2 (SpO2/pulse oximetry) EDF file.
+    """Parse an SA2 (SpO2/pulse oximetry) EDF file.
+
+    Args:
+        path: The absolute filesystem path to the SA2 EDF file.
 
     Returns:
-        (EDFHeader, (pulse_list, spo2_list)) if oximeter was connected
-        (EDFHeader, None) if all values are -1 (no oximeter)
-
-    Signal order: index 0 = Pulse.1s, index 1 = SpO2.1s
+        A tuple of (EDFHeader, tuple[list[int], list[int]] | None) containing the
+        parsed header and oximetry data arrays (pulse_list, spo2_list), or None
+        if no oximeter was connected.
     """
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         raw = f.read(256)
         ns = int(raw[252:256].strip())
         sig_bytes = f.read(ns * 256)
@@ -223,22 +247,23 @@ def parse_sa2(path: str) -> tuple:
     header = _parse_header(raw + sig_bytes)
 
     pulse_sig = header.signals[0]  # Pulse.1s
-    spo2_sig  = header.signals[1]  # SpO2.1s
+    spo2_sig = header.signals[1]  # SpO2.1s
     samples_per_record = sum(s.num_samples_per_record for s in header.signals)
 
     pulse_vals = []
-    spo2_vals  = []
+    spo2_vals = []
 
     for rec in range(header.num_records):
         start = rec * samples_per_record * 2
         record_bytes = data_bytes[start : start + samples_per_record * 2]
         if len(record_bytes) < samples_per_record * 2:
             break
-        all_samples = struct.unpack(f'<{samples_per_record}h', record_bytes)
+        all_samples = struct.unpack(f"<{samples_per_record}h", record_bytes)
 
-        pulse_raw = all_samples[:pulse_sig.num_samples_per_record]
-        spo2_raw  = all_samples[pulse_sig.num_samples_per_record :
-                                pulse_sig.num_samples_per_record + spo2_sig.num_samples_per_record]
+        pulse_raw = all_samples[: pulse_sig.num_samples_per_record]
+        spo2_raw = all_samples[
+            pulse_sig.num_samples_per_record : pulse_sig.num_samples_per_record + spo2_sig.num_samples_per_record
+        ]
         pulse_vals.extend(pulse_raw)
         spo2_vals.extend(spo2_raw)
 

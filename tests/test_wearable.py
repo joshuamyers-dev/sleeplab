@@ -13,19 +13,24 @@ from api.wearable.registry import get_adapter
 
 
 def test_wearable_payload_is_empty_when_default():
+    """Test wearable payload is empty when default."""
     assert WearablePayload().is_empty()
 
+
 def test_wearable_payload_not_empty_with_hr():
+    """Test wearable payload not empty with hr."""
     p = WearablePayload(hr=[Sample(timestamp="2025-01-01T02:00:00Z", value=62.0)])
     assert not p.is_empty()
 
 
 def test_stage_map_covers_all_expected_labels():
+    """Test stage map covers all expected labels."""
     expected = {"awake", "light", "nrem1", "nrem2", "deep", "nrem3", "nrem4", "rem"}
     assert expected == set(_STAGE_MAP.keys())
 
 
 def test_stage_map_normalises_correctly():
+    """Test stage map normalises correctly."""
     assert _STAGE_MAP["awake"] == 1
     assert _STAGE_MAP["light"] == 2
     assert _STAGE_MAP["nrem1"] == 2
@@ -37,6 +42,7 @@ def test_stage_map_normalises_correctly():
 
 
 def _make_ok_response(json_data: dict):
+    """Test  make ok response."""
     r = MagicMock()
     r.status_code = 200
     r.json.return_value = json_data
@@ -44,15 +50,15 @@ def _make_ok_response(json_data: dict):
 
 
 def _make_error_response(status_code: int):
+    """Test  make error response."""
     r = MagicMock()
     r.status_code = status_code
-    r.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "error", request=MagicMock(), response=MagicMock()
-    )
+    r.raise_for_status.side_effect = httpx.HTTPStatusError("error", request=MagicMock(), response=MagicMock())
     return r
 
 
 def test_open_wearables_fetch_returns_normalised_payload():
+    """Test open wearables fetch returns normalised payload."""
     adapter = OpenWearablesAdapter(base_url="http://wearables.test", api_key="key")
     hr_resp = _make_ok_response({"samples": [{"ts": "2025-01-15T02:00:00Z", "bpm": 58.0}]})
     spo2_resp = _make_ok_response({"samples": [{"ts": "2025-01-15T02:00:00Z", "spo2_pct": 97.0}]})
@@ -76,6 +82,7 @@ def test_open_wearables_fetch_returns_normalised_payload():
 
 
 def test_open_wearables_connect_error_returns_empty():
+    """Test open wearables connect error returns empty."""
     adapter = OpenWearablesAdapter(base_url="http://wearables.test", api_key="key")
 
     with patch("api.wearable.open_wearables.httpx.Client") as mock_client_cls:
@@ -91,6 +98,7 @@ def test_open_wearables_connect_error_returns_empty():
 
 
 def test_open_wearables_401_raises():
+    """Test open wearables 401 raises."""
     adapter = OpenWearablesAdapter(base_url="http://wearables.test", api_key="bad-key")
     auth_err_resp = _make_error_response(401)
     ok_resp = _make_ok_response({"samples": []})
@@ -107,6 +115,7 @@ def test_open_wearables_401_raises():
 
 
 def test_mirobody_stage_map_normalises_correctly():
+    """Test mirobody stage map normalises correctly."""
     assert _MIROBODY_STAGE_MAP["wake"] == 1
     assert _MIROBODY_STAGE_MAP["awake"] == 1
     assert _MIROBODY_STAGE_MAP["light"] == 2
@@ -117,6 +126,7 @@ def test_mirobody_stage_map_normalises_correctly():
 
 
 def test_mirobody_connect_error_returns_empty():
+    """Test mirobody connect error returns empty."""
     adapter = MirobodyAdapter(base_url="http://mirobody.test", api_key="key")
 
     with patch("api.wearable.mirobody.httpx.Client") as mock_client_cls:
@@ -132,16 +142,19 @@ def test_mirobody_connect_error_returns_empty():
 
 
 def test_registry_returns_open_wearables():
+    """Test registry returns open wearables."""
     adapter = get_adapter("open-wearables", "http://host", "key")
     assert isinstance(adapter, OpenWearablesAdapter)
 
 
 def test_registry_returns_mirobody():
+    """Test registry returns mirobody."""
     adapter = get_adapter("mirobody", "http://host", "key")
     assert isinstance(adapter, MirobodyAdapter)
 
 
 def test_registry_raises_on_unknown_provider():
+    """Test registry raises on unknown provider."""
     with pytest.raises(ValueError, match="Unknown wearable provider"):
         get_adapter("nonexistent", "http://host", "key")
 
@@ -152,6 +165,7 @@ def test_registry_raises_on_unknown_provider():
 
 
 def test_wearable_data_no_provider_returns_empty(client, auth_headers):
+    """Test wearable data no provider returns empty."""
     resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
@@ -161,11 +175,13 @@ def test_wearable_data_no_provider_returns_empty(client, auth_headers):
 
 
 def test_wearable_data_unauthenticated(client):
+    """Test wearable data unauthenticated."""
     resp = client.get("/wearable/data", params={"date": "2025-01-15"})
     assert resp.status_code == 401
 
 
 def test_wearable_summary_no_provider_returns_empty(client, auth_headers):
+    """Test wearable summary no provider returns empty."""
     resp = client.get(
         "/wearable/summary",
         params={"date_from": "2025-01-01", "date_to": "2025-01-03"},
@@ -176,7 +192,9 @@ def test_wearable_summary_no_provider_returns_empty(client, auth_headers):
 
 
 def test_wearable_data_connect_error_returns_empty(client, auth_headers, db):
+    """Test wearable data connect error returns empty."""
     from sqlalchemy import text
+
     # Insert wearable settings for the test user so provider is configured.
     # We need the user_id — read it from the auth token via /auth/me.
     me = client.get("/auth/me", headers=auth_headers).json()
@@ -209,7 +227,9 @@ def test_wearable_data_connect_error_returns_empty(client, auth_headers, db):
 
 
 def test_endpoint_timeout_returns_empty(client, auth_headers, db):
+    """Test endpoint timeout returns empty."""
     from sqlalchemy import text
+
     me = client.get("/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
@@ -242,7 +262,9 @@ def test_endpoint_timeout_returns_empty(client, auth_headers, db):
 
 
 def test_endpoint_5xx_returns_empty(client, auth_headers, db):
+    """Test endpoint 5xx returns empty."""
     from sqlalchemy import text
+
     me = client.get("/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
@@ -283,7 +305,9 @@ def test_endpoint_5xx_returns_empty(client, auth_headers, db):
 
 
 def test_wearable_data_401_from_api_returns_502(client, auth_headers, db):
+    """Test wearable data 401 from api returns 502."""
     from sqlalchemy import text
+
     me = client.get("/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
@@ -308,9 +332,7 @@ def test_wearable_data_401_from_api_returns_502(client, auth_headers, db):
         auth_err.status_code = 401
         err_response = MagicMock()
         err_response.status_code = 401
-        auth_err.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "401", request=MagicMock(), response=err_response
-        )
+        auth_err.raise_for_status.side_effect = httpx.HTTPStatusError("401", request=MagicMock(), response=err_response)
         ok = MagicMock()
         ok.status_code = 200
         ok.json.return_value = {"samples": []}
@@ -324,7 +346,9 @@ def test_wearable_data_401_from_api_returns_502(client, auth_headers, db):
 
 # ── _stages_to_hours unit tests ───────────────────────────────────────────────
 
+
 def test_stages_to_hours_accumulates_correctly():
+    """Test stages to hours accumulates correctly."""
     from api.routers.wearable import _stages_to_hours
 
     stages = [
@@ -341,6 +365,7 @@ def test_stages_to_hours_accumulates_correctly():
 
 
 def test_wearable_disabled_returns_empty(client, auth_headers):
+    """Test wearable disabled returns empty."""
     with patch.dict(os.environ, {"WEARABLE_ENABLED": "false"}):
         resp = client.get("/wearable/data?date=2025-01-15", headers=auth_headers)
     assert resp.status_code == 200
@@ -351,22 +376,27 @@ def test_wearable_disabled_returns_empty(client, auth_headers):
 
 
 def test_env_default_provider_used_when_no_db_row():
+    """Test env default provider used when no db row."""
     from api.routers.wearable import _get_adapter_for_user
 
     mock_db = MagicMock()
     mock_db.execute.return_value.mappings.return_value.first.return_value = None  # no DB row
 
-    with patch.dict(os.environ, {
-        "WEARABLE_DEFAULT_PROVIDER": "open-wearables",
-        "WEARABLE_DEFAULT_BASE_URL": "http://localhost:4000",
-        "WEARABLE_DEFAULT_API_KEY": "test-key",
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "WEARABLE_DEFAULT_PROVIDER": "open-wearables",
+            "WEARABLE_DEFAULT_BASE_URL": "http://localhost:4000",
+            "WEARABLE_DEFAULT_API_KEY": "test-key",
+        },
+    ):
         adapter = _get_adapter_for_user("some-user-id", mock_db)
 
     assert adapter is not None
 
 
 def test_stages_to_hours_skips_malformed_timestamps():
+    """Test stages to hours skips malformed timestamps."""
     from api.routers.wearable import _stages_to_hours
 
     stages = [
@@ -380,6 +410,7 @@ def test_stages_to_hours_skips_malformed_timestamps():
 
 
 def test_wearable_settings_round_trip(client, auth_headers):
+    """Test wearable settings round trip."""
     resp = client.put(
         "/import/settings",
         json={
@@ -397,6 +428,7 @@ def test_wearable_settings_round_trip(client, auth_headers):
 
 
 def test_wearable_api_key_not_exposed_in_get(client, auth_headers):
+    """Test wearable api key not exposed in get."""
     client.put(
         "/import/settings",
         json={"wearable_api_key": "super-secret"},

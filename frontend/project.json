@@ -45,6 +45,19 @@
         "command": "npm run preview",
         "cwd": "frontend"
       }
+    },
+    "build-storybook": {
+ 	 "executor": "@nx/storybook:build",
+ 	  "outputs": ["{options.outputDir}"],
+ 	  "options": {
+ 	    "outputDir": "docs/public/storybook",
+ 	    "configDir": "frontend/.storybook"
+ 	  },
+	  "configurations": {
+	    "ci": {
+	    "quiet": true
+	    }
+	  }
     }
   }
 }

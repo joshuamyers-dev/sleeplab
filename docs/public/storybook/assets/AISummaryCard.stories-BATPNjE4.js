@@ -1,0 +1,3 @@
+import{A as m}from"./AISummaryCard-C7yRgMUY.js";import"./iframe-CnI2o-UJ.js";import"./preload-helper-Dp1pzeXC.js";import"./aiSummaryCache-BSuJUHZx.js";import"./GlossaryText-C8CDyE6b.js";import"./index-CofT53Tl.js";import"./index-CeRDCxkJ.js";import"./button-C_rUzKqW.js";import"./utils-2dOUpm6k.js";import"./card-N1AUAA9K.js";const g={title:"Components/AISummaryCard",component:m,tags:["autodocs"]},r={args:{}};var o,t,a;r.parameters={...r.parameters,docs:{...(o=r.parameters)==null?void 0:o.docs,source:{originalSource:`{
+  args: {} as any
+}`,...(a=(t=r.parameters)==null?void 0:t.docs)==null?void 0:a.source}}};const y=["Default"];export{r as Default,y as __namedExportsOrder,g as default};

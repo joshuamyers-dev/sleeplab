@@ -1,0 +1,3 @@
+import{S as e}from"./SpO2Chart-elT3AvG1.js";import"./iframe-CnI2o-UJ.js";import"./preload-helper-Dp1pzeXC.js";import"./card-N1AUAA9K.js";import"./utils-2dOUpm6k.js";import"./CartesianChart-CqEBiA-s.js";import"./index-CofT53Tl.js";import"./index-CeRDCxkJ.js";import"./LineChart-D6Am72TP.js";import"./ReferenceLine-DFyG7Qoo.js";import"./Line-B0EOESsb.js";const S={title:"Components/SpO2Chart",component:e,tags:["autodocs"]},r={args:{}};var t,o,a;r.parameters={...r.parameters,docs:{...(t=r.parameters)==null?void 0:t.docs,source:{originalSource:`{
+  args: {} as any
+}`,...(a=(o=r.parameters)==null?void 0:o.docs)==null?void 0:a.source}}};const C=["Default"];export{r as Default,C as __namedExportsOrder,S as default};

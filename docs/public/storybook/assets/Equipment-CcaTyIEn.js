@@ -1,0 +1,1 @@
+import{j as e}from"./iframe-CnI2o-UJ.js";import{E as t}from"./EquipmentCatalog-RO8tC0Er.js";function a(){return e.jsx("div",{className:"mx-auto max-w-3xl",children:e.jsx(t,{})})}a.__docgenInfo={description:"",methods:[],displayName:"EquipmentPage"};export{a as E};

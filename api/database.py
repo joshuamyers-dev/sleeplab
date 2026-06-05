@@ -5,7 +5,6 @@ from sqlalchemy.orm import sessionmaker
 
 from .env import load_env
 
-
 load_env()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+psycopg2://cpap:cpap@localhost:5432/cpap")

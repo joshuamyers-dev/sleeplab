@@ -19,6 +19,7 @@ CREATE TABLE sessions (
     pld_start_datetime      TIMESTAMPTZ NOT NULL,
     duration_seconds        INTEGER NOT NULL,
     device_serial           TEXT,
+    manufacturer            TEXT,
     ahi                     NUMERIC(6,2),
     central_apnea_count     INTEGER NOT NULL DEFAULT 0,
     obstructive_apnea_count INTEGER NOT NULL DEFAULT 0,

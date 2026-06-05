@@ -9,6 +9,7 @@ import EventInspector from '../components/EventInspector'
 import EventTimeline from '../components/EventTimeline'
 import InfoPopover from '../components/InfoPopover'
 import MetricsChart from '../components/MetricsChartSplit'
+import { computeMetricsDomain, metricsToPoints } from '../components/metricsChartDomain'
 import SpO2Chart from '../components/SpO2Chart'
 import SessionAICard from '../components/SessionAICard'
 import { Button } from '../components/ui/button'
@@ -349,7 +350,8 @@ export default function SessionDetail() {
 
   const hours = Math.floor(session.duration_seconds / 3600)
   const mins  = Math.floor((session.duration_seconds % 3600) / 60)
-  const endTime = new Date(new Date(session.start_datetime).getTime() + session.duration_seconds * 1000).toISOString()
+  const endTime = session.end_datetime ?? new Date(new Date(session.start_datetime).getTime() + session.duration_seconds * 1000).toISOString()
+  const metricsTimeDomain = computeMetricsDomain(metricsToPoints(metrics))
   const badge = ahiBadge(session.ahi)
   const tagsChanged = !sameTags(tagsDraft, session.tags ?? [])
   const hasDeviceSettings = Boolean(session.therapy_mode || session.mask_type || session.humidity_level != null || session.temperature_c != null)
@@ -542,6 +544,7 @@ export default function SessionDetail() {
                 events={events}
                 durationSeconds={session.duration_seconds}
                 startDatetime={session.start_datetime}
+                timeDomain={metricsTimeDomain}
                 selectedEventId={selectedEventId}
                 onSelectEvent={inspectEvent}
               />

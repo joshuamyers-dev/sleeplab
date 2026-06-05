@@ -32,8 +32,5 @@ def get_adapter(provider: str, base_url: str, api_key: str) -> WearableAdapter:
     """
     cls = ADAPTERS.get(provider)
     if cls is None:
-        raise ValueError(
-            f"Unknown wearable provider: {provider!r}. "
-            f"Registered: {list(ADAPTERS)}"
-        )
+        raise ValueError(f"Unknown wearable provider: {provider!r}. Registered: {list(ADAPTERS)}")
     return cls(base_url=base_url, api_key=api_key)

@@ -19,14 +19,8 @@ from datetime import date, timedelta
 import db  # noqa: F401 — loads .env as side-effect
 
 # Accept either naming convention
-_id = (
-    os.environ.get("SLEEPHQ_CLIENT_ID")
-    or os.environ.get("SLEEPHQ_UID")
-)
-_secret = (
-    os.environ.get("SLEEPHQ_CLIENT_SECRET")
-    or os.environ.get("SLEEPHQ_SECRET")
-)
+_id = os.environ.get("SLEEPHQ_CLIENT_ID") or os.environ.get("SLEEPHQ_UID")
+_secret = os.environ.get("SLEEPHQ_CLIENT_SECRET") or os.environ.get("SLEEPHQ_SECRET")
 
 if not _id or not _secret:
     print("ERROR: set SLEEPHQ_CLIENT_ID/SLEEPHQ_UID and SLEEPHQ_CLIENT_SECRET/SLEEPHQ_SECRET", file=sys.stderr)
@@ -35,8 +29,9 @@ if not _id or not _secret:
 os.environ["SLEEPHQ_CLIENT_ID"] = _id
 os.environ["SLEEPHQ_CLIENT_SECRET"] = _secret
 
-from sleephq_import import create_sleephq_client, resolve_team_id, resolve_machine_id, fetch_machine_dates  # noqa: E402
 from sleephq.api.machines import get_v1_teams_team_id_machines  # noqa: E402
+from sleephq_import import create_sleephq_client, fetch_machine_dates, resolve_machine_id, resolve_team_id  # noqa: E402
+
 
 def _dump(label, obj):
     if obj is None:
@@ -47,6 +42,7 @@ def _dump(label, obj):
         print(f"  {label}: {json.dumps(props, default=str, indent=4)}")
     else:
         print(f"  {label}: {obj!r}")
+
 
 print("Authenticating…")
 client = create_sleephq_client(_id, _secret)
@@ -59,7 +55,7 @@ print(f"  team_id={team_id}  machine_id={machine_id}")
 # Fetch the machine record itself
 print("\n── Machine record ──────────────────────────────────────────")
 machines_resp = get_v1_teams_team_id_machines.sync(team_id=team_id, client=client)
-for m in (getattr(machines_resp, "data", None) or []):
+for m in getattr(machines_resp, "data", None) or []:
     attrs = getattr(m, "attributes", None)
     if getattr(attrs, "id", None) == machine_id or str(getattr(m, "id", "")) == str(machine_id):
         print(f"  model:         {getattr(attrs, 'model', '—')}")
@@ -89,9 +85,15 @@ attrs = getattr(first, "attributes", None)
 print(f"  record id: {first.id}  date: {getattr(attrs, 'date', '—')}")
 
 ALL_SUBS = [
-    "ahi_summary", "pressure_summary", "leak_rate_summary",
-    "resp_rate_summary", "flow_limit_summary", "epap_summary",
-    "pulse_rate_summary", "spo2_summary", "movement_summary",
+    "ahi_summary",
+    "pressure_summary",
+    "leak_rate_summary",
+    "resp_rate_summary",
+    "flow_limit_summary",
+    "epap_summary",
+    "pulse_rate_summary",
+    "spo2_summary",
+    "movement_summary",
     "machine_settings",
 ]
 

@@ -1,11 +1,10 @@
 import os
 import warnings
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -31,24 +30,63 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
+    """Securely hash a plain text password using PBKDF2 SHA-256.
+
+    Args:
+        password: The plain text password to hash.
+
+    Returns:
+        The secure PBKDF2 SHA-256 hashed password string.
+    """
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Verify a plain text password against a secure PBKDF2 hash.
+
+    Args:
+        plain: The plain text password candidate.
+        hashed: The secure hash to compare against.
+
+    Returns:
+        True if the password matches the hash, False otherwise.
+    """
     return pwd_context.verify(plain, hashed)
 
 
 def create_access_token(user_id: str, email: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    """Create a signed JWT access token for a user session.
+
+    Args:
+        user_id: The unique ID string of the authenticated user.
+        email: The email address of the authenticated user.
+
+    Returns:
+        A signed JWT token string containing expiration and identity claims.
+    """
+    expire = datetime.now(UTC) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     payload = {"sub": user_id, "email": email, "exp": expire}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> dict:
-    """FastAPI dependency. Reads JWT from Authorization: Bearer. Returns {'id': int, 'email': str}."""
+    """FastAPI dependency. Reads and decodes JWT from Authorization: Bearer header.
+
+    Args:
+        credentials: The HTTP Bearer authorization credentials.
+        db: The active SQLAlchemy database session.
+
+    Returns:
+        A dictionary containing the authenticated user's profile details
+        (id, email, first_name, last_name).
+
+    Raises:
+        HTTPException: If the token is missing, invalid, expired, or the user
+            does not exist in the database.
+    """
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,19 +95,20 @@ def get_current_user(
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id_str: Optional[str] = payload.get("sub")
+        user_id_str: str | None = payload.get("sub")
         if user_id_str is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
-    row = db.execute(
-        text(
-            "SELECT id::text AS id, email, first_name, last_name "
-            "FROM users WHERE id = CAST(:id AS uuid)"
-        ),
-        {"id": user_id_str},
-    ).mappings().first()
+    row = (
+        db.execute(
+            text("SELECT id::text AS id, email, first_name, last_name FROM users WHERE id = CAST(:id AS uuid)"),
+            {"id": user_id_str},
+        )
+        .mappings()
+        .first()
+    )
 
     if row is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")

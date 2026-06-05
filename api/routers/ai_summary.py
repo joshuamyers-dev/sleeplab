@@ -2,7 +2,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -50,48 +50,48 @@ Do not assume APAP or auto-adjusting therapy. Use PAP/CPAP language unless the s
 
 
 class AISummaryResponse(BaseModel):
-    headline: Optional[str] = None
-    therapy_quality: Optional[str] = None
-    high_confidence_observations: Optional[List[str]] = None
-    possible_patterns: Optional[List[str]] = None
-    things_to_review: Optional[List[str]] = None
-    missing_or_uncertain: Optional[List[str]] = None
-    flag: Optional[str] = None
+    headline: str | None = None
+    therapy_quality: str | None = None
+    high_confidence_observations: list[str] | None = None
+    possible_patterns: list[str] | None = None
+    things_to_review: list[str] | None = None
+    missing_or_uncertain: list[str] | None = None
+    flag: str | None = None
     cached: bool = False
-    insights: Optional[str] = None
-    going_well: Optional[List[str]] = None
-    whats_not: Optional[List[str]] = None
-    recommended_changes: Optional[List[str]] = None
-    disclaimer: Optional[str] = None
-    error: Optional[str] = None
+    insights: str | None = None
+    going_well: list[str] | None = None
+    whats_not: list[str] | None = None
+    recommended_changes: list[str] | None = None
+    disclaimer: str | None = None
+    error: str | None = None
 
 
 class SessionAISummaryResponse(BaseModel):
-    headline: Optional[str] = None
-    therapy_quality: Optional[str] = None
-    high_confidence_observations: Optional[List[str]] = None
-    possible_patterns: Optional[List[str]] = None
-    things_to_review: Optional[List[str]] = None
-    missing_or_uncertain: Optional[List[str]] = None
-    observations: Optional[List[str]] = None
-    recommendations: Optional[List[str]] = None
-    flag: Optional[str] = None
+    headline: str | None = None
+    therapy_quality: str | None = None
+    high_confidence_observations: list[str] | None = None
+    possible_patterns: list[str] | None = None
+    things_to_review: list[str] | None = None
+    missing_or_uncertain: list[str] | None = None
+    observations: list[str] | None = None
+    recommendations: list[str] | None = None
+    flag: str | None = None
     cached: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class TrendAISummaryResponse(BaseModel):
-    headline: Optional[str] = None
-    therapy_quality: Optional[str] = None
-    high_confidence_observations: Optional[List[str]] = None
-    possible_patterns: Optional[List[str]] = None
-    things_to_review: Optional[List[str]] = None
-    missing_or_uncertain: Optional[List[str]] = None
-    anomalies: Optional[List[str]] = None
-    trend_direction: Optional[str] = None
-    flag: Optional[str] = None
+    headline: str | None = None
+    therapy_quality: str | None = None
+    high_confidence_observations: list[str] | None = None
+    possible_patterns: list[str] | None = None
+    things_to_review: list[str] | None = None
+    missing_or_uncertain: list[str] | None = None
+    anomalies: list[str] | None = None
+    trend_direction: str | None = None
+    flag: str | None = None
     cached: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @router.get("/ai-summary", response_model=AISummaryResponse)
@@ -197,7 +197,7 @@ def _cached_or_generated(
     user_id: str,
     analysis_type: str,
     cache_key: str,
-    context: Dict[str, Any],
+    context: dict[str, Any],
     force: bool,
     response_model: type[BaseModel],
     llm_settings: Mapping[str, str | None],
@@ -230,11 +230,12 @@ def _cached_or_generated(
         return response_model(error=f"AI summary unavailable: {exc}")
 
 
-def _build_general_context(db: Session, user_id: str, days: int) -> Dict[str, Any]:
+def _build_general_context(db: Session, user_id: str, days: int) -> dict[str, Any]:
     start_date = date.today() - timedelta(days=days - 1)
-    rows = db.execute(
-        text(
-            """
+    rows = (
+        db.execute(
+            text(
+                """
             SELECT DISTINCT ON (folder_date)
                 id::text AS id, folder_date, duration_seconds, ahi, avg_pressure, p95_pressure,
                 avg_leak, avg_flow_lim, central_apnea_count, obstructive_apnea_count,
@@ -246,9 +247,12 @@ def _build_general_context(db: Session, user_id: str, days: int) -> Dict[str, An
               AND duration_seconds >= 600
             ORDER BY folder_date DESC, duration_seconds DESC
             """
-        ),
-        {"uid": user_id, "start_date": start_date},
-    ).mappings().all()
+            ),
+            {"uid": user_id, "start_date": start_date},
+        )
+        .mappings()
+        .all()
+    )
 
     nights = [_night_dict(r) for r in rows]
     ahi_values = [n["ahi"] for n in nights if n["ahi"] is not None]
@@ -280,10 +284,11 @@ def _build_general_context(db: Session, user_id: str, days: int) -> Dict[str, An
     }
 
 
-def _build_trend_context(db: Session, user_id: str) -> Dict[str, Any]:
-    rows = db.execute(
-        text(
-            """
+def _build_trend_context(db: Session, user_id: str) -> dict[str, Any]:
+    rows = (
+        db.execute(
+            text(
+                """
             SELECT DISTINCT ON (folder_date)
                 id::text AS id, folder_date, duration_seconds, ahi, avg_pressure, p95_pressure,
                 avg_leak, avg_flow_lim, central_apnea_count, obstructive_apnea_count,
@@ -295,9 +300,12 @@ def _build_trend_context(db: Session, user_id: str) -> Dict[str, Any]:
             ORDER BY folder_date DESC, duration_seconds DESC
             LIMIT 30
             """
-        ),
-        {"uid": user_id},
-    ).mappings().all()
+            ),
+            {"uid": user_id},
+        )
+        .mappings()
+        .all()
+    )
 
     nights = [_night_dict(r) for r in rows]
     recent_7 = [n for n in nights[:7] if n["ahi"] is not None]
@@ -310,9 +318,7 @@ def _build_trend_context(db: Session, user_id: str) -> Dict[str, Any]:
         "recent_7_avg_ahi": recent_avg,
         "prior_7_avg_ahi": prior_avg,
         "recent_vs_prior_delta": (
-            round(recent_avg - prior_avg, 2)
-            if recent_avg is not None and prior_avg is not None
-            else None
+            round(recent_avg - prior_avg, 2) if recent_avg is not None and prior_avg is not None else None
         ),
         "rising_ahi_streak": _has_rising_streak(nights),
         "event_totals": _event_totals(nights),
@@ -321,10 +327,11 @@ def _build_trend_context(db: Session, user_id: str) -> Dict[str, Any]:
     }
 
 
-def _build_session_context(db: Session, user_id: str, session_id: str) -> Optional[Dict[str, Any]]:
-    row = db.execute(
-        text(
-            """
+def _build_session_context(db: Session, user_id: str, session_id: str) -> dict[str, Any] | None:
+    row = (
+        db.execute(
+            text(
+                """
             WITH night AS (
                 SELECT folder_date, user_id
                 FROM sessions
@@ -361,15 +368,19 @@ def _build_session_context(db: Session, user_id: str, session_id: str) -> Option
             WHERE s.duration_seconds >= 600
             GROUP BY s.folder_date
             """
-        ),
-        {"id": session_id, "uid": user_id},
-    ).mappings().first()
+            ),
+            {"id": session_id, "uid": user_id},
+        )
+        .mappings()
+        .first()
+    )
     if not row:
         return None
 
-    events = db.execute(
-        text(
-            """
+    events = (
+        db.execute(
+            text(
+                """
             SELECT se.event_type, se.onset_seconds, se.duration_seconds
             FROM session_events se
             JOIN sessions s ON se.session_id = s.id
@@ -377,12 +388,16 @@ def _build_session_context(db: Session, user_id: str, session_id: str) -> Option
               AND s.user_id = CAST(:uid AS uuid)
             ORDER BY se.onset_seconds
             """
-        ),
-        {"folder_date": row["folder_date"], "uid": user_id},
-    ).mappings().all()
-    metrics = db.execute(
-        text(
-            """
+            ),
+            {"folder_date": row["folder_date"], "uid": user_id},
+        )
+        .mappings()
+        .all()
+    )
+    metrics = (
+        db.execute(
+            text(
+                """
             SELECT
                 COUNT(*) AS samples,
                 AVG(leak) AS avg_leak,
@@ -395,9 +410,12 @@ def _build_session_context(db: Session, user_id: str, session_id: str) -> Option
             FROM session_metrics
             WHERE session_id = CAST(:sid AS uuid)
             """
-        ),
-        {"sid": row["id"]},
-    ).mappings().first()
+            ),
+            {"sid": row["id"]},
+        )
+        .mappings()
+        .first()
+    )
 
     return {
         "session_id": session_id,
@@ -447,7 +465,7 @@ def _build_session_context(db: Session, user_id: str, session_id: str) -> Option
     }
 
 
-def _night_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
+def _night_dict(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "date": row["folder_date"].isoformat(),
         "duration_hours": round(int(row["duration_seconds"] or 0) / 3600, 2),
@@ -469,8 +487,8 @@ def _night_dict(row: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _event_cluster_summary(events: List[Mapping[str, Any]], duration_seconds: int) -> Dict[str, Any]:
-    by_type: Dict[str, int] = {}
+def _event_cluster_summary(events: list[Mapping[str, Any]], duration_seconds: int) -> dict[str, Any]:
+    by_type: dict[str, int] = {}
     onsets = []
     for event in events:
         by_type[event["event_type"]] = by_type.get(event["event_type"], 0) + 1
@@ -491,22 +509,24 @@ def _event_cluster_summary(events: List[Mapping[str, Any]], duration_seconds: in
     }
 
 
-def _enrich_general_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _enrich_general_payload(payload: dict[str, Any]) -> dict[str, Any]:
     payload["insights"] = payload.get("therapy_quality") or payload.get("headline")
     payload["going_well"] = payload.get("high_confidence_observations", [])[:3]
     payload["whats_not"] = (payload.get("possible_patterns", []) + payload.get("missing_or_uncertain", []))[:3]
     payload["recommended_changes"] = payload.get("things_to_review", [])[:3]
-    payload["disclaimer"] = "AI-generated pattern review, not medical advice. Discuss important treatment questions with a clinician."
+    payload["disclaimer"] = (
+        "AI-generated pattern review, not medical advice. Discuss important treatment questions with a clinician."
+    )
     return payload
 
 
-def _enrich_session_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _enrich_session_payload(payload: dict[str, Any]) -> dict[str, Any]:
     payload["observations"] = payload.get("high_confidence_observations", [])
     payload["recommendations"] = payload.get("things_to_review", [])
     return payload
 
 
-def _enrich_trend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _enrich_trend_payload(payload: dict[str, Any]) -> dict[str, Any]:
     payload["anomalies"] = payload.get("possible_patterns", [])
     headline = " ".join(str(payload.get("headline", "")).lower().split())
     if "improv" in headline:
@@ -520,7 +540,7 @@ def _enrich_trend_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
-def _normalize_structured_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_structured_payload(payload: dict[str, Any]) -> dict[str, Any]:
     flag = str(payload.get("flag") or "watch").lower()
     if flag not in {"good", "watch", "alert"}:
         flag = "watch"
@@ -543,10 +563,11 @@ def _read_cache(
     cache_key: str,
     input_fingerprint: str,
     settings_fingerprint: str,
-) -> Optional[Dict[str, Any]]:
-    row = db.execute(
-        text(
-            """
+) -> dict[str, Any] | None:
+    row = (
+        db.execute(
+            text(
+                """
             SELECT response_payload
             FROM ai_analysis_cache
             WHERE user_id = CAST(:uid AS uuid)
@@ -555,15 +576,18 @@ def _read_cache(
               AND input_fingerprint = :input_fingerprint
               AND settings_fingerprint = :settings_fingerprint
             """
-        ),
-        {
-            "uid": user_id,
-            "analysis_type": analysis_type,
-            "cache_key": cache_key,
-            "input_fingerprint": input_fingerprint,
-            "settings_fingerprint": settings_fingerprint,
-        },
-    ).mappings().first()
+            ),
+            {
+                "uid": user_id,
+                "analysis_type": analysis_type,
+                "cache_key": cache_key,
+                "input_fingerprint": input_fingerprint,
+                "settings_fingerprint": settings_fingerprint,
+            },
+        )
+        .mappings()
+        .first()
+    )
     return dict(row["response_payload"]) if row else None
 
 
@@ -574,7 +598,7 @@ def _write_cache(
     cache_key: str,
     input_fingerprint: str,
     settings_fingerprint: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
 ) -> None:
     db.execute(
         text(
@@ -613,7 +637,7 @@ def _settings_fingerprint(llm_settings: Mapping[str, str | None]) -> str:
     )
 
 
-def _fingerprint(value: Dict[str, Any]) -> str:
+def _fingerprint(value: dict[str, Any]) -> str:
     return hashlib.sha256(_json_for_prompt(value).encode("utf-8")).hexdigest()
 
 
@@ -621,7 +645,7 @@ def _json_for_prompt(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
 
 
-def _parse_ai_payload(raw_text: str) -> Dict[str, Any]:
+def _parse_ai_payload(raw_text: str) -> dict[str, Any]:
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
@@ -643,7 +667,7 @@ def _parse_ai_payload(raw_text: str) -> Dict[str, Any]:
         return json.loads(cleaned[start : end + 1])
 
 
-def _ensure_list(value: object) -> List[str]:
+def _ensure_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -653,7 +677,7 @@ def _ensure_list(value: object) -> List[str]:
     return [str(value).strip()]
 
 
-def _event_totals(nights: List[Dict[str, Any]]) -> Dict[str, int]:
+def _event_totals(nights: list[dict[str, Any]]) -> dict[str, int]:
     totals = {"central": 0, "obstructive": 0, "hypopnea": 0, "unclassified_apnea": 0, "total_ahi_events": 0}
     for night in nights:
         for key in totals:
@@ -661,7 +685,7 @@ def _event_totals(nights: List[Dict[str, Any]]) -> Dict[str, int]:
     return totals
 
 
-def _missing_general(nights: List[Dict[str, Any]]) -> List[str]:
+def _missing_general(nights: list[dict[str, Any]]) -> list[str]:
     missing = []
     if not nights:
         return ["No imported PAP sessions were available for this analysis window."]
@@ -673,7 +697,7 @@ def _missing_general(nights: List[Dict[str, Any]]) -> List[str]:
     return missing
 
 
-def _missing_session(row: Mapping[str, Any], metrics: Mapping[str, Any] | None) -> List[str]:
+def _missing_session(row: Mapping[str, Any], metrics: Mapping[str, Any] | None) -> list[str]:
     missing = []
     if not row["has_spo2"]:
         missing.append("No oximetry data is attached to this session.")
@@ -684,12 +708,12 @@ def _missing_session(row: Mapping[str, Any], metrics: Mapping[str, Any] | None) 
     return missing or ["Waveform-level interpretation is limited to the imported summary and event data."]
 
 
-def _has_rising_streak(nights: List[Dict[str, Any]]) -> bool:
+def _has_rising_streak(nights: list[dict[str, Any]]) -> bool:
     newest_first = [n["ahi"] for n in nights[:3] if n["ahi"] is not None]
     return len(newest_first) == 3 and newest_first[0] > newest_first[1] > newest_first[2]
 
 
-def _data_marker(rows: List[Mapping[str, Any]]) -> Dict[str, Any]:
+def _data_marker(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     return {
         "row_count": len(rows),
         "latest_updated_at": max((r["updated_at"] for r in rows if r.get("updated_at")), default=None),
@@ -697,13 +721,13 @@ def _data_marker(rows: List[Mapping[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def _avg(values: List[float]) -> Optional[float]:
+def _avg(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
 
 
-def _float(value: object) -> Optional[float]:
+def _float(value: object) -> float | None:
     return round(float(value), 4) if value is not None else None
 
 
-def _lps_to_lpm(value: object) -> Optional[float]:
+def _lps_to_lpm(value: object) -> float | None:
     return round(float(value) * 60, 2) if value is not None else None

@@ -8,28 +8,27 @@ Run:
     python import_sessions.py --from 20250101     # from date onward
 """
 
-import os
-import sys
 import argparse
+import os
 import statistics
-from pathlib import Path
+import sys
 from datetime import date, datetime, timedelta
-from typing import Optional
+from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from edf_parser import parse_brp, parse_pld, parse_eve, parse_sa2, read_header
 from db import (
     clear_session_waveform,
     get_conn,
+    get_session_db_id,
     replace_session_events,
     replace_session_metrics,
     replace_session_spo2,
     replace_session_waveform,
     upsert_session,
 )
+from edf_parser import parse_brp, parse_eve, parse_pld, parse_sa2, read_header
 
-
-AHI_EVENT_TYPES = {'Central Apnea', 'Obstructive Apnea', 'Hypopnea', 'Apnea'}
+AHI_EVENT_TYPES = {"Central Apnea", "Obstructive Apnea", "Hypopnea", "Apnea"}
 
 
 def _machine_tz(name: str | None = None) -> ZoneInfo:
@@ -76,7 +75,7 @@ def discover_session_blocks(folder: Path) -> list:
     by_ts_type = {}
     brp_paths = []
     for f in files:
-        parts = f.stem.split('_')
+        parts = f.stem.split("_")
         if len(parts) != 3:
             continue
         # timestamp = YYYYMMDD + HHMMSS
@@ -86,8 +85,8 @@ def discover_session_blocks(folder: Path) -> list:
         if ftype == "BRP":
             brp_paths.append(f)
 
-    csl_timestamps = sorted(ts for (ts, t) in by_ts_type if t == 'CSL')
-    pld_timestamps = sorted(ts for (ts, t) in by_ts_type if t == 'PLD')
+    csl_timestamps = sorted(ts for (ts, t) in by_ts_type if t == "CSL")
+    pld_timestamps = sorted(ts for (ts, t) in by_ts_type if t == "PLD")
 
     if not pld_timestamps:
         return []
@@ -121,11 +120,11 @@ def derive_summary(pld_channels: dict, events: list, duration_seconds: int) -> d
     """Compute per-session summary statistics from PLD channels and EVE events."""
     duration_hours = duration_seconds / 3600.0
 
-    ca  = sum(1 for _, _, t in events if t == 'Central Apnea')
-    oa  = sum(1 for _, _, t in events if t == 'Obstructive Apnea')
-    h   = sum(1 for _, _, t in events if t == 'Hypopnea')
-    a   = sum(1 for _, _, t in events if t == 'Apnea')
-    ar  = sum(1 for _, _, t in events if t == 'Arousal')
+    ca = sum(1 for _, _, t in events if t == "Central Apnea")
+    oa = sum(1 for _, _, t in events if t == "Obstructive Apnea")
+    h = sum(1 for _, _, t in events if t == "Hypopnea")
+    a = sum(1 for _, _, t in events if t == "Apnea")
+    ar = sum(1 for _, _, t in events if t == "Arousal")
     ahi_events = ca + oa + h + a
     ahi = round(ahi_events / duration_hours, 2) if duration_hours > 0 else 0.0
 
@@ -138,30 +137,30 @@ def derive_summary(pld_channels: dict, events: list, duration_seconds: int) -> d
         s = sorted(vals)
         return round(s[int(pct * len(s))], 2)
 
-    press = [v for v in pld_channels.get('Press.2s', []) if v > 0]
-    leak  = pld_channels.get('Leak.2s', [])
-    rr    = [v for v in pld_channels.get('RespRate.2s', []) if v > 0]
-    tv    = [v for v in pld_channels.get('TidVol.2s', []) if v > 0]
-    mv    = [v for v in pld_channels.get('MinVent.2s', []) if v > 0]
-    snore = pld_channels.get('Snore.2s', [])
-    fl    = pld_channels.get('FlowLim.2s', [])
+    press = [v for v in pld_channels.get("Press.2s", []) if v > 0]
+    leak = pld_channels.get("Leak.2s", [])
+    rr = [v for v in pld_channels.get("RespRate.2s", []) if v > 0]
+    tv = [v for v in pld_channels.get("TidVol.2s", []) if v > 0]
+    mv = [v for v in pld_channels.get("MinVent.2s", []) if v > 0]
+    snore = pld_channels.get("Snore.2s", [])
+    fl = pld_channels.get("FlowLim.2s", [])
 
     return {
-        'ahi':                     ahi,
-        'central_apnea_count':     ca,
-        'obstructive_apnea_count': oa,
-        'hypopnea_count':          h,
-        'apnea_count':             a,
-        'arousal_count':           ar,
-        'total_ahi_events':        ahi_events,
-        'avg_pressure':            safe_mean(press),
-        'p95_pressure':            percentile(press, 0.95),
-        'avg_leak':                safe_mean(leak),
-        'avg_resp_rate':           safe_mean(rr),
-        'avg_tidal_vol':           safe_mean(tv),
-        'avg_min_vent':            safe_mean(mv),
-        'avg_snore':               safe_mean(snore),
-        'avg_flow_lim':            safe_mean(fl),
+        "ahi": ahi,
+        "central_apnea_count": ca,
+        "obstructive_apnea_count": oa,
+        "hypopnea_count": h,
+        "apnea_count": a,
+        "arousal_count": ar,
+        "total_ahi_events": ahi_events,
+        "avg_pressure": safe_mean(press),
+        "p95_pressure": percentile(press, 0.95),
+        "avg_leak": safe_mean(leak),
+        "avg_resp_rate": safe_mean(rr),
+        "avg_tidal_vol": safe_mean(tv),
+        "avg_min_vent": safe_mean(mv),
+        "avg_snore": safe_mean(snore),
+        "avg_flow_lim": safe_mean(fl),
     }
 
 
@@ -195,12 +194,12 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
     imported = 0
     machine_tz_name, machine_tz = _machine_tz_for_user(conn, user_id)
     for block_idx, block in enumerate(blocks):
-        pld_ts = block['pld_ts']
+        pld_ts = block["pld_ts"]
         session_id = f"{folder_date.strftime('%Y%m%d')}_{pld_ts[8:10]}{pld_ts[10:12]}{pld_ts[12:14]}"
 
         try:
             # Parse PLD (required)
-            pld_header, pld_channels = parse_pld(block['pld_path'])
+            pld_header, pld_channels = parse_pld(block["pld_path"])
 
             # Parse EVE (optional — some blocks may lack it)
             events = []
@@ -212,8 +211,8 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             # EDF timestamps are naive local machine time; attach MACHINE_TZ so
             # psycopg2 stores the correct UTC equivalent in TIMESTAMPTZ columns.
             csl_start = _localize(pld_header.start_datetime, machine_tz)  # fallback
-            if block['csl_path'] and block['csl_path'].exists():
-                csl_hdr = read_header(str(block['csl_path']))
+            if block["csl_path"] and block["csl_path"].exists():
+                csl_hdr = read_header(str(block["csl_path"]))
                 csl_start = _localize(csl_hdr.start_datetime, machine_tz)
 
             pld_start = _localize(pld_header.start_datetime, machine_tz)
@@ -224,8 +223,8 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
             spo2_data = None
             spo2_header = None
             spo2_start = None
-            if block['spo2_path'] and block['spo2_path'].exists():
-                spo2_header, spo2_data = parse_sa2(block['spo2_path'])
+            if block["spo2_path"] and block["spo2_path"].exists():
+                spo2_header, spo2_data = parse_sa2(block["spo2_path"])
                 spo2_start = _localize(spo2_header.start_datetime, machine_tz)
 
             summary = derive_summary(pld_channels, events, duration_s)
@@ -238,6 +237,7 @@ def import_folder(folder: Path, folder_date: date, conn, user_id: str):
                 'pld_start_datetime': pld_start,
                 'duration_seconds':   duration_s,
                 'device_serial':      pld_header.device_serial or None,
+                'manufacturer':       'ResMed',
                 'has_spo2':           spo2_data is not None,
                 'therapy_mode':       None,
                 'mask_type':          None,
@@ -291,7 +291,7 @@ def replace_waveforms_for_block(conn, session_db_id: str, block: dict, events: l
 
     return inserted
 
-def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] = None) -> dict:
+def run_local_import(user_id: str, datalog_path: str, from_date: str | None = None) -> dict:
     """
     Programmatic entry point for server-triggered local imports.
 
@@ -304,10 +304,7 @@ def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] =
     if not datalog.exists():
         raise FileNotFoundError(f"DATALOG path not found: {datalog_path}")
 
-    folders = sorted([
-        f for f in datalog.iterdir()
-        if f.is_dir() and f.name.isdigit() and len(f.name) == 8
-    ])
+    folders = sorted([f for f in datalog.iterdir() if f.is_dir() and f.name.isdigit() and len(f.name) == 8])
     if from_date:
         folders = [f for f in folders if f.name >= from_date]
 
@@ -316,9 +313,7 @@ def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] =
     try:
         for folder in folders:
             try:
-                folder_date = date(
-                    int(folder.name[:4]), int(folder.name[4:6]), int(folder.name[6:8])
-                )
+                folder_date = date(int(folder.name[:4]), int(folder.name[4:6]), int(folder.name[6:8]))
             except ValueError:
                 continue
             try:
@@ -332,30 +327,27 @@ def run_local_import(user_id: str, datalog_path: str, from_date: Optional[str] =
     finally:
         conn.close()
 
-    print(
-        f"Local import done. "
-        f"imported={stats['imported']} folders={stats['folders']} errors={stats['errors']}"
-    )
+    print(f"Local import done. imported={stats['imported']} folders={stats['folders']} errors={stats['errors']}")
     return stats
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Import CPAP EDF data into PostgreSQL')
-    parser.add_argument('--datalog', required=True, help='Absolute path to DATALOG folder')
-    parser.add_argument('--user-id', required=True, dest='user_id', help='User UUID to associate sessions with')
-    parser.add_argument('--folder', help='Import only this folder (YYYYMMDD)')
-    parser.add_argument('--from', dest='from_date', help='Import folders from this date onward (YYYYMMDD)')
+    parser = argparse.ArgumentParser(description="Import CPAP EDF data into PostgreSQL")
+    parser.add_argument("--datalog", required=True, help="Absolute path to DATALOG folder")
+    parser.add_argument("--user-id", required=True, dest="user_id", help="User UUID to associate sessions with")
+    parser.add_argument("--folder", help="Import only this folder (YYYYMMDD)")
+    parser.add_argument("--from", dest="from_date", help="Import folders from this date onward (YYYYMMDD)")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    DATALOG = Path(args.datalog)
+    datalog = Path(args.datalog)
     user_id = args.user_id
     conn = get_conn()
 
     if args.folder:
-        folder = DATALOG / args.folder
+        folder = datalog / args.folder
         if not folder.exists():
             print(f"Folder not found: {folder}")
             sys.exit(1)
@@ -365,7 +357,7 @@ def main():
         conn.close()
         return
 
-    folders = sorted([f for f in DATALOG.iterdir() if f.is_dir() and f.name.isdigit() and len(f.name) == 8])
+    folders = sorted([f for f in datalog.iterdir() if f.is_dir() and f.name.isdigit() and len(f.name) == 8])
 
     if args.from_date:
         folders = [f for f in folders if f.name >= args.from_date]
@@ -378,7 +370,7 @@ def main():
         except ValueError:
             continue
 
-        print(f"  {folder.name} ... ", end='', flush=True)
+        print(f"  {folder.name} ... ", end="", flush=True)
         n = import_folder(folder, folder_date, conn, user_id)
         if n > 0:
             print(f"{n} block(s)")
@@ -391,5 +383,5 @@ def main():
     print(f"\nDone. {total_sessions} session blocks imported across {total_folders} nights.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

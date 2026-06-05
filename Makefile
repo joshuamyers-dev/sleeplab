@@ -17,7 +17,7 @@
         check-migrations \
         dev dev-frontend \
         up up-advanced up-build down \
-        ci
+        ci docs-capture clean
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,7 @@ install-backend: ## Install Python dependencies via uv (includes dev group)
 
 install-frontend: ## Install Node dependencies for the frontend
 	npm ci --prefix frontend
+	npx playwright install --with-deps chromium
 
 # ── Linting & Formatting ─────────────────────────────────────────────────────
 
@@ -60,6 +61,9 @@ test-backend-db: ## Run only DB-marked backend tests (requires Postgres)
 
 test-frontend: ## Run frontend unit tests with vitest (single run)
 	npm test --prefix frontend
+
+test-storybook: ## Run Storybook components tests with vitest (requires browser)
+	npm run test:storybook --prefix frontend
 
 test-watch: ## Run frontend tests in watch mode
 	npm run test:watch --prefix frontend
@@ -105,3 +109,17 @@ down: ## Stop and remove all compose services
 # ── CI ────────────────────────────────────────────────────────────────────────
 
 ci: lint typecheck test-backend test-frontend ## Full CI suite: lint → typecheck → test-backend → test-frontend
+
+docs-capture: build docs-storybook ## Capture full-page app screenshots and all Storybook story PNGs
+	npm run docs-capture
+	npm run storybook-capture:no-build
+
+storybook: ## Start the Storybook server
+	npx nx run frontend:storybook
+
+docs-storybook: ## Build Storybook static documentation
+	npx nx run frontend:build-storybook
+
+clean: ## Remove build artifacts and reset Nx cache
+	rm -rf frontend/dist node_modules docs/public/ui-snapshots
+	npx nx reset

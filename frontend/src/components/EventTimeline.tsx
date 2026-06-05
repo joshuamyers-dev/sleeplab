@@ -10,6 +10,7 @@ interface Props {
   events: EventRecord[]
   durationSeconds: number
   startDatetime: string
+  timeDomain?: [number, number] | null
   selectedEventId?: number | null
   onSelectEvent?: (event: EventRecord) => void
 }
@@ -28,19 +29,25 @@ const EVENT_COLORS: Record<string, string> = {
 }
 
 /**
- * Helper function for fmt time.
+ * Formats a timestamp into the user's configured display timezone.
  */
-function fmtTime(startIso: string, offsetSeconds: number): string {
-  const d = new Date(new Date(startIso).getTime() + offsetSeconds * 1000)
+function fmtTime(ts: number): string {
+  const d = new Date(ts)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getDisplayTz() })
 }
 
 /**
- * React component or element to render the event timeline.
- *
- * @returns The rendered React element.
+ * Returns the best available timestamp for an event.
  */
-export default function EventTimeline({ events, durationSeconds, startDatetime, selectedEventId, onSelectEvent }: Props) {
+function eventTimestamp(event: EventRecord, startTs: number): number {
+  const ts = new Date(event.event_datetime).getTime()
+  return Number.isFinite(ts) ? ts : startTs + event.onset_seconds * 1000
+}
+
+/**
+ * Renders a proportional event timeline for the current session.
+ */
+export default function EventTimeline({ events, durationSeconds, startDatetime, timeDomain, selectedEventId, onSelectEvent }: Props) {
   const [activeTooltip, setActiveTooltip] = useState<{
     eventType: string
     timeLabel: string
@@ -57,6 +64,24 @@ export default function EventTimeline({ events, durationSeconds, startDatetime, 
     )
   }
 
+  const startTs = new Date(startDatetime).getTime()
+  const fallbackStartTs = Number.isFinite(startTs) ? startTs : 0
+  const eventRanges = events.map((event) => {
+    const ts = eventTimestamp(event, fallbackStartTs)
+    return [ts, ts + (event.duration_seconds ?? 0) * 1000] as [number, number]
+  })
+  const requestedDomainStart = timeDomain?.[0]
+  const requestedDomainEnd = timeDomain?.[1]
+  const domainStart = Math.min(
+    Number.isFinite(requestedDomainStart) ? requestedDomainStart! : fallbackStartTs,
+    ...eventRanges.map(([start]) => start),
+  )
+  const domainEnd = Math.max(
+    Number.isFinite(requestedDomainEnd) ? requestedDomainEnd! : fallbackStartTs + durationSeconds * 1000,
+    ...eventRanges.map(([, end]) => end),
+  )
+  const timelineDurationMs = Math.max(domainEnd - domainStart, 1)
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 text-xs text-[var(--muted-foreground)]">
@@ -72,7 +97,7 @@ export default function EventTimeline({ events, durationSeconds, startDatetime, 
         <div className="relative mb-2 h-4 text-[10px] text-[var(--muted-foreground)]">
           {[0, 0.25, 0.5, 0.75, 1].map(pct => (
             <span key={pct} className="absolute -translate-x-1/2" style={{ left: `${pct * 100}%` }}>
-              {fmtTime(startDatetime, durationSeconds * pct)}
+              {fmtTime(domainStart + timelineDurationMs * pct)}
             </span>
           ))}
         </div>
@@ -92,15 +117,16 @@ export default function EventTimeline({ events, durationSeconds, startDatetime, 
         <div className="relative h-6 rounded-full bg-[rgba(125,105,93,0.14)]">
           {events.map((evt) => {
             const isSelected = selectedEventId === evt.id
-            const markerStartSeconds = isSelected && evt.duration_seconds
-              ? Math.max(0, evt.onset_seconds - evt.duration_seconds)
-              : evt.onset_seconds
-            const xPct = (markerStartSeconds / durationSeconds) * 100
+            const ts = eventTimestamp(evt, fallbackStartTs)
+            const markerStartTs = isSelected && evt.duration_seconds
+              ? Math.max(domainStart, ts - evt.duration_seconds * 1000)
+              : ts
             const widthPct = evt.duration_seconds
-              ? Math.max((evt.duration_seconds / durationSeconds) * 100, isSelected ? 0.8 : 0.3)
+              ? Math.max((evt.duration_seconds * 1000 / timelineDurationMs) * 100, isSelected ? 0.8 : 0.3)
               : 0.3
+            const xPct = Math.min(Math.max(((markerStartTs - domainStart) / timelineDurationMs) * 100, 0), 100 - widthPct)
             const color = EVENT_COLORS[evt.event_type] ?? '#888'
-            const timeLabel = fmtTime(startDatetime, evt.onset_seconds)
+            const timeLabel = fmtTime(ts)
             const durationLabel = evt.duration_seconds ? `${evt.duration_seconds}s` : 'Duration not available'
             return (
               <button

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { setDisplayTz } from '../lib/displayTz'
 import SessionDetail from './SessionDetail'
 
 const apiMock = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ function sessionDetail(machineTz: string | null) {
     folder_date: '2026-06-01',
     block_index: 0,
     start_datetime: '2026-06-02T03:59:51Z',
+    end_datetime: '2026-06-02T09:31:00Z',
     pld_start_datetime: '2026-06-02T03:59:51Z',
     duration_seconds: 4680,
     duration_hours: 1.3,
@@ -99,6 +101,7 @@ function renderSessionDetail() {
 describe('SessionDetail timezone display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setDisplayTz('UTC')
     apiMock.getSessionByDate.mockResolvedValue(sessionDetail('America/New_York'))
     apiMock.getEvents.mockResolvedValue([])
     apiMock.getMetrics.mockResolvedValue(emptyMetrics)
@@ -122,5 +125,12 @@ describe('SessionDetail timezone display', () => {
     await waitFor(() => {
       expect(screen.queryByText(/timezone not recorded/i)).not.toBeInTheDocument()
     })
+  })
+
+  it('uses the stored end timestamp instead of adding usage duration to the start', async () => {
+    renderSessionDetail()
+
+    expect(await screen.findByText(/03:59 AM/)).toBeInTheDocument()
+    expect(screen.getByText(/09:31 AM/)).toBeInTheDocument()
   })
 })

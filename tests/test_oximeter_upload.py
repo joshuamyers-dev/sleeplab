@@ -10,6 +10,7 @@ from api.routers import upload
 
 
 def _seed_session(db, user_id: str, start: datetime | None = None) -> str:
+    """Test  seed session."""
     session_id = str(uuid.uuid4())
     start = start or datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC)
     db.execute(
@@ -34,6 +35,7 @@ def _seed_session(db, user_id: str, start: datetime | None = None) -> str:
 
 
 def _fixture(started_at: datetime | None = None) -> bytes:
+    """Test  fixture."""
     return build_legacy_viatom_fixture(
         signature=0x0005,
         started_at=started_at or datetime(2025, 1, 15, 22, 0, 0),
@@ -62,7 +64,10 @@ def test_datalog_import_failure_records_failed_status(monkeypatch):
 
 
 class TestOximeterUpload:
+    """Test suite for oximeter upload."""
+
     def test_unauthenticated(self, client: TestClient):
+        """Test unauthenticated."""
         resp = client.post(
             "/upload/oximeter",
             files=[("files", ("20250115220000", _fixture(), "application/octet-stream"))],
@@ -71,6 +76,7 @@ class TestOximeterUpload:
         assert resp.status_code == 401
 
     def test_matched_upload_imports_spo2_and_updates_summary(self, client: TestClient, auth_headers, test_user, db):
+        """Test matched upload imports spo2 and updates summary."""
         sid = _seed_session(db, test_user["id"])
 
         resp = client.post(
@@ -86,22 +92,31 @@ class TestOximeterUpload:
         assert data["results"][0]["session_id"] == sid
         assert data["results"][0]["sample_count"] == 2
 
-        rows = db.execute(
-            text("SELECT spo2, pulse FROM session_spo2 WHERE session_id = CAST(:sid AS uuid) ORDER BY ts"),
-            {"sid": sid},
-        ).mappings().all()
+        rows = (
+            db.execute(
+                text("SELECT spo2, pulse FROM session_spo2 WHERE session_id = CAST(:sid AS uuid) ORDER BY ts"),
+                {"sid": sid},
+            )
+            .mappings()
+            .all()
+        )
         assert [row["spo2"] for row in rows] == [97, 96]
         assert [row["pulse"] for row in rows] == [61, 62]
 
-        session = db.execute(
-            text("SELECT has_spo2, avg_spo2, min_spo2 FROM sessions WHERE id = CAST(:sid AS uuid)"),
-            {"sid": sid},
-        ).mappings().one()
+        session = (
+            db.execute(
+                text("SELECT has_spo2, avg_spo2, min_spo2 FROM sessions WHERE id = CAST(:sid AS uuid)"),
+                {"sid": sid},
+            )
+            .mappings()
+            .one()
+        )
         assert session["has_spo2"] is True
         assert float(session["avg_spo2"]) == 96.5
         assert int(session["min_spo2"]) == 96
 
     def test_unmatched_upload_does_not_create_rows(self, client: TestClient, auth_headers, test_user, db):
+        """Test unmatched upload does not create rows."""
         _seed_session(db, test_user["id"], datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC))
         payload = _fixture(datetime(2025, 1, 17, 22, 0, 0))
 
@@ -124,6 +139,7 @@ class TestOximeterUpload:
         test_user,
         db,
     ):
+        """Test existing spo2 skips by default and overwrites when requested."""
         sid = _seed_session(db, test_user["id"])
 
         first = client.post(
@@ -141,7 +157,12 @@ class TestOximeterUpload:
         )
         assert skipped.status_code == 200
         assert skipped.json()["skipped"] == 1
-        assert db.execute(text("SELECT COUNT(*) FROM session_spo2 WHERE session_id = CAST(:sid AS uuid)"), {"sid": sid}).scalar_one() == 2
+        assert (
+            db.execute(
+                text("SELECT COUNT(*) FROM session_spo2 WHERE session_id = CAST(:sid AS uuid)"), {"sid": sid}
+            ).scalar_one()
+            == 2
+        )
 
         replacement = build_legacy_viatom_fixture(
             signature=0x0005,
@@ -158,10 +179,14 @@ class TestOximeterUpload:
 
         assert overwritten.status_code == 200
         assert overwritten.json()["imported"] == 1
-        rows = db.execute(
-            text("SELECT spo2, pulse FROM session_spo2 WHERE session_id = CAST(:sid AS uuid) ORDER BY ts"),
-            {"sid": sid},
-        ).mappings().all()
+        rows = (
+            db.execute(
+                text("SELECT spo2, pulse FROM session_spo2 WHERE session_id = CAST(:sid AS uuid) ORDER BY ts"),
+                {"sid": sid},
+            )
+            .mappings()
+            .all()
+        )
         assert [(row["spo2"], row["pulse"]) for row in rows] == [(95, 64)]
 
     def test_unsupported_upload_returns_failed_status(self, client: TestClient, auth_headers):

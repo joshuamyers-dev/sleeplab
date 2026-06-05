@@ -1,0 +1,3 @@
+import{j as n}from"./iframe-CnI2o-UJ.js";import{c as p}from"./utils-2dOUpm6k.js";import"./preload-helper-Dp1pzeXC.js";function o({className:s,...c}){return n.jsx("div",{className:p("h-px w-full bg-white/10",s),...c})}o.__docgenInfo={description:"",methods:[],displayName:"Separator"};const u={title:"UI/Separator",component:o,tags:["autodocs"]},r={args:{}};var a,e,t;r.parameters={...r.parameters,docs:{...(a=r.parameters)==null?void 0:a.docs,source:{originalSource:`{
+  args: {}
+}`,...(t=(e=r.parameters)==null?void 0:e.docs)==null?void 0:t.source}}};const l=["Default"];export{r as Default,l as __namedExportsOrder,u as default};

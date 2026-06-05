@@ -35,6 +35,9 @@ services:
       # Persistent storage — survives container restarts and upgrades.
       - sleeplab_postgres_data:/var/lib/postgresql/data
 
+    ports:
+      - "5432:5432"
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cpap} -d ${POSTGRES_DB:-cpap}"]
       interval: 10s

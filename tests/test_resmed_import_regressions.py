@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from api.therapy_score import compute_therapy_score
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "importer"))
 
 import db as importer_db
@@ -59,6 +61,66 @@ class FakeConn:
 
     def rollback(self):
         self.rollbacks += 1
+
+
+def _session_data(**overrides):
+    data = {
+        "session_id": "20260601_235949",
+        "folder_date": date(2026, 6, 1),
+        "block_index": 0,
+        "start_datetime": datetime(2026, 6, 1, 23, 59, 49, tzinfo=UTC),
+        "pld_start_datetime": datetime(2026, 6, 1, 23, 59, 49, tzinfo=UTC),
+        "duration_seconds": 600,
+        "device_serial": "SN123",
+        "manufacturer": "ResMed",
+        "ahi": 0.0,
+        "central_apnea_count": 0,
+        "obstructive_apnea_count": 0,
+        "hypopnea_count": 0,
+        "apnea_count": 0,
+        "arousal_count": 0,
+        "total_ahi_events": 0,
+        "avg_pressure": None,
+        "p95_pressure": None,
+        "avg_leak": 0.170366,
+        "avg_resp_rate": None,
+        "avg_tidal_vol": None,
+        "avg_min_vent": None,
+        "avg_snore": None,
+        "avg_flow_lim": None,
+        "has_spo2": False,
+        "therapy_mode": None,
+        "mask_type": None,
+        "humidity_level": None,
+        "temperature_c": None,
+        "machine_tz": "UTC",
+        "user_id": "user-1",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_upsert_session_persists_manufacturer_without_null_clobber():
+    conn = FakeConn(rows=[(123,)])
+
+    assert importer_db.upsert_session(conn, _session_data()) == 123
+
+    sql, params = conn.cursor_obj.statements[0]
+    assert "manufacturer" in sql
+    assert "%(manufacturer)s" in sql
+    assert "manufacturer            = COALESCE(NULLIF(EXCLUDED.manufacturer, ''), NULLIF(sessions.manufacturer, ''))" in sql
+    assert params["manufacturer"] == "ResMed"
+
+
+def test_upsert_session_defaults_unknown_manufacturer_to_null():
+    conn = FakeConn(rows=[(123,)])
+    data = _session_data()
+    data.pop("manufacturer")
+
+    assert importer_db.upsert_session(conn, data) == 123
+
+    _sql, params = conn.cursor_obj.statements[0]
+    assert params["manufacturer"] is None
 
 
 def test_dedupe_events_preserves_zero_duration_arousal():
@@ -155,6 +217,44 @@ def test_import_folder_replaces_events_on_repeat_import(monkeypatch, tmp_path):
     assert [len(events) for events in event_calls] == [2, 2]
     assert event_calls[0] == event_calls[1]
     assert len(waveform_calls) == 2
+
+
+def test_resmed_import_folder_sets_manufacturer_and_scores_leak(monkeypatch, tmp_path):
+    folder = tmp_path / "20260601"
+    folder.mkdir()
+    for suffix in ("CSL", "PLD"):
+        (folder / f"20260601_235949_{suffix}.edf").touch()
+
+    upserts = []
+
+    def fake_upsert(_conn, data):
+        upserts.append(dict(data))
+        return 123
+
+    monkeypatch.setattr(import_sessions, "_machine_tz_for_user", lambda _conn, _uid: ("UTC", UTC))
+    monkeypatch.setattr(
+        import_sessions,
+        "parse_pld",
+        lambda _path: (
+            FakeHeader(datetime(2026, 6, 1, 23, 59, 49), num_records=10),
+            {"Leak.2s": [0.170366], "Press.2s": [10.0]},
+        ),
+    )
+    monkeypatch.setattr(import_sessions, "read_header", lambda _path: FakeHeader(datetime(2026, 6, 1, 23, 59, 49)))
+    monkeypatch.setattr(import_sessions, "upsert_session", fake_upsert)
+    monkeypatch.setattr(import_sessions, "replace_session_metrics", lambda *_args: None)
+    monkeypatch.setattr(import_sessions, "replace_session_spo2", lambda *_args: None)
+    monkeypatch.setattr(import_sessions, "replace_session_events", lambda *_args: None)
+    monkeypatch.setattr(import_sessions, "replace_waveforms_for_block", lambda *_args: None)
+
+    assert import_sessions.import_folder(folder, date(2026, 6, 1), FakeConn(), "user-1") == 1
+
+    assert upserts[0]["manufacturer"] == "ResMed"
+    assert upserts[0]["avg_leak"] == 0.1704
+    score = compute_therapy_score({**upserts[0], "parser_validated": True})
+    assert score.components.leak is not None
+    assert score.components.leak.value == 10.22
+    assert score.components.leak.unit == "L/min"
 
 
 def test_import_folder_assigns_repeated_eve_events_to_only_matching_split_block(monkeypatch, tmp_path):

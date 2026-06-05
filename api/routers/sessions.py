@@ -14,10 +14,8 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import (
-    EquipmentResponse,
     EventRecord,
     EventWindowResponse,
-    InferredEquipment,
     MetricsResponse,
     SessionDetail,
     SessionSummary,
@@ -42,14 +40,19 @@ DATE_PARAM_RE = re.compile(r"^\d{8}$")
 
 
 class SessionTimezoneUpdate(BaseModel):
+    """Request body for updating the CPAP machine timezone on a session."""
+
     machine_tz: str
 
 
 class SessionNoteUpdate(BaseModel):
+    """Request body for setting or clearing a free-text note on a session."""
+
     note: str | None = None
 
 
 def _parse_yyyymmdd(value: str, name: str) -> date:
+    """Parse a YYYYMMDD query parameter, raising HTTP 400 on format or calendar errors."""
     if not DATE_PARAM_RE.match(value):
         raise HTTPException(status_code=400, detail=f"{name} must use YYYYMMDD format")
     try:
@@ -59,6 +62,11 @@ def _parse_yyyymmdd(value: str, name: str) -> date:
 
 
 def _session_column_exists(db: Session, column_name: str) -> bool:
+    """Return True if the named column exists on the sessions table.
+
+    Used to gate SQL that references columns added in newer migrations so the
+    app stays compatible with databases that haven't been fully migrated yet.
+    """
     return bool(db.execute(
         text("""
             SELECT EXISTS (
@@ -73,11 +81,16 @@ def _session_column_exists(db: Session, column_name: str) -> bool:
 
 
 def _manufacturer_select_expression(db: Session) -> str:
+    """Return a SQL fragment that selects the dominant manufacturer for a night.
+
+    Falls back to the literal 'Unknown' when the manufacturer column doesn't exist
+    yet (older database schema), allowing queries to run without migration.
+    """
     if _session_column_exists(db, "manufacturer"):
         return (
             "COALESCE("
             "(array_agg(s.manufacturer ORDER BY s.duration_seconds DESC) "
-            "FILTER (WHERE s.manufacturer IS NOT NULL))[1], "
+            "FILTER (WHERE s.manufacturer IS NOT NULL AND s.manufacturer <> ''))[1], "
             "'Unknown'"
             ") AS manufacturer"
         )
@@ -85,6 +98,7 @@ def _manufacturer_select_expression(db: Session) -> str:
 
 
 def _format_date_range(start: date, end: date) -> str:
+    """Format a date range as a compact human-readable string for PDF report headers."""
     start_month = start.strftime("%b")
     end_month = end.strftime("%b")
     if start == end:
@@ -97,12 +111,14 @@ def _format_date_range(start: date, end: date) -> str:
 
 
 def _format_metric(value, suffix: str = "") -> str:
+    """Format a metric value to one decimal place with a unit suffix, or 'Unavailable' if None."""
     if value is None:
         return "Unavailable"
     return f"{float(value):.1f}{suffix}"
 
 
 def _group_contiguous_dates(dates: list[date]) -> str:
+    """Collapse a sorted list of dates into a comma-separated string of contiguous ranges."""
     if not dates:
         return "Unavailable"
     ranges: list[str] = []
@@ -118,12 +134,14 @@ def _group_contiguous_dates(dates: list[date]) -> str:
 
 
 def _format_night_range(start: date, end: date) -> str:
+    """Return 'YYYY-MM-DD' for a single night or 'YYYY-MM-DD to YYYY-MM-DD' for a span."""
     if start == end:
         return start.isoformat()
     return f"{start.isoformat()} to {end.isoformat()}"
 
 
 def _mask_device_serial(serial: str) -> str:
+    """Return the last 5 characters of the device serial prefixed with '...', for display privacy."""
     value = serial.strip()
     if len(value) <= 5:
         return f"...{value}"
@@ -131,6 +149,7 @@ def _mask_device_serial(serial: str) -> str:
 
 
 def _build_ahi_chart(nights: list[dict]) -> BytesIO:
+    """Render a 30-night AHI trend line chart as a PNG-encoded BytesIO for PDF embedding."""
     chart_buffer = BytesIO()
     chart_nights = nights[-30:]
     labels = [night["folder_date"].strftime("%m/%d") for night in chart_nights]
@@ -170,6 +189,7 @@ def _build_ahi_chart(nights: list[dict]) -> BytesIO:
 
 
 def _footer(canvas, _doc):
+    """Draw the branded header bar and page-number footer on each PDF page."""
     canvas.saveState()
     width, height = letter
     canvas.setFillColor(colors.HexColor("#4f46a5"))
@@ -184,6 +204,7 @@ def _footer(canvas, _doc):
 
 
 def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict]) -> BytesIO:
+    """Build a ReportLab PDF therapy report for the given date range and return it as a BytesIO."""
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -433,6 +454,8 @@ ALLOWED_SESSION_TAGS = {
 
 
 class SessionTagsUpdate(BaseModel):
+    """Request body for replacing the tag list on a session."""
+
     tags: list[str]
 
 
@@ -465,6 +488,7 @@ def list_sessions(
                 (array_agg(id::text ORDER BY duration_seconds DESC))[1] AS id,
                 (array_agg(session_id ORDER BY duration_seconds DESC))[1] AS session_id,
                 MIN(start_datetime) AS start_datetime,
+                MAX(start_datetime + (duration_seconds || ' seconds')::interval) AS end_datetime,
                 0 AS block_index,
                 SUM(duration_seconds) AS duration_seconds,
                 SUM(total_ahi_events) AS total_ahi_events,
@@ -488,7 +512,7 @@ def list_sessions(
             {"AND" if where else "WHERE"} duration_seconds >= 600
             GROUP BY folder_date
         )
-        SELECT id, session_id, folder_date, block_index, start_datetime, duration_seconds,
+        SELECT id, session_id, folder_date, block_index, start_datetime, end_datetime, duration_seconds,
                ahi, central_apnea_count, obstructive_apnea_count, hypopnea_count,
                apnea_count, arousal_count, total_ahi_events,
                avg_pressure, p95_pressure, avg_leak, has_spo2, machine_tz
@@ -505,6 +529,7 @@ def get_tag_insights(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Return per-tag AHI averages compared to untagged nights as a baseline."""
     rows = db.execute(
         text("""
             WITH night_metric AS (
@@ -578,8 +603,10 @@ def get_session(
     db: Session = Depends(get_db),
 ):
     """Full session detail — aggregated across all blocks for the night."""
+    manufacturer_select = _manufacturer_select_expression(db)
+
     row = db.execute(
-        text("""
+        text(f"""
             WITH night AS (
                 SELECT folder_date, user_id
                 FROM sessions
@@ -591,6 +618,7 @@ def get_session(
                 s.folder_date,
                 0 AS block_index,
                 MIN(s.start_datetime) AS start_datetime,
+                MAX(s.start_datetime + (s.duration_seconds || ' seconds')::interval) AS end_datetime,
                 MIN(s.start_datetime) AS pld_start_datetime,
                 SUM(s.duration_seconds) AS duration_seconds,
                 SUM(s.total_ahi_events) AS total_ahi_events,
@@ -619,7 +647,7 @@ def get_session(
                 (array_agg(s.humidity_level  ORDER BY s.duration_seconds DESC))[1] AS humidity_level,
                 (array_agg(s.temperature_c   ORDER BY s.duration_seconds DESC))[1] AS temperature_c,
                 (array_agg(s.machine_tz      ORDER BY s.duration_seconds DESC))[1] AS machine_tz,
-                NULL AS manufacturer,
+                {manufacturer_select},
                 TRUE AS parser_validated,
                 (array_agg(s.note            ORDER BY s.duration_seconds DESC))[1] AS note,
                 COALESCE((
@@ -636,8 +664,8 @@ def get_session(
             WHERE s.duration_seconds >= 600
             GROUP BY s.folder_date
         """),
-        {"id": session_id, "uid": current_user["id"]},
-    ).mappings().first()
+            {"id": session_id, "uid": current_user["id"]},
+        ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     return _session_detail_response(row, current_user["id"], db)
@@ -650,6 +678,7 @@ def update_session_note(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Set or clear the user note for every block on the same calendar night as this session."""
     selected = db.execute(
         text("""
             SELECT folder_date
@@ -687,6 +716,7 @@ def update_session_tags(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Replace the tag list for every block on the same calendar night; validates against the allowed tag set."""
     selected = db.execute(
         text("""
             SELECT folder_date
@@ -728,8 +758,9 @@ def get_session_events(
 ):
     """All respiratory events for a session, sorted by onset."""
     internal_session_id = _require_session(session_id, current_user["id"], db)
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
             FROM session_events se
             JOIN sessions s ON se.session_id = s.id
@@ -737,8 +768,11 @@ def get_session_events(
               AND s.user_id = CAST(:uid AS uuid)
             ORDER BY se.event_datetime
         """),
-        {"sid": internal_session_id, "uid": current_user["id"]}
-    ).mappings().all()
+            {"sid": internal_session_id, "uid": current_user["id"]},
+        )
+        .mappings()
+        .all()
+    )
     return [EventRecord.model_validate(dict(r)) for r in rows]
 
 
@@ -755,8 +789,9 @@ def get_event_window(
     """Focused metrics and BRP waveform around one event."""
     internal_session_id = _require_session(session_id, current_user["id"], db)
 
-    event_row = db.execute(
-        text("""
+    event_row = (
+        db.execute(
+            text("""
             SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
             FROM session_events se
             JOIN sessions s ON se.session_id = s.id
@@ -764,13 +799,17 @@ def get_event_window(
               AND s.folder_date = (SELECT folder_date FROM sessions WHERE id = CAST(:sid AS uuid))
               AND s.user_id = CAST(:uid AS uuid)
         """),
-        {"event_id": event_id, "sid": internal_session_id, "uid": current_user["id"]},
-    ).mappings().first()
+            {"event_id": event_id, "sid": internal_session_id, "uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
     if not event_row:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    neighboring_event_rows = db.execute(
-        text("""
+    neighboring_event_rows = (
+        db.execute(
+            text("""
             SELECT se.id, se.event_type, se.onset_seconds, se.duration_seconds, se.event_datetime
             FROM session_events se
             JOIN sessions s ON se.session_id = s.id
@@ -780,17 +819,21 @@ def get_event_window(
               AND se.event_datetime <= (:event_ts + (:after_seconds * INTERVAL '1 second'))
             ORDER BY se.event_datetime
         """),
-        {
-            "sid": internal_session_id,
-            "uid": current_user["id"],
-            "event_ts": event_row["event_datetime"],
-            "before_seconds": before_seconds,
-            "after_seconds": after_seconds,
-        },
-    ).mappings().all()
+            {
+                "sid": internal_session_id,
+                "uid": current_user["id"],
+                "event_ts": event_row["event_datetime"],
+                "before_seconds": before_seconds,
+                "after_seconds": after_seconds,
+            },
+        )
+        .mappings()
+        .all()
+    )
 
-    metric_rows = db.execute(
-        text("""
+    metric_rows = (
+        db.execute(
+            text("""
             SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                    resp_rate, tidal_vol, min_vent, snore, flow_lim
             FROM session_metrics sm
@@ -801,17 +844,21 @@ def get_event_window(
               AND sm.ts <= (:event_ts + (:after_seconds * INTERVAL '1 second'))
             ORDER BY sm.ts
         """),
-        {
-            "sid": internal_session_id,
-            "uid": current_user["id"],
-            "event_ts": event_row["event_datetime"],
-            "before_seconds": before_seconds,
-            "after_seconds": after_seconds,
-        },
-    ).mappings().all()
+            {
+                "sid": internal_session_id,
+                "uid": current_user["id"],
+                "event_ts": event_row["event_datetime"],
+                "before_seconds": before_seconds,
+                "after_seconds": after_seconds,
+            },
+        )
+        .mappings()
+        .all()
+    )
 
-    waveform_rows = db.execute(
-        text("""
+    waveform_rows = (
+        db.execute(
+            text("""
             WITH numbered AS (
                 SELECT sw.ts, sw.flow, sw.pressure,
                        ROW_NUMBER() OVER (ORDER BY sw.ts) AS rn
@@ -827,15 +874,18 @@ def get_event_window(
             WHERE (rn - 1) % :ds = 0
             ORDER BY ts
         """),
-        {
-            "sid": internal_session_id,
-            "uid": current_user["id"],
-            "event_ts": event_row["event_datetime"],
-            "before_seconds": before_seconds,
-            "after_seconds": after_seconds,
-            "ds": waveform_downsample,
-        },
-    ).mappings().all()
+            {
+                "sid": internal_session_id,
+                "uid": current_user["id"],
+                "event_ts": event_row["event_datetime"],
+                "before_seconds": before_seconds,
+                "after_seconds": after_seconds,
+                "ds": waveform_downsample,
+            },
+        )
+        .mappings()
+        .all()
+    )
 
     return EventWindowResponse(
         event=EventRecord.model_validate(dict(event_row)),
@@ -852,8 +902,7 @@ def get_event_window(
 @router.get("/{session_id}/metrics", response_model=MetricsResponse)
 def get_session_metrics(
     session_id: str,
-    downsample: int = Query(15, ge=1, le=120,
-                            description="Keep every Nth row. 1=2s, 15=30s, 30=60s resolution"),
+    downsample: int = Query(15, ge=1, le=120, description="Keep every Nth row. 1=2s, 15=30s, 30=60s resolution"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -863,8 +912,9 @@ def get_session_metrics(
     Default downsample=15 gives 30-second resolution (~580 points for a 5h session).
     """
     internal_session_id = _require_session(session_id, current_user["id"], db)
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             WITH numbered AS (
                 SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                        resp_rate, tidal_vol, min_vent, snore, flow_lim,
@@ -880,8 +930,11 @@ def get_session_metrics(
             WHERE (rn - 1) % :ds = 0
             ORDER BY ts
         """),
-        {"sid": internal_session_id, "ds": downsample, "uid": current_user["id"]}
-    ).mappings().all()
+            {"sid": internal_session_id, "ds": downsample, "uid": current_user["id"]},
+        )
+        .mappings()
+        .all()
+    )
 
     if not rows:
         return _empty_metrics_response()
@@ -902,8 +955,9 @@ def get_session_breath(
     Use offset_minutes + window_minutes to navigate through the night breath-by-breath.
     """
     internal_session_id = _require_session(session_id, current_user["id"], db)
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             SELECT ts, mask_pressure, pressure, epr_pressure, leak,
                    resp_rate, tidal_vol, min_vent, snore, flow_lim
             FROM session_metrics
@@ -918,8 +972,11 @@ def get_session_breath(
               )
             ORDER BY ts
         """),
-        {"sid": internal_session_id, "offset_min": offset_minutes, "window_min": window_minutes}
-    ).mappings().all()
+            {"sid": internal_session_id, "offset_min": offset_minutes, "window_min": window_minutes},
+        )
+        .mappings()
+        .all()
+    )
 
     if not rows:
         return _empty_metrics_response()
@@ -928,13 +985,23 @@ def get_session_breath(
 
 
 def _empty_metrics_response() -> MetricsResponse:
+    """Return an all-empty MetricsResponse for sessions that have no metrics data."""
     return MetricsResponse(
-        timestamps=[], mask_pressure=[], pressure=[], epr_pressure=[],
-        leak=[], resp_rate=[], tidal_vol=[], min_vent=[], snore=[], flow_lim=[]
+        timestamps=[],
+        mask_pressure=[],
+        pressure=[],
+        epr_pressure=[],
+        leak=[],
+        resp_rate=[],
+        tidal_vol=[],
+        min_vent=[],
+        snore=[],
+        flow_lim=[],
     )
 
 
 def _metrics_response(rows) -> MetricsResponse:
+    """Assemble a MetricsResponse from raw DB rows, converting Decimal values to float."""
     return MetricsResponse(
         timestamps=[r["ts"].isoformat() for r in rows],
         mask_pressure=[_f(r["mask_pressure"]) for r in rows],
@@ -957,22 +1024,30 @@ def get_session_spo2(
 ):
     """SpO2 and pulse time-series. Returns 404 if no oximeter data for this session."""
     internal_session_id = _require_session(session_id, current_user["id"], db)
-    session = db.execute(
-        text("SELECT has_spo2 FROM sessions WHERE id = :id"),
-        {"id": internal_session_id},
-    ).mappings().first()
+    session = (
+        db.execute(
+            text("SELECT has_spo2 FROM sessions WHERE id = :id"),
+            {"id": internal_session_id},
+        )
+        .mappings()
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if not session["has_spo2"]:
         raise HTTPException(status_code=404, detail="No SpO2 data for this session")
 
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             SELECT ts, spo2, pulse FROM session_spo2
             WHERE session_id = :sid ORDER BY ts
         """),
-        {"sid": internal_session_id}
-    ).mappings().all()
+            {"sid": internal_session_id},
+        )
+        .mappings()
+        .all()
+    )
 
     return SpO2Response(
         timestamps=[r["ts"].isoformat() for r in rows],
@@ -995,27 +1070,35 @@ def update_session_timezone(
     except (ZoneInfoNotFoundError, KeyError, ValueError):
         raise HTTPException(status_code=400, detail=f"Unknown timezone: {body.machine_tz}")
 
-    selected = db.execute(
-        text("""
+    selected = (
+        db.execute(
+            text("""
             SELECT folder_date
             FROM sessions
             WHERE id = CAST(:id AS uuid)
               AND user_id = CAST(:uid AS uuid)
         """),
-        {"id": session_id, "uid": current_user["id"]},
-    ).mappings().first()
+            {"id": session_id, "uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
     if not selected:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text("""
             SELECT id::text AS id, start_datetime, pld_start_datetime, COALESCE(machine_tz, 'UTC') AS machine_tz
             FROM sessions
             WHERE user_id = CAST(:uid AS uuid)
               AND folder_date = :folder_date
         """),
-        {"uid": current_user["id"], "folder_date": selected["folder_date"]},
-    ).mappings().all()
+            {"uid": current_user["id"], "folder_date": selected["folder_date"]},
+        )
+        .mappings()
+        .all()
+    )
 
     for row in rows:
         try:
@@ -1046,7 +1129,9 @@ def update_session_timezone(
             },
         )
         db.execute(
-            text("UPDATE session_events SET event_datetime = event_datetime + :delta WHERE session_id = CAST(:id AS uuid)"),
+            text(
+                "UPDATE session_events SET event_datetime = event_datetime + :delta WHERE session_id = CAST(:id AS uuid)"
+            ),
             {"id": row["id"], "delta": delta},
         )
         db.execute(
@@ -1067,10 +1152,15 @@ def update_session_timezone(
 
 
 def _require_session(session_id: str, user_id: str, db: Session) -> str:
-    row = db.execute(
-        text("SELECT id::text AS id FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
-        {"id": session_id, "uid": user_id},
-    ).mappings().first()
+    """Assert the session exists and belongs to user_id, returning its DB id string or raising 404."""
+    row = (
+        db.execute(
+            text("SELECT id::text AS id FROM sessions WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
+            {"id": session_id, "uid": user_id},
+        )
+        .mappings()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     return row["id"]
@@ -1082,11 +1172,18 @@ def _f(val) -> float | None:
 
 
 def _reinterpret_with_timezone(value, old_zone: ZoneInfo, new_zone: ZoneInfo):
+    """Reinterpret a timestamp's wall-clock time as if it were in new_zone instead of old_zone.
+
+    Used when correcting sessions whose machine_tz was set incorrectly: the EDF
+    records naive local time, so we preserve the clock face while swapping the
+    timezone label rather than doing a UTC-based conversion.
+    """
     wall_time = value.astimezone(old_zone).replace(tzinfo=None)
     return wall_time.replace(tzinfo=new_zone)
 
 
 def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
+    """Build a SessionDetail from a raw DB row, computing the therapy score and 30-day delta."""
     data = dict(row)
     therapy_score = compute_therapy_score(data)
     data["therapy_score"] = therapy_score
@@ -1102,28 +1199,34 @@ def _session_detail_response(row, user_id: str, db: Session) -> SessionDetail:
 
 
 def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: Session) -> float | None:
+    """Return the delta between current_score and the user's mean therapy score over the prior 30 nights.
+
+    Returns None when fewer than 3 prior nights are available (insufficient baseline).
+    """
+    manufacturer_select = _manufacturer_select_expression(db)
+
     rows = db.execute(
-        text("""
+        text(f"""
             SELECT
-                folder_date,
-                SUM(duration_seconds) AS duration_seconds,
-                SUM(total_ahi_events) AS total_ahi_events,
-                AVG(avg_leak) AS avg_leak,
-                BOOL_OR(has_spo2) AS has_spo2,
-                CASE WHEN SUM(duration_seconds) > 0
-                     THEN ROUND((SUM(total_ahi_events) / (SUM(duration_seconds) / 3600.0))::numeric, 2)
+                s.folder_date,
+                SUM(s.duration_seconds) AS duration_seconds,
+                SUM(s.total_ahi_events) AS total_ahi_events,
+                AVG(s.avg_leak) AS avg_leak,
+                BOOL_OR(s.has_spo2) AS has_spo2,
+                CASE WHEN SUM(s.duration_seconds) > 0
+                     THEN ROUND((SUM(s.total_ahi_events) / (SUM(s.duration_seconds) / 3600.0))::numeric, 2)
                      ELSE NULL END AS ahi,
-                AVG(avg_spo2) AS avg_spo2,
-                MIN(min_spo2) AS min_spo2,
-                NULL AS manufacturer,
+                AVG(s.avg_spo2) AS avg_spo2,
+                MIN(s.min_spo2) AS min_spo2,
+                {manufacturer_select},
                 TRUE AS parser_validated
-            FROM sessions
-            WHERE user_id = CAST(:uid AS uuid)
-              AND duration_seconds >= 600
-              AND folder_date >= CAST(:folder_date AS date) - INTERVAL '30 days'
-              AND folder_date < CAST(:folder_date AS date)
-            GROUP BY folder_date
-            ORDER BY folder_date
+            FROM sessions s
+            WHERE s.user_id = CAST(:uid AS uuid)
+              AND s.duration_seconds >= 600
+              AND s.folder_date >= CAST(:folder_date AS date) - INTERVAL '30 days'
+              AND s.folder_date < CAST(:folder_date AS date)
+            GROUP BY s.folder_date
+            ORDER BY s.folder_date
         """),
         {"uid": user_id, "folder_date": folder_date},
     ).mappings().all()
@@ -1157,8 +1260,10 @@ def get_session_by_date(
     db: Session = Depends(get_db),
 ):
     """Get session detail by date (YYYY-MM-DD)."""
+    manufacturer_select = _manufacturer_select_expression(db)
+
     row = db.execute(
-        text("""
+        text(f"""
             WITH night AS (
                 SELECT folder_date, user_id
                 FROM sessions
@@ -1171,6 +1276,7 @@ def get_session_by_date(
                 s.folder_date,
                 0 AS block_index,
                 MIN(s.start_datetime) AS start_datetime,
+                MAX(s.start_datetime + (s.duration_seconds || ' seconds')::interval) AS end_datetime,
                 MIN(s.start_datetime) AS pld_start_datetime,
                 SUM(s.duration_seconds) AS duration_seconds,
                 SUM(s.total_ahi_events) AS total_ahi_events,
@@ -1209,15 +1315,15 @@ def get_session_by_date(
                     ORDER BY s2.duration_seconds DESC
                     LIMIT 1
                 ), ARRAY[]::text[]) AS tags,
-                NULL AS manufacturer,
+                {manufacturer_select},
                 TRUE AS parser_validated
             FROM sessions s
             JOIN night n ON s.folder_date = n.folder_date AND s.user_id = n.user_id
             WHERE s.duration_seconds >= 600
             GROUP BY s.folder_date
         """),
-        {"date": folder_date, "uid": current_user["id"]},
-    ).mappings().first()
+            {"date": folder_date, "uid": current_user["id"]},
+        ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="No session found for this date")
     return _session_detail_response(row, current_user["id"], db)

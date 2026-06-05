@@ -31,8 +31,8 @@ LLM_API_KEY       required for custom provider
 LLM_MODEL         required for custom provider
 """
 
-from collections.abc import Mapping
 import os
+from collections.abc import Mapping
 
 from openai import OpenAI
 

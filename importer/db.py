@@ -3,11 +3,12 @@ PostgreSQL connection and upsert helpers for the CPAP importer.
 """
 
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timedelta
 
 
 def _load_dotenv() -> None:
@@ -28,11 +29,26 @@ _raw_dsn = os.environ.get("DATABASE_URL", "dbname=cpap")
 DB_DSN = _raw_dsn.replace("postgresql+psycopg2://", "postgresql://", 1)
 
 
-def get_conn():
+def get_conn() -> Any:
+    """Establish a connection to the PostgreSQL database.
+
+    Returns:
+        A psycopg2 connection object initialized with DB_DSN.
+    """
     return psycopg2.connect(DB_DSN)
 
 
-def session_exists(conn, user_id: str, session_id: str) -> bool:
+def session_exists(conn: Any, user_id: str, session_id: str) -> bool:
+    """Check if a session already exists in the database.
+
+    Args:
+        conn: The psycopg2 database connection.
+        user_id: The UUID string of the user.
+        session_id: The unique session identifier string.
+
+    Returns:
+        True if the session exists, False otherwise.
+    """
     with conn.cursor() as cur:
         cur.execute(
             "SELECT 1 FROM sessions WHERE user_id = %s AND session_id = %s",
@@ -41,7 +57,17 @@ def session_exists(conn, user_id: str, session_id: str) -> bool:
         return cur.fetchone() is not None
 
 
-def get_session_db_id(conn, user_id: str, session_id: str) -> str | None:
+def get_session_db_id(conn: Any, user_id: str, session_id: str) -> str | None:
+    """Retrieve the primary database ID of a session.
+
+    Args:
+        conn: The psycopg2 database connection.
+        user_id: The UUID string of the user.
+        session_id: The unique session identifier string.
+
+    Returns:
+        The UUID string of the session from the database, or None if not found.
+    """
     with conn.cursor() as cur:
         cur.execute(
             "SELECT id FROM sessions WHERE user_id = %s AND session_id = %s",
@@ -51,11 +77,18 @@ def get_session_db_id(conn, user_id: str, session_id: str) -> str | None:
         return row[0] if row else None
 
 
-def upsert_session(conn, data: dict) -> int:
+def upsert_session(conn: Any, data: dict) -> int:
+    """Insert a new session or update an existing one.
+
+    Args:
+        conn: The psycopg2 database connection.
+        data: A dictionary containing all required column values for the
+            sessions table.
+
+    Returns:
+        The database ID of the inserted or updated session.
     """
-    Insert or update a session row. Returns the session's integer id.
-    data must contain all columns defined in the sessions table.
-    """
+    data.setdefault("manufacturer", None)
     sql = """
     INSERT INTO sessions (
         session_id, folder_date, block_index, start_datetime, pld_start_datetime,
@@ -65,7 +98,7 @@ def upsert_session(conn, data: dict) -> int:
         avg_pressure, p95_pressure, avg_leak, avg_resp_rate, avg_tidal_vol,
         avg_min_vent, avg_snore, avg_flow_lim, has_spo2,
         therapy_mode, mask_type, humidity_level, temperature_c,
-        machine_tz, user_id, updated_at
+        machine_tz, manufacturer, user_id, updated_at
     ) VALUES (
         %(session_id)s, %(folder_date)s, %(block_index)s, %(start_datetime)s, %(pld_start_datetime)s,
         %(duration_seconds)s, %(device_serial)s, %(ahi)s,
@@ -74,7 +107,7 @@ def upsert_session(conn, data: dict) -> int:
         %(avg_pressure)s, %(p95_pressure)s, %(avg_leak)s, %(avg_resp_rate)s, %(avg_tidal_vol)s,
         %(avg_min_vent)s, %(avg_snore)s, %(avg_flow_lim)s, %(has_spo2)s,
         %(therapy_mode)s, %(mask_type)s, %(humidity_level)s, %(temperature_c)s,
-        %(machine_tz)s, %(user_id)s, NOW()
+        %(machine_tz)s, %(manufacturer)s, %(user_id)s, NOW()
     )
     ON CONFLICT (user_id, session_id) DO UPDATE SET
         folder_date             = EXCLUDED.folder_date,
@@ -104,6 +137,7 @@ def upsert_session(conn, data: dict) -> int:
         humidity_level          = EXCLUDED.humidity_level,
         temperature_c           = EXCLUDED.temperature_c,
         machine_tz              = EXCLUDED.machine_tz,
+        manufacturer            = COALESCE(NULLIF(EXCLUDED.manufacturer, ''), NULLIF(sessions.manufacturer, '')),
         -- user_id intentionally excluded: re-import must not change ownership
         updated_at              = NOW()
     RETURNING id
@@ -139,24 +173,32 @@ def replace_session_metrics(conn, session_db_id: int, header, channels: dict, st
     with conn.cursor() as cur:
         cur.execute("DELETE FROM session_metrics WHERE session_id = %s", (session_db_id,))
 
-    LABELS = ['MaskPress.2s', 'Press.2s', 'EprPress.2s', 'Leak.2s', 'RespRate.2s',
-              'TidVol.2s', 'MinVent.2s', 'Snore.2s', 'FlowLim.2s']
+    labels = [
+        "MaskPress.2s",
+        "Press.2s",
+        "EprPress.2s",
+        "Leak.2s",
+        "RespRate.2s",
+        "TidVol.2s",
+        "MinVent.2s",
+        "Snore.2s",
+        "FlowLim.2s",
+    ]
 
     # Determine samples per record from first non-Crc16 signal
-    data_signals = [s for s in header.signals if s.label != 'Crc16']
+    data_signals = [s for s in header.signals if s.label != "Crc16"]
     spr = data_signals[0].num_samples_per_record  # 30 samples per 60s record = 2s epochs
-    dur = header.duration_per_record               # 60.0 seconds
-    epoch = dur / spr                              # 2.0 seconds
+    dur = header.duration_per_record  # 60.0 seconds
+    epoch = dur / spr  # 2.0 seconds
     pld_start = start_datetime or header.start_datetime
 
     rows = []
-    total_samples = spr * header.num_records
     for rec in range(header.num_records):
         for si in range(spr):
             abs_idx = rec * spr + si
             ts = pld_start + timedelta(seconds=rec * dur + si * epoch)
             row = [session_db_id, ts]
-            for label in LABELS:
+            for label in labels:
                 vals = channels.get(label)
                 row.append(round(vals[abs_idx], 4) if vals and abs_idx < len(vals) else None)
             rows.append(tuple(row))
@@ -177,7 +219,7 @@ def replace_session_spo2(conn, session_db_id: int, header, spo2_data: tuple, sta
         cur.execute("DELETE FROM session_spo2 WHERE session_id = %s", (session_db_id,))
 
     pulse_vals, spo2_vals = spo2_data
-    spo2_sig = header.signals[1]   # SpO2.1s at 1 Hz
+    spo2_sig = header.signals[1]  # SpO2.1s at 1 Hz
     spr = spo2_sig.num_samples_per_record  # 1 sample/second per record
     dur = header.duration_per_record
     pld_start = start_datetime or header.start_datetime
@@ -251,12 +293,14 @@ def replace_session_waveform(
             ts = start + timedelta(seconds=idx * epoch)
             flow = flow_vals[idx] if flow_vals and idx < len(flow_vals) else None
             pressure = pressure_vals[idx] if pressure_vals and idx < len(pressure_vals) else None
-            rows.append((
-                session_db_id,
-                ts,
-                round(flow, 4) if flow is not None else None,
-                round(pressure, 2) if pressure is not None else None,
-            ))
+            rows.append(
+                (
+                    session_db_id,
+                    ts,
+                    round(flow, 4) if flow is not None else None,
+                    round(pressure, 2) if pressure is not None else None,
+                )
+            )
 
     if not rows:
         return

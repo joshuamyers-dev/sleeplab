@@ -1,0 +1,3 @@
+import{S as a}from"./SessionAICard-9imUkrdm.js";import"./iframe-CnI2o-UJ.js";import"./preload-helper-Dp1pzeXC.js";import"./GlossaryText-C8CDyE6b.js";import"./index-CofT53Tl.js";import"./index-CeRDCxkJ.js";import"./button-C_rUzKqW.js";import"./utils-2dOUpm6k.js";import"./card-N1AUAA9K.js";const f={title:"Components/SessionAICard",component:a,tags:["autodocs"]},o={args:{}};var r,t,s;o.parameters={...o.parameters,docs:{...(r=o.parameters)==null?void 0:r.docs,source:{originalSource:`{
+  args: {} as any
+}`,...(s=(t=o.parameters)==null?void 0:t.docs)==null?void 0:s.source}}};const g=["Default"];export{o as Default,g as __namedExportsOrder,f as default};

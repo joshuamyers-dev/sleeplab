@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from api.routers.sessions import _build_pdf_report, _manufacturer_select_expression, _mask_device_serial
+from api.therapy_score import compute_therapy_score
 
 
 class _ScalarResult:
@@ -43,9 +44,12 @@ def _seed_session(
     has_spo2: bool = False,
     avg_spo2: float | None = None,
     min_spo2: float | None = None,
+    start_datetime: datetime | None = None,
 ):
     if folder_date is None:
         folder_date = date.today()
+    if start_datetime is None:
+        start_datetime = datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC)
     session_id = str(uuid.uuid4())
     manufacturer_column = ", manufacturer" if include_manufacturer else ""
     manufacturer_value = ", :manufacturer" if include_manufacturer else ""
@@ -66,7 +70,7 @@ def _seed_session(
         {
             "sid": session_id,
             "fd": folder_date,
-            "start": datetime(2025, 1, 15, 22, 0, 0, tzinfo=UTC),
+            "start": start_datetime,
             "machine_tz": machine_tz,
             "uid": user_id,
             "note": note,
@@ -90,7 +94,10 @@ def _seed_session(
 
 
 class TestListSessions:
+    """Test suite for list sessions."""
+
     def test_list_authenticated(self, client: TestClient, auth_headers, test_user, db):
+        """Test list authenticated."""
         _seed_session(db, test_user["id"])
         resp = client.get("/sessions/", headers=auth_headers)
         assert resp.status_code == 200
@@ -99,12 +106,16 @@ class TestListSessions:
         assert len(data) >= 1
 
     def test_list_unauthenticated(self, client: TestClient):
+        """Test list unauthenticated."""
         resp = client.get("/sessions/")
         assert resp.status_code == 401
 
 
 class TestGetSession:
+    """Test suite for get session."""
+
     def test_get_detail(self, client: TestClient, auth_headers, test_user, db):
+        """Test get detail."""
         sid = _seed_session(db, test_user["id"])
         resp = client.get(f"/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
@@ -144,6 +155,56 @@ class TestGetSession:
         resp = client.get(f"/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["score_vs_30d_avg"] is not None
+
+    def test_score_vs_30d_avg_uses_historical_manufacturer(self, client: TestClient, auth_headers, test_user, db):
+        db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
+        previous_date = date(2025, 1, 14)
+        current_date = date(2025, 1, 15)
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=previous_date,
+            total_ahi_events=0,
+            avg_leak=0.8,
+            duration_seconds=8 * 3600,
+            manufacturer="ResMed",
+            include_manufacturer=True,
+        )
+        sid = _seed_session(
+            db,
+            test_user["id"],
+            folder_date=current_date,
+            total_ahi_events=0,
+            avg_leak=0.1,
+            duration_seconds=8 * 3600,
+            manufacturer="ResMed",
+            include_manufacturer=True,
+        )
+
+        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        current_score = compute_therapy_score({
+            "ahi": 0,
+            "avg_leak": 0.1,
+            "duration_seconds": 8 * 3600,
+            "has_spo2": False,
+            "avg_spo2": None,
+            "min_spo2": None,
+            "manufacturer": "ResMed",
+            "parser_validated": True,
+        }).total
+        previous_score = compute_therapy_score({
+            "ahi": 0,
+            "avg_leak": 0.8,
+            "duration_seconds": 8 * 3600,
+            "has_spo2": False,
+            "avg_spo2": None,
+            "min_spo2": None,
+            "manufacturer": "ResMed",
+            "parser_validated": True,
+        }).total
+        assert resp.json()["score_vs_30d_avg"] == round(current_score - previous_score, 1)
 
     def test_get_detail_includes_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Tried mouth tape")
@@ -186,6 +247,7 @@ class TestGetSession:
         assert resp.json()["note"] == "Still congested"
 
     def test_get_nonexistent(self, client: TestClient, auth_headers):
+        """Test get nonexistent."""
         fake_id = "00000000-0000-0000-0000-000000000000"
         resp = client.get(f"/sessions/{fake_id}", headers=auth_headers)
         assert resp.status_code == 404
@@ -198,6 +260,84 @@ class TestGetSession:
 
         assert resp.status_code == 200
         assert resp.json()["machine_tz"] == "America/New_York"
+
+    def test_get_by_date_uses_latest_block_end_datetime(self, client: TestClient, auth_headers, test_user, db):
+        folder_date = date(2026, 6, 3)
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=folder_date,
+            start_datetime=datetime(2026, 6, 3, 3, 57, tzinfo=UTC),
+            duration_seconds=40 * 60,
+        )
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=folder_date,
+            start_datetime=datetime(2026, 6, 3, 6, 50, tzinfo=UTC),
+            duration_seconds=101 * 60,
+        )
+
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["start_datetime"] == "2026-06-03T03:57:00Z"
+        assert data["duration_seconds"] == 141 * 60
+        assert data["end_datetime"] == "2026-06-03T08:31:00Z"
+
+    def test_get_by_date_preserves_manufacturer_for_leak_score(self, client: TestClient, auth_headers, test_user, db):
+        db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
+        folder_date = date(2026, 6, 1)
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=folder_date,
+            duration_seconds=8 * 3600,
+            total_ahi_events=0,
+            avg_leak=0.170366,
+            manufacturer="ResMed",
+            include_manufacturer=True,
+        )
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=folder_date,
+            duration_seconds=3600,
+            total_ahi_events=0,
+            avg_leak=0.170366,
+            manufacturer="",
+            include_manufacturer=True,
+        )
+
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        leak = resp.json()["therapy_score"]["components"]["leak"]
+        assert leak["score"] == 29
+        assert leak["max_score"] == 29
+        assert leak["label"] == "Large leak"
+        assert leak["value"] == 10.22
+        assert leak["unit"] == "L/min"
+        assert leak["unavailable_reason"] is None
+
+    def test_get_by_date_unknown_manufacturer_keeps_leak_unavailable(self, client: TestClient, auth_headers, test_user, db):
+        db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
+        folder_date = date(2026, 6, 2)
+        _seed_session(
+            db,
+            test_user["id"],
+            folder_date=folder_date,
+            total_ahi_events=0,
+            avg_leak=0.170366,
+            manufacturer="Unknown",
+            include_manufacturer=True,
+        )
+
+        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["therapy_score"]["components"]["leak"] is None
 
 
 class TestExportSessionPdf:
@@ -215,7 +355,7 @@ class TestExportSessionPdf:
         expression = _manufacturer_select_expression(_ColumnExistsDb(True))
 
         assert "array_agg(s.manufacturer ORDER BY s.duration_seconds DESC)" in expression
-        assert "FILTER (WHERE s.manufacturer IS NOT NULL)" in expression
+        assert "FILTER (WHERE s.manufacturer IS NOT NULL AND s.manufacturer <> '')" in expression
         assert "'Unknown'" in expression
 
     def test_pdf_omits_repeated_unavailable_equipment_rows(self):

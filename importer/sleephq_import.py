@@ -561,6 +561,7 @@ def map_machine_date_to_session(record, user_id: str) -> dict:
         "pld_start_datetime": start_datetime,
         "duration_seconds": duration_seconds,
         "device_serial": device_serial,
+        "manufacturer": None,
         "ahi": ahi,
         "central_apnea_count": ca,
         "obstructive_apnea_count": oa,

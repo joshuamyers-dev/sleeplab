@@ -1,0 +1,3 @@
+import{E as e}from"./EquipmentCatalog-RO8tC0Er.js";import"./iframe-CnI2o-UJ.js";import"./preload-helper-Dp1pzeXC.js";import"./button-C_rUzKqW.js";import"./utils-2dOUpm6k.js";import"./card-N1AUAA9K.js";import"./input-Cd2vQNG8.js";import"./label-CHU_Ngjj.js";const l={title:"Components/EquipmentCatalog",component:e,tags:["autodocs"]},t={args:{}};var o,r,a;t.parameters={...t.parameters,docs:{...(o=t.parameters)==null?void 0:o.docs,source:{originalSource:`{
+  args: {} as any
+}`,...(a=(r=t.parameters)==null?void 0:r.docs)==null?void 0:a.source}}};const g=["Default"];export{t as Default,g as __namedExportsOrder,l as default};
