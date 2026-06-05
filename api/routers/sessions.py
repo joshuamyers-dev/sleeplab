@@ -78,6 +78,18 @@ def _manufacturer_select_expression(db: Session) -> str:
     return "'Unknown'::text AS manufacturer"
 
 
+def _format_date_range(start: date, end: date) -> str:
+    start_month = start.strftime("%b")
+    end_month = end.strftime("%b")
+    if start == end:
+        return f"{start_month} {start.day}, {start.year}"
+    if start.year == end.year and start.month == end.month:
+        return f"{start_month} {start.day} - {end.day}, {end.year}"
+    if start.year == end.year:
+        return f"{start_month} {start.day} - {end_month} {end.day}, {end.year}"
+    return f"{start_month} {start.day}, {start.year} - {end_month} {end.day}, {end.year}"
+
+
 def _format_metric(value, suffix: str = "") -> str:
     if value is None:
         return "Unavailable"
@@ -112,6 +124,45 @@ def _mask_device_serial(serial: str) -> str:
     return f"...{value[-5:]}"
 
 
+    fig.tight_layout()
+    fig.savefig(chart_buffer, format="png", bbox_inches="tight")
+    plt.close(fig)
+    chart_buffer.seek(0)
+    return chart_buffer
+
+
+def _build_ahi_chart(nights: list[dict]) -> BytesIO:
+    chart_buffer = BytesIO()
+    chart_nights = nights[-30:]
+    labels = [night["folder_date"].strftime("%m/%d") for night in chart_nights]
+    values = [float(night["ahi"]) if night["ahi"] is not None else None for night in chart_nights]
+
+    fig, ax = plt.subplots(figsize=(6.9, 2.0), dpi=160)
+    x_values = list(range(len(labels)))
+    ax.plot(x_values, values, color="#4f46a5", linewidth=1.4, marker="o", markersize=3)
+    ax.axhline(5, color="#9ca3af", linewidth=0.8, linestyle="--")
+    ax.text(0.99, 5.15, "Controlled threshold", color="#6b7280", fontsize=7, ha="right", va="bottom", transform=ax.get_yaxis_transform())
+    ax.set_ylim(bottom=0)
+    if values and all(value is not None for value in values):
+        max_value = max(max(values), 5)
+        ax.set_ylim(0, max_value * 1.18 if max_value > 0 else 6)
+    else:
+        ax.set_ylim(0, 6)
+    ax.set_title("30-Day AHI Trend", fontsize=9, fontweight="bold", color="#1f2937", pad=8)
+    ax.set_ylabel("AHI", fontsize=8)
+    ax.grid(True, axis="y", color="#e5e7eb", linewidth=0.55)
+    ax.tick_params(axis="both", labelsize=7, colors="#4b5563")
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color("#d1d5db")
+    ax.spines["bottom"].set_color("#d1d5db")
+    if labels:
+        tick_step = 1 if len(labels) <= 10 else 3 if len(labels) <= 21 else 5
+        tick_indexes = list(range(0, len(labels), tick_step))
+        if tick_indexes[-1] != len(labels) - 1:
+            tick_indexes.append(len(labels) - 1)
+        ax.set_xticks(tick_indexes)
+        ax.set_xticklabels([labels[index] for index in tick_indexes], rotation=20, ha="right")
     fig.tight_layout()
     fig.savefig(chart_buffer, format="png", bbox_inches="tight")
     plt.close(fig)
