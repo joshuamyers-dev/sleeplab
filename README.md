@@ -345,7 +345,7 @@ Configure thresholds in **Settings → Compliance** or via environment variables
 
 The Trends page shows a daily usage bar chart colored by compliance status with summary cards (overall rate, best window, streaks). Two PDF endpoints (`/sessions/export/compliance/pdf` and `/sessions/export/advanced-compliance/pdf`) produce printable reports for doctor visits or insurance submission.
 
-See [`docs/compliance-report.md`](docs/compliance-report.md) for complete documentation.
+See [`docs/compliance-thresholds.md`](docs/compliance-thresholds.md) for known insurer configurations and setting descriptions.
 
 ## Auth
 

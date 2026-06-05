@@ -338,66 +338,6 @@ export default function SettingsPage() {
     }
   }
 
-  function applyCompliancePreset(preset: 'medicare' | 'insurer_a' | 'insurer_b' | 'insurer_c' | 'insurer_f') {
-    const presets: Record<string, { usage_threshold_hours: number; borderline_threshold_hours: number | null; target_compliance_pct: number; compliance_window_days: number; evaluation_period_days: number; window_evaluation_logic: string; maintenance_lookback_days: number }> = {
-      medicare: {
-        usage_threshold_hours: 4.0,
-        borderline_threshold_hours: null,
-        target_compliance_pct: 70.0,
-        compliance_window_days: 30,
-        evaluation_period_days: 90,
-        window_evaluation_logic: 'best_consecutive',
-        maintenance_lookback_days: 90,
-      },
-      insurer_a: {
-        usage_threshold_hours: 4.0,
-        borderline_threshold_hours: null,
-        target_compliance_pct: 70.0,
-        compliance_window_days: 30,
-        evaluation_period_days: 90,
-        window_evaluation_logic: 'best_consecutive',
-        maintenance_lookback_days: 90,
-      },
-      insurer_b: {
-        usage_threshold_hours: 4.0,
-        borderline_threshold_hours: null,
-        target_compliance_pct: 70.0,
-        compliance_window_days: 30,
-        evaluation_period_days: 90,
-        window_evaluation_logic: 'best_consecutive',
-        maintenance_lookback_days: 90,
-      },
-      insurer_c: {
-        usage_threshold_hours: 4.0,
-        borderline_threshold_hours: 3.0,
-        target_compliance_pct: 70.0,
-        compliance_window_days: 30,
-        evaluation_period_days: 90,
-        window_evaluation_logic: 'last_consecutive',
-        maintenance_lookback_days: 180,
-      },
-      insurer_f: {
-        usage_threshold_hours: 4.0,
-        borderline_threshold_hours: null,
-        target_compliance_pct: 70.0,
-        compliance_window_days: 30,
-        evaluation_period_days: 90,
-        window_evaluation_logic: 'best_consecutive',
-        maintenance_lookback_days: 90,
-      },
-    }
-    const p = presets[preset]
-    setUsageThresholdHours(p.usage_threshold_hours)
-    setBorderlineThresholdHours(p.borderline_threshold_hours)
-    setTargetCompliancePct(p.target_compliance_pct)
-    setComplianceWindowDays(p.compliance_window_days)
-    setEvaluationPeriodDays(p.evaluation_period_days)
-    setWindowEvaluationLogic(p.window_evaluation_logic)
-    setMaintenanceLookbackDays(p.maintenance_lookback_days)
-    setComplianceMessage(`Preset "${preset}" applied. Save to persist.`)
-    setComplianceError(null)
-  }
-
   async function handleSleephqSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSleephqError(null)
@@ -868,22 +808,11 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Compliance</CardTitle>
           <CardDescription>
-            Configure how therapy compliance is calculated. These settings affect the compliance report, dashboard charts, and the daily usage heatmap. Medicare defaults are shown — adjust to match your insurer&apos;s requirements.
+            Configure how therapy compliance is calculated. These settings affect the compliance report, dashboard charts, and the daily usage bar chart. Defaults follow OSCAR and standard Medicare criteria — consult your insurer or clinician for plan-specific requirements.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" onSubmit={handleComplianceSubmit}>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('medicare')}>Medicare</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_a')}>INSURER A</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_b')}>INSURER B</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_c')}>INSURER C</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyCompliancePreset('insurer_f')}>INSURER F</Button>
-            </div>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              Presets apply common plan structures. Requirements vary by plan — always verify with the specific insurer.
-            </p>
-
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-3">
                 <Label htmlFor="usageThresholdHours">Usage threshold (hours)</Label>
