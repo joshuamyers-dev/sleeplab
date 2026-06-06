@@ -110,6 +110,41 @@ def get_llm_settings(db: Session, user_id: str) -> dict[str, str | None]:
     }
 
 
+def get_adherence_settings(db: Session, user_id: str) -> dict:
+    row = get_user_import_settings_row(db, user_id)
+    raw_borderline = _row_value(row, "adherence_borderline_hours")
+    return {
+        "usage_threshold_hours": float(
+            _row_value(row, "adherence_threshold_hours")
+            or os.environ.get("ADHERENCE_THRESHOLD_HOURS", "4.0")
+        ),
+        "borderline_threshold_hours": (
+            float(raw_borderline) if raw_borderline is not None
+            else (float(os.environ["ADHERENCE_BORDERLINE_HOURS"]) if "ADHERENCE_BORDERLINE_HOURS" in os.environ else None)
+        ),
+        "target_adherence_pct": float(
+            _row_value(row, "adherence_target_pct")
+            or os.environ.get("ADHERENCE_TARGET_PCT", "70.0")
+        ),
+        "adherence_window_days": int(
+            _row_value(row, "adherence_window_days")
+            or os.environ.get("ADHERENCE_WINDOW_DAYS", "30")
+        ),
+        "evaluation_period_days": int(
+            _row_value(row, "adherence_evaluation_days")
+            or os.environ.get("ADHERENCE_EVALUATION_DAYS", "90")
+        ),
+        "window_evaluation_logic": (
+            _row_value(row, "adherence_window_logic")
+            or os.environ.get("ADHERENCE_WINDOW_LOGIC", "best_consecutive")
+        ),
+        "maintenance_lookback_days": int(
+            _row_value(row, "adherence_lookback_days")
+            or os.environ.get("ADHERENCE_LOOKBACK_DAYS", "90")
+        ),
+    }
+
+
 def has_explicit_llm_settings(db: Session, user_id: str) -> bool:
     row = get_user_import_settings_row(db, user_id)
     if row is not None and _row_value(row, "llm_provider"):

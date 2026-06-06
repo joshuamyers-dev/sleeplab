@@ -463,3 +463,32 @@ class OverviewStats(BaseModel):
     """
 
     nights: list[OverviewDailyStat]
+
+class AdherenceNightlyStat(BaseModel):
+    date: str
+    usage_hours: float
+    status: int  # 0=None, 2=Borderline, 3=Full — matches AdherenceStatus IntEnum
+    ahi: float | None = None
+    avg_leak: float | None = None
+
+
+class AdherenceWindowStat(BaseModel):
+    start_date: str
+    end_date: str
+    total_nights: int
+    compliant_nights: int
+    adherence_pct: float
+    avg_hours: float
+    passes: bool
+
+
+class AdherenceStats(BaseModel):
+    overall: AdherenceWindowStat
+    best_window: AdherenceWindowStat | None = None
+    nightly: list[AdherenceNightlyStat]
+    rolling_adherence: list[dict]
+    streak_longest: int
+    streak_current: int
+    usage_threshold_hours: float
+    borderline_threshold_hours: float | None = None
+    target_adherence_pct: float

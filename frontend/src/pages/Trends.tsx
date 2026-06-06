@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-import type { OverviewDailyStat, SummaryStats, TrendAISummaryResponse } from '../api/client'
+import type { AdherenceStats, OverviewDailyStat, SummaryStats, TrendAISummaryResponse } from '../api/client'
 import { api } from '../api/client'
 import GlossaryText from '../components/GlossaryText'
 import InfoPopover from '../components/InfoPopover'
@@ -916,6 +916,148 @@ function RecentOverviewTable({ nights, metric }: { nights: OverviewDailyStat[]; 
   )
 }
 
+function AdherenceCard({ days }: { days: number }) {
+  const navigate = useNavigate()
+  const [data, setData] = useState<AdherenceStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.getAdherenceStats(days).then(setData).finally(() => setLoading(false))
+  }, [days])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="px-6 pb-6 pt-7 text-center text-sm text-[var(--muted-foreground)]">
+          Loading adherence data...
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!data || data.nightly.length === 0) {
+    return null
+  }
+
+  const chartData = data.nightly.map((n) => ({
+    date: n.date.slice(5),
+    fullDate: n.date,
+    usage_hours: n.usage_hours,
+    status: n.status,
+  }))
+
+  const threshold = data.usage_threshold_hours
+  const borderline = data.borderline_threshold_hours
+
+  function barFill(entry: { status: number }) {
+    if (entry.status >= 3) return '#6AA136'
+    if (entry.status === 2) return '#E9784B'
+    return '#D9534F'
+  }
+
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_32%),var(--surface-strong)]">
+          <CardContent className="!p-6 sm:!p-8">
+            <p className="text-sm font-bold text-[var(--foreground)]">Overall adherence</p>
+            <p className={`mt-2 text-4xl font-semibold ${data.overall.passes ? 'text-[var(--green-700)]' : 'text-[var(--orange-700)]'}`}>
+              {data.overall.adherence_pct}%
+            </p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">{data.overall.compliant_nights} of {data.overall.total_nights} nights</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(82,81,167,0.08),_transparent_32%),var(--surface-strong)]">
+          <CardContent className="!p-6 sm:!p-8">
+            <p className="text-sm font-bold text-[var(--foreground)]">Best window</p>
+            <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">
+              {data.best_window ? `${data.best_window.adherence_pct}%` : '—'}
+            </p>
+            {data.best_window && (
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                {data.best_window.start_date} — {data.best_window.end_date}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(106,161,54,0.08),_transparent_32%),var(--surface-strong)]">
+          <CardContent className="!p-6 sm:!p-8">
+            <p className="text-sm font-bold text-[var(--foreground)]">Longest streak</p>
+            <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">{data.streak_longest} nights</p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">{data.streak_current} current</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(233,120,75,0.08),_transparent_32%),var(--surface-strong)]">
+          <CardContent className="!p-6 sm:!p-8">
+            <p className="text-sm font-bold text-[var(--foreground)]">Target</p>
+            <p className="mt-2 text-4xl font-semibold text-[var(--foreground)]">&ge;{data.target_adherence_pct}%</p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">&ge;{threshold}h usage threshold</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-[var(--foreground)]">Daily usage by adherence status</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Green = full adherence, orange = borderline, red = below threshold. Click a bar to view that night.</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)]">
+              <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#6AA136' }} /> Compliant</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#E9784B' }} /> Borderline</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#D9534F' }} /> Non-compliant</span>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+              onClick={(payload) => {
+                const p = payload as { activePayload?: Array<{ payload?: { fullDate?: string } }> } | undefined
+                const active = p?.activePayload?.[0]?.payload
+                if (active?.fullDate) {
+                  navigate(`/sessions/by-date/${active.fullDate}`)
+                }
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--neutral-200)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                minTickGap={24}
+              />
+              <YAxis
+                tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                domain={[0, 'auto']}
+                width={54}
+              />
+              <Tooltip
+                contentStyle={{ background: 'var(--popover-surface)', border: '1px solid var(--border)', borderRadius: 14, color: 'var(--foreground)' }}
+                labelStyle={{ color: 'var(--foreground)' }}
+                formatter={(value, name) => {
+                  if (name === 'usage_hours' && typeof value === 'number') return [`${value.toFixed(1)} hours`, 'Usage']
+                  return [value, name]
+                }}
+              />
+              {borderline != null && (
+                <ReferenceLine y={borderline} stroke="#E9784B" strokeDasharray="4 4" label={{ value: 'Borderline', fill: '#E9784B', fontSize: 10, position: 'right' }} />
+              )}
+              <ReferenceLine y={threshold} stroke="#6AA136" strokeDasharray="4 4" label={{ value: 'Threshold', fill: '#6AA136', fontSize: 10, position: 'right' }} />
+              <Bar dataKey="usage_hours" name="usage_hours" radius={[6, 6, 0, 0]} maxBarSize={28} shape={(props: { fill?: string; x?: number; y?: number; width?: number; height?: number; payload?: { status: number } }) => {
+                const { x, y, width, height, payload } = props
+                const color = barFill({ status: payload?.status ?? 0 })
+                return <rect x={x} y={y} width={width} height={height} fill={color} rx={6} ry={6} />
+              }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
 /**
  * React component or element to render the trends page.
  *
@@ -928,7 +1070,12 @@ export default function TrendsPage() {
   const [metricKey, setMetricKey] = useState<MetricKey>('ahi')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
   const metric = getMetric(metricKey)
+
+  useEffect(() => {
+    api.getImportSettings().then((s) => setAdherenceEnabled(s.adherence_enabled ?? true)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     async function loadTrends() {
@@ -996,6 +1143,8 @@ export default function TrendsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {adherenceEnabled && <AdherenceCard days={rangeDays} />}
 
       <Card>
         <CardContent className="px-4 pb-5 pt-5 sm:px-6 sm:pt-6">

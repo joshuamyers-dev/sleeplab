@@ -102,7 +102,9 @@ export default function Dashboard() {
   const [reportFrom, setReportFrom] = useState(initialReportRange.from)
   const [reportTo, setReportTo] = useState(initialReportRange.to)
   const [reportLoading, setReportLoading] = useState(false)
+  const [adherenceReportLoading, setAdherenceReportLoading] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -130,6 +132,8 @@ export default function Dashboard() {
     }
 
     void loadDashboard()
+
+    api.getImportSettings().then((s) => setAdherenceEnabled(s.adherence_enabled ?? true)).catch(() => {})
 
     function handleImportCompleted() {
       setLoading(true)
@@ -308,6 +312,37 @@ export default function Dashboard() {
       setReportError(err instanceof Error ? err.message : 'Could not download report.')
     } finally {
       setReportLoading(false)
+    }
+  }
+
+  async function handleDownloadAdherenceReport() {
+    setReportError(null)
+    if (!reportFrom || !reportTo) {
+      setReportError('Choose a start and end date.')
+      return
+    }
+    if (reportTo < reportFrom) {
+      setReportError('End date must be on or after start date.')
+      return
+    }
+
+    const fromCompact = compactDate(reportFrom)
+    const toCompact = compactDate(reportTo)
+    setAdherenceReportLoading(true)
+    try {
+      const blob = await api.downloadAdherenceReportPdf(fromCompact, toCompact)
+      const url = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `sleeplab-adherence-${fromCompact}-${toCompact}.pdf`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Could not download report.')
+    } finally {
+      setAdherenceReportLoading(false)
     }
   }
 
@@ -511,11 +546,11 @@ export default function Dashboard() {
 
       <Card className="order-5">
         <CardHeader>
-          <CardTitle>Doctor Report</CardTitle>
-          <CardDescription>Export a PDF therapy summary for a selected date range.</CardDescription>
+          <CardTitle>Export Reports</CardTitle>
+          <CardDescription>Export a PDF for a selected date range.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] mb-4">
             <div className="space-y-1.5">
               <Label htmlFor="report-from">From</Label>
               <Input
@@ -534,8 +569,15 @@ export default function Dashboard() {
                 onChange={(event) => setReportTo(event.target.value)}
               />
             </div>
-            <Button className="w-full sm:w-auto" onClick={() => void handleDownloadReport()} disabled={reportLoading}>
-              {reportLoading ? 'Downloading...' : 'Download Report'}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {adherenceEnabled && (
+              <Button onClick={() => void handleDownloadAdherenceReport()} disabled={adherenceReportLoading}>
+                {adherenceReportLoading ? 'Downloading...' : 'Adherence Report'}
+              </Button>
+            )}
+            <Button onClick={() => void handleDownloadReport()} disabled={reportLoading}>
+              {reportLoading ? 'Downloading...' : "Clinician's Report"}
             </Button>
           </div>
           {reportError && (
@@ -543,7 +585,6 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-
       <Card className="order-6 md:hidden">
         <CardHeader>
           <div className="flex flex-col gap-3">

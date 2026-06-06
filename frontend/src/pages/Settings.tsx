@@ -104,6 +104,19 @@ export default function SettingsPage() {
   const [wearableError, setWearableError] = useState<string | null>(null)
   const [isWearableSubmitting, setIsWearableSubmitting] = useState(false)
 
+  // Adherence settings
+  const [adherenceEnabled, setAdherenceEnabled] = useState(true)
+  const [usageThresholdHours, setUsageThresholdHours] = useState(4.0)
+  const [borderlineThresholdHours, setBorderlineThresholdHours] = useState<number | null>(null)
+  const [targetAdherencePct, setTargetAdherencePct] = useState(70.0)
+  const [adherenceWindowDays, setAdherenceWindowDays] = useState(30)
+  const [evaluationPeriodDays, setEvaluationPeriodDays] = useState(90)
+  const [windowEvaluationLogic, setWindowEvaluationLogic] = useState('best_consecutive')
+  const [maintenanceLookbackDays, setMaintenanceLookbackDays] = useState(90)
+  const [adherenceMessage, setComplianceMessage] = useState<string | null>(null)
+  const [adherenceError, setComplianceError] = useState<string | null>(null)
+  const [isAdherenceSubmitting, setIsComplianceSubmitting] = useState(false)
+
   useEffect(() => {
     if (!user) {
       return
@@ -137,6 +150,14 @@ export default function SettingsPage() {
       setLlmModel(settings.llm_model ?? '')
       setLlmApiKeySaved(settings.has_llm_api_key)
       // wearable_api_key is always null from server — leave blank
+      setAdherenceEnabled(settings.adherence_enabled ?? true)
+      setUsageThresholdHours(settings.usage_threshold_hours ?? 4.0)
+      setBorderlineThresholdHours(settings.borderline_threshold_hours ?? null)
+      setTargetAdherencePct(settings.target_adherence_pct ?? 70.0)
+      setAdherenceWindowDays(settings.adherence_window_days ?? 30)
+      setEvaluationPeriodDays(settings.evaluation_period_days ?? 90)
+      setWindowEvaluationLogic(settings.window_evaluation_logic ?? 'best_consecutive')
+      setMaintenanceLookbackDays(settings.maintenance_lookback_days ?? 90)
     }).catch(() => {
       // No settings saved yet — leave fields empty
     })
@@ -298,6 +319,30 @@ export default function SettingsPage() {
       setWearableError(err instanceof Error ? err.message : 'Could not save settings')
     } finally {
       setIsWearableSubmitting(false)
+    }
+  }
+
+  async function handleAdherenceSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setComplianceError(null)
+    setComplianceMessage(null)
+    setIsComplianceSubmitting(true)
+    try {
+      await api.saveImportSettings({
+        adherence_enabled: adherenceEnabled,
+        usage_threshold_hours: usageThresholdHours,
+        borderline_threshold_hours: borderlineThresholdHours ?? null,
+        target_adherence_pct: targetAdherencePct,
+        adherence_window_days: adherenceWindowDays,
+        evaluation_period_days: evaluationPeriodDays,
+        window_evaluation_logic: windowEvaluationLogic,
+        maintenance_lookback_days: maintenanceLookbackDays,
+      })
+      setComplianceMessage('Adherence settings saved.')
+    } catch (err) {
+      setComplianceError(err instanceof Error ? err.message : 'Could not save adherence settings')
+    } finally {
+      setIsComplianceSubmitting(false)
     }
   }
 
@@ -762,6 +807,138 @@ export default function SettingsPage() {
 
             <Button type="submit" disabled={isWearableSubmitting}>
               {isWearableSubmitting ? 'Saving...' : 'Save wearable settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.45),_transparent_38%),var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle className="text-2xl">Adherence</CardTitle>
+          <CardDescription>
+            Configure how therapy adherence is calculated. These settings affect the adherence report, dashboard charts, and the daily usage bar chart.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" onSubmit={handleAdherenceSubmit}>
+            <div className="flex items-center justify-between rounded-lg border border-[var(--border)] px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">Enable adherence tracking</p>
+                <p className="text-xs text-[var(--muted-foreground)]">Show the Adherence Report button on the dashboard and include adherence data in exports.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={adherenceEnabled}
+                onClick={() => setAdherenceEnabled((v) => !v)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${adherenceEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${adherenceEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-3">
+                <Label htmlFor="usageThresholdHours">Usage threshold (hours)</Label>
+                <Input
+                  id="usageThresholdHours"
+                  type="number"
+                  value={usageThresholdHours}
+                  onChange={(event) => setUsageThresholdHours(Number(event.target.value))}
+                  step={0.5}
+                  min={0.5}
+                  max={12}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="borderlineThresholdHours">
+                  Borderline threshold (hours)
+                  <span className="ml-1 text-xs font-normal text-[var(--muted-foreground)]">optional</span>
+                </Label>
+                <Input
+                  id="borderlineThresholdHours"
+                  type="number"
+                  value={borderlineThresholdHours ?? ''}
+                  onChange={(event) => setBorderlineThresholdHours(event.target.value ? Number(event.target.value) : null)}
+                  step={0.5}
+                  min={0.5}
+                  max={12}
+                  placeholder="Not set"
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">Sets the orange zone on charts. Must be below the usage threshold.</p>
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="targetAdherencePct">Target adherence (%)</Label>
+                <Input
+                  id="targetAdherencePct"
+                  type="number"
+                  value={targetAdherencePct}
+                  onChange={(event) => setTargetAdherencePct(Number(event.target.value))}
+                  step={5}
+                  min={0}
+                  max={100}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="adherenceWindowDays">Window (days)</Label>
+                <Input
+                  id="adherenceWindowDays"
+                  type="number"
+                  value={adherenceWindowDays}
+                  onChange={(event) => setAdherenceWindowDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={365}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="evaluationPeriodDays">Evaluation period (days)</Label>
+                <Input
+                  id="evaluationPeriodDays"
+                  type="number"
+                  value={evaluationPeriodDays}
+                  onChange={(event) => setEvaluationPeriodDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={730}
+                />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="maintenanceLookbackDays">Maintenance lookback (days)</Label>
+                <Input
+                  id="maintenanceLookbackDays"
+                  type="number"
+                  value={maintenanceLookbackDays}
+                  onChange={(event) => setMaintenanceLookbackDays(Number(event.target.value))}
+                  step={1}
+                  min={1}
+                  max={730}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="windowEvaluationLogic">Window evaluation logic</Label>
+              <select
+                id="windowEvaluationLogic"
+                value={windowEvaluationLogic}
+                onChange={(event) => setWindowEvaluationLogic(event.target.value)}
+                className="flex h-9 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
+              >
+                <option value="best_consecutive">Best consecutive — finds the highest-scoring window</option>
+                <option value="last_consecutive">Last consecutive — evaluates the most recent window only</option>
+              </select>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Best consecutive: a sliding window finds the highest adherence within the evaluation period. Last consecutive: only the final window of the evaluation period is considered.
+              </p>
+            </div>
+
+            {adherenceMessage ? <p className="text-sm font-medium text-[var(--olive-deep)]">{adherenceMessage}</p> : null}
+            {adherenceError ? <p className="text-sm text-[var(--danger-text)]">{adherenceError}</p> : null}
+
+            <Button type="submit" disabled={isAdherenceSubmitting}>
+              {isAdherenceSubmitting ? 'Saving...' : 'Save adherence settings'}
             </Button>
           </form>
         </CardContent>
