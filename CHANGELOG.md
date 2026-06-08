@@ -1,3 +1,24 @@
+# [1.4.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.3.1...v1.4.0) (2026-06-08)
+
+
+### Bug Fixes
+
+* resolve CI failures — renumber migration, restore missing helpers, update uv.lock ([f8bd1ca](https://github.com/joshuamyers-dev/sleeplab/commit/f8bd1ca1a342286ffba3d7b253f7a5a1de15318b))
+* restore _format_date_range and _build_ahi_chart dropped during cherry-pick ([8786816](https://github.com/joshuamyers-dev/sleeplab/commit/878681633cd08b425d9733fe2015b4203d571233))
+* restore dep files from upstream, fix lint in test_sessions ([d66baed](https://github.com/joshuamyers-dev/sleeplab/commit/d66baedba4d3b7642616a45e21ddef80c683a747))
+* **sessions:** correct uuid cast in export_sessions_pdf query ([1481d7f](https://github.com/joshuamyers-dev/sleeplab/commit/1481d7f59f37a5b60d3fa8a1cb628f41e5313845))
+* **test:** remove stray PDF assertions from test_update_note_replaces_existing_note ([90842b9](https://github.com/joshuamyers-dev/sleeplab/commit/90842b9d359a98280c0720f8fe40064284b3b110))
+
+
+### Features
+
+* add compliance calculation module ([d54777a](https://github.com/joshuamyers-dev/sleeplab/commit/d54777ab28a1725af8aaa23a7b06a7581cc4352b))
+* add compliance dashboard UI ([58307bf](https://github.com/joshuamyers-dev/sleeplab/commit/58307bf03e8c8316acc5ceace0e3e520185c3f7b))
+* add compliance settings DB columns ([b74db8f](https://github.com/joshuamyers-dev/sleeplab/commit/b74db8f7daa9ec8a28815ba720cc8a1d4fb448d6))
+* add compliance stats and PDF export endpoints ([56e03a5](https://github.com/joshuamyers-dev/sleeplab/commit/56e03a50f26dfa9b832e644093dd028635c3dd44))
+* **adherence:** per-user toggle, merged export card, remove Medicare footnote ([0065f54](https://github.com/joshuamyers-dev/sleeplab/commit/0065f549cdd5f69d6024b914ff418fb6a12f0c1e))
+* **adherence:** rename compliance module to adherence throughout, add cleanup ([d1e0e2e](https://github.com/joshuamyers-dev/sleeplab/commit/d1e0e2eecf048cdc7d137baadb510b110acdb73e))
+
 ## [1.3.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.3.0...v1.3.1) (2026-06-05)
 
 
