@@ -1,3 +1,12 @@
+## [1.4.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.0...v1.4.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** bump @rollup/rollup-linux-x64-gnu from 4.59.0 to 4.61.1 ([#145](https://github.com/joshuamyers-dev/sleeplab/issues/145)) ([bbdaaa9](https://github.com/joshuamyers-dev/sleeplab/commit/bbdaaa9e1af6c8f215f52456169017c06c6af4de))
+* **deps:** bump python-multipart from 0.0.30 to 0.0.32 ([#144](https://github.com/joshuamyers-dev/sleeplab/issues/144)) ([e93c8a8](https://github.com/joshuamyers-dev/sleeplab/commit/e93c8a88e1c1ae6b5aef3f0e43fbb7fefe5431eb))
+* **deps:** bump react-router-dom from 7.16.0 to 7.17.0 ([#149](https://github.com/joshuamyers-dev/sleeplab/issues/149)) ([16e1675](https://github.com/joshuamyers-dev/sleeplab/commit/16e1675b9ddc09cde895f8b5c3eb0a38d70ede3c))
+
 # [1.4.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.3.1...v1.4.0) (2026-06-08)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "sleeplab",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "scripts": {
     "api": "nx serve api",
@@ -43,7 +43,7 @@
     "@vitest/coverage-v8": "^4.1.7",
     "nx": "^22.7.5",
     "prettier": "~3.8.3",
-    "semantic-release": "^25.0.3",
+    "semantic-release": "^25.0.5",
     "storybook": "10.4.2",
     "ts-node": "10.9.2",
     "typescript": "~6.0.3",
