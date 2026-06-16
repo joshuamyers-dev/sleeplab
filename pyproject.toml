@@ -13,7 +13,7 @@ dependencies = [
     "openai==2.41.0",
     "python-multipart==0.0.32",
     "httpx>=0.27.0",
-    "matplotlib==3.10.9",
+    "matplotlib==3.11.0",
     "reportlab==4.5.1",
 ]
 
