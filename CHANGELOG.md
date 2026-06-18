@@ -1,3 +1,13 @@
+## [1.4.2](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.1...v1.4.2) (2026-06-18)
+
+
+### Bug Fixes
+
+* **deps:** bump matplotlib from 3.10.9 to 3.11.0 ([#151](https://github.com/joshuamyers-dev/sleeplab/issues/151)) ([2f75fdb](https://github.com/joshuamyers-dev/sleeplab/commit/2f75fdb9825789bf8c207789af441edd2bb2cc56))
+* **deps:** bump openai from 2.41.0 to 2.41.1 ([#155](https://github.com/joshuamyers-dev/sleeplab/issues/155)) ([767ed89](https://github.com/joshuamyers-dev/sleeplab/commit/767ed89a8412cfe3a93dd434eaa0724c333f181e))
+* **deps:** bump sqlalchemy from 2.0.50 to 2.0.51 ([#157](https://github.com/joshuamyers-dev/sleeplab/issues/157)) ([d2cc0f2](https://github.com/joshuamyers-dev/sleeplab/commit/d2cc0f2cde5531a22aac73dec8038ee528341391))
+* **deps:** bump starlette in the uv group across 1 directory ([#160](https://github.com/joshuamyers-dev/sleeplab/issues/160)) ([c6e0736](https://github.com/joshuamyers-dev/sleeplab/commit/c6e07361d560fce6cb3081e76d61418108f26201))
+
 ## [1.4.1](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.0...v1.4.1) (2026-06-11)
 
 
