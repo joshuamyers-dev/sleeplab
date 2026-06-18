@@ -42,7 +42,7 @@
     "@vitest/browser-playwright": "^4.1.7",
     "@vitest/coverage-v8": "^4.1.7",
     "nx": "^22.7.5",
-    "prettier": "~3.8.3",
+    "prettier": "~3.8.4",
     "semantic-release": "^25.0.5",
     "storybook": "10.4.2",
     "ts-node": "10.9.2",
