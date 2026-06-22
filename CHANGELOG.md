@@ -1,3 +1,13 @@
+## [1.4.3](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.2...v1.4.3) (2026-06-22)
+
+
+### Bug Fixes
+
+* **deps:** bump @rolldown/binding-linux-x64-gnu from 1.1.0 to 1.1.1 ([#152](https://github.com/joshuamyers-dev/sleeplab/issues/152)) ([7d50bd9](https://github.com/joshuamyers-dev/sleeplab/commit/7d50bd93fa55626cc7b17390506053d84f025f1b))
+* **deps:** bump esbuild in the npm_and_yarn group across 1 directory ([#163](https://github.com/joshuamyers-dev/sleeplab/issues/163)) ([57efa28](https://github.com/joshuamyers-dev/sleeplab/commit/57efa2824ed541e5b71d16644fb47d3bfb0708ae))
+* **deps:** bump fastapi from 0.136.3 to 0.137.2 ([#153](https://github.com/joshuamyers-dev/sleeplab/issues/153)) ([b78622f](https://github.com/joshuamyers-dev/sleeplab/commit/b78622f964cf8982b53e79b734a455ca8f697640))
+* **deps:** bump the npm_and_yarn group across 1 directory with 3 updates ([#162](https://github.com/joshuamyers-dev/sleeplab/issues/162)) ([a7c29a9](https://github.com/joshuamyers-dev/sleeplab/commit/a7c29a9862f50f9b34047c3cde2b6ec150791729))
+
 ## [1.4.2](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.1...v1.4.2) (2026-06-18)
 
 
