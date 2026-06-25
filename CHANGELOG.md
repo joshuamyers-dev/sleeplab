@@ -1,3 +1,13 @@
+## [1.4.4](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.3...v1.4.4) (2026-06-25)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi from 0.137.2 to 0.138.0 ([#167](https://github.com/joshuamyers-dev/sleeplab/issues/167)) ([94c6924](https://github.com/joshuamyers-dev/sleeplab/commit/94c69247b545d6e3c0e1a84831bb0a9a47355f47))
+* **deps:** bump openai from 2.41.1 to 2.43.0 ([#169](https://github.com/joshuamyers-dev/sleeplab/issues/169)) ([378fbf9](https://github.com/joshuamyers-dev/sleeplab/commit/378fbf9e7dae07ba0b6a82248e0348d2b692c1a6))
+* **deps:** bump reportlab from 4.5.1 to 5.0.0 ([#165](https://github.com/joshuamyers-dev/sleeplab/issues/165)) ([2b23f89](https://github.com/joshuamyers-dev/sleeplab/commit/2b23f8999882274fe0d8e08103871d225cced2f9))
+* **deps:** update mcp requirement from >=1.27.2 to >=1.28.0 ([#168](https://github.com/joshuamyers-dev/sleeplab/issues/168)) ([f91bea8](https://github.com/joshuamyers-dev/sleeplab/commit/f91bea89e3adb43e38892dce06a89f3179ba7f47))
+
 ## [1.4.3](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.2...v1.4.3) (2026-06-22)
 
 
