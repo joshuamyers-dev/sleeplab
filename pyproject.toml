@@ -10,7 +10,7 @@ dependencies = [
     "psycopg2-binary==2.9.12",
     "PyJWT==2.13.0",
     "passlib==1.7.4",
-    "openai==2.43.0",
+    "openai==2.44.0",
     "python-multipart==0.0.32",
     "httpx>=0.27.0",
     "matplotlib==3.11.0",
