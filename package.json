@@ -1,6 +1,6 @@
 {
   "name": "sleeplab",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": true,
   "scripts": {
     "api": "nx serve api",
@@ -33,7 +33,7 @@
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/github": "^12.0.9",
     "@storybook/addon-vitest": "^10.4.2",
     "@storybook/react-vite": "10.4.6",
     "@swc-node/register": "~1.11.1",
