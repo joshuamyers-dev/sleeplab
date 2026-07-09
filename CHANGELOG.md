@@ -1,3 +1,11 @@
+## [1.4.6](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.5...v1.4.6) (2026-07-09)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi from 0.138.2 to 0.139.0 ([#183](https://github.com/joshuamyers-dev/sleeplab/issues/183)) ([604f507](https://github.com/joshuamyers-dev/sleeplab/commit/604f5076837a18abac4bda1316eb6fab97e82fd9))
+* **deps:** bump uvicorn from 0.49.0 to 0.50.2 ([#182](https://github.com/joshuamyers-dev/sleeplab/issues/182)) ([ee328b2](https://github.com/joshuamyers-dev/sleeplab/commit/ee328b2071e21141a11885a10782e66b08506bf2))
+
 ## [1.4.5](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.4...v1.4.5) (2026-07-02)
 
 
