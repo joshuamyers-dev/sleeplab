@@ -1,3 +1,13 @@
+## [1.4.7](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.6...v1.4.7) (2026-07-16)
+
+
+### Bug Fixes
+
+* **deps:** bump openai from 2.44.0 to 2.45.0 ([#187](https://github.com/joshuamyers-dev/sleeplab/issues/187)) ([29559ea](https://github.com/joshuamyers-dev/sleeplab/commit/29559ea0a9fcd82c9ddf18b0825cc93e543f6faa))
+* **deps:** bump react-router-dom from 7.17.0 to 7.18.1 ([#190](https://github.com/joshuamyers-dev/sleeplab/issues/190)) ([51b9755](https://github.com/joshuamyers-dev/sleeplab/commit/51b9755a8ff7407f5b5eb3d3f7210d6f8d950c1a))
+* **deps:** bump recharts from 3.8.1 to 3.9.2 ([#189](https://github.com/joshuamyers-dev/sleeplab/issues/189)) ([1ec89cc](https://github.com/joshuamyers-dev/sleeplab/commit/1ec89cc603d952c6cd3a16e50ad931137dc5fb85))
+* **deps:** bump uvicorn from 0.50.2 to 0.51.0 ([#188](https://github.com/joshuamyers-dev/sleeplab/issues/188)) ([5cf411e](https://github.com/joshuamyers-dev/sleeplab/commit/5cf411e3ca77ce9929a28507c5c702c710cfcffa))
+
 ## [1.4.6](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.5...v1.4.6) (2026-07-09)
 
 
