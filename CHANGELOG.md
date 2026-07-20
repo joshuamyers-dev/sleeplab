@@ -1,3 +1,10 @@
+## [1.4.8](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.7...v1.4.8) (2026-07-20)
+
+
+### Bug Fixes
+
+* **deps:** bump the npm_and_yarn group across 1 directory with 1 update ([#194](https://github.com/joshuamyers-dev/sleeplab/issues/194)) ([3c6bcf6](https://github.com/joshuamyers-dev/sleeplab/commit/3c6bcf671a14307883feb81c01b819e0b2337ae4))
+
 ## [1.4.7](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.6...v1.4.7) (2026-07-16)
 
 
