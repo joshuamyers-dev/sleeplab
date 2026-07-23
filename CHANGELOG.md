@@ -1,3 +1,11 @@
+## [1.4.9](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.8...v1.4.9) (2026-07-23)
+
+
+### Bug Fixes
+
+* **deps:** bump recharts from 3.9.2 to 3.10.0 ([#197](https://github.com/joshuamyers-dev/sleeplab/issues/197)) ([080b827](https://github.com/joshuamyers-dev/sleeplab/commit/080b8273d42ac9844d482f8c3c9cf92ec5eb68b2))
+* **deps:** bump the npm_and_yarn group across 1 directory with 2 updates ([#202](https://github.com/joshuamyers-dev/sleeplab/issues/202)) ([6f62d7e](https://github.com/joshuamyers-dev/sleeplab/commit/6f62d7efd516e9198ef33db0feda8918dcf68ce8))
+
 ## [1.4.8](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.7...v1.4.8) (2026-07-20)
 
 
