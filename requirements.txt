@@ -7,6 +7,6 @@ passlib==1.7.4
 openai==2.45.0
 python-multipart==0.0.32
 httpx>=0.27.0
-matplotlib==3.11.0
+matplotlib==3.11.1
 reportlab==5.0.0
 sleephq-client @ git+https://github.com/frohoff/sleephq-client.git
