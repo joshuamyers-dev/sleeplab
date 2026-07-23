@@ -29,7 +29,7 @@
     "@nx/js": "22.7.5",
     "@nx/react": "^22.7.5",
     "@nx/storybook": "^22.7.5",
-    "@nx/web": "22.7.5",
+    "@nx/web": "23.1.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
