@@ -1,3 +1,12 @@
+## [1.4.10](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.9...v1.4.10) (2026-07-27)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi from 0.139.0 to 0.139.2 ([#196](https://github.com/joshuamyers-dev/sleeplab/issues/196)) ([d3e2c0b](https://github.com/joshuamyers-dev/sleeplab/commit/d3e2c0bf54c43e30656b99d5ddbfc59c3310123f))
+* **deps:** bump matplotlib from 3.11.0 to 3.11.1 ([#200](https://github.com/joshuamyers-dev/sleeplab/issues/200)) ([d94ad67](https://github.com/joshuamyers-dev/sleeplab/commit/d94ad6735c6c964a7035caabdfa3f2ef82e0d2fe))
+* **deps:** bump openai from 2.45.0 to 2.47.0 ([#198](https://github.com/joshuamyers-dev/sleeplab/issues/198)) ([42dad30](https://github.com/joshuamyers-dev/sleeplab/commit/42dad307d1f59f1dfccaddbb2ca8388e991d1761))
+
 ## [1.4.9](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.8...v1.4.9) (2026-07-23)
 
 
