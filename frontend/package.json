@@ -26,7 +26,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@storybook/addon-vitest": "^10.4.2",
-    "@storybook/react": "^10.4.2",
+    "@storybook/react": "^10.5.5",
     "@tailwindcss/vite": "^4.3.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
