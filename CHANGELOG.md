@@ -1,3 +1,14 @@
+## [1.4.12](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.11...v1.4.12) (2026-08-06)
+
+
+### Bug Fixes
+
+* **deps:** bump adm-zip in the npm_and_yarn group across 1 directory ([#209](https://github.com/joshuamyers-dev/sleeplab/issues/209)) ([ba3b753](https://github.com/joshuamyers-dev/sleeplab/commit/ba3b753c548b07aaae5310ed7457dd78b6f33423))
+* **deps:** bump fastapi from 0.140.7 to 0.141.1 ([#214](https://github.com/joshuamyers-dev/sleeplab/issues/214)) ([23a32d3](https://github.com/joshuamyers-dev/sleeplab/commit/23a32d32eb464f6c83439238dde400a86d6c4ccf))
+* **deps:** bump openai from 2.49.0 to 2.52.0 ([#213](https://github.com/joshuamyers-dev/sleeplab/issues/213)) ([d403454](https://github.com/joshuamyers-dev/sleeplab/commit/d403454e2fddf0ec8a5711758b09ca21a0782827))
+* **deps:** bump uvicorn from 0.51.0 to 0.52.0 ([#215](https://github.com/joshuamyers-dev/sleeplab/issues/215)) ([0eb5ab8](https://github.com/joshuamyers-dev/sleeplab/commit/0eb5ab8617246b7b1bc676dae3b23f4e7229fc9b))
+* **deps:** update mcp requirement from >=1.28.1 to >=2.0.0 ([#212](https://github.com/joshuamyers-dev/sleeplab/issues/212)) ([ddee2ae](https://github.com/joshuamyers-dev/sleeplab/commit/ddee2ae4c22d1f15a6ec04cda08e567000e625c3))
+
 ## [1.4.11](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.10...v1.4.11) (2026-07-30)
 
 
