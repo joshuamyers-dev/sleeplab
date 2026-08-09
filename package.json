@@ -26,10 +26,10 @@
     "lightningcss-linux-x64-gnu": "1.32.0"
   },
   "devDependencies": {
-    "@nx/js": "22.7.5",
-    "@nx/react": "^22.7.5",
-    "@nx/storybook": "^22.7.5",
-    "@nx/web": "22.7.5",
+    "@nx/js": "22.7.8",
+    "@nx/react": "^22.7.8",
+    "@nx/storybook": "^22.7.8",
+    "@nx/web": "22.7.8",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
@@ -41,7 +41,7 @@
     "@swc/helpers": "~0.5.18",
     "@vitest/browser-playwright": "^4.1.10",
     "@vitest/coverage-v8": "^4.1.7",
-    "nx": "^22.7.7",
+    "nx": "^23.1.1",
     "prettier": "~3.8.4",
     "semantic-release": "^25.0.9",
     "storybook": "10.4.6",
