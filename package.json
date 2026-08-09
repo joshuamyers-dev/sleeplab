@@ -41,7 +41,7 @@
     "@swc/helpers": "~0.5.18",
     "@vitest/browser-playwright": "^4.1.10",
     "@vitest/coverage-v8": "^4.1.7",
-    "nx": "^22.7.5",
+    "nx": "^22.7.7",
     "prettier": "~3.8.4",
     "semantic-release": "^25.0.9",
     "storybook": "10.4.6",
