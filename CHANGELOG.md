@@ -1,3 +1,13 @@
+## [1.4.13](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.12...v1.4.13) (2026-08-10)
+
+
+### Bug Fixes
+
+* **deps:** bump @rollup/rollup-linux-x64-gnu from 4.61.1 to 4.62.4 ([#211](https://github.com/joshuamyers-dev/sleeplab/issues/211)) ([7a98c35](https://github.com/joshuamyers-dev/sleeplab/commit/7a98c35d5c56071ce8430df707bd857c08aef2cf))
+* **deps:** bump the npm_and_yarn group across 1 directory with 2 updates ([#219](https://github.com/joshuamyers-dev/sleeplab/issues/219)) ([bd00045](https://github.com/joshuamyers-dev/sleeplab/commit/bd000450cc809ec9787c6125a1de940fb2a1a135))
+* **deps:** bump the npm_and_yarn group across 1 directory with 2 updates ([#220](https://github.com/joshuamyers-dev/sleeplab/issues/220)) ([d691299](https://github.com/joshuamyers-dev/sleeplab/commit/d69129908f3e0d98a65c3c8b0789822c86d86724))
+* **deps:** bump the npm_and_yarn group across 1 directory with 5 updates ([#222](https://github.com/joshuamyers-dev/sleeplab/issues/222)) ([c4f4847](https://github.com/joshuamyers-dev/sleeplab/commit/c4f484745e8c57b063a164c126c930c15eeb1593))
+
 ## [1.4.12](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.11...v1.4.12) (2026-08-06)
 
 
