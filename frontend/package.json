@@ -43,7 +43,7 @@
     "mockdate": "^3.0.5",
     "msw": "^2.14.6",
     "msw-storybook-addon": "^2.0.7",
-    "playwright": "^1.60.0",
+    "playwright": "^1.62.1",
     "react-is": "^19.2.7",
     "start-server-and-test": "^3.0.11",
     "tailwindcss": "^4.3.2",
