@@ -18,6 +18,9 @@
 opencode.json
 opencode.jsonc
 
+# direnv
+.direnv/
+
 # Superpowers (local implementation notes and specs)
 docs/superpowers/
 
