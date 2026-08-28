@@ -104,7 +104,7 @@ class TestListSessions:
     def test_list_authenticated(self, client: TestClient, auth_headers, test_user, db):
         """Test list authenticated."""
         _seed_session(db, test_user["id"])
-        resp = client.get("/sessions/", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
@@ -112,7 +112,7 @@ class TestListSessions:
 
     def test_list_unauthenticated(self, client: TestClient):
         """Test list unauthenticated."""
-        resp = client.get("/sessions/")
+        resp = client.get("/api/v1/sessions/")
         assert resp.status_code == 401
 
 
@@ -122,7 +122,7 @@ class TestGetSession:
     def test_get_detail(self, client: TestClient, auth_headers, test_user, db):
         """Test get detail."""
         sid = _seed_session(db, test_user["id"])
-        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == sid
@@ -157,7 +157,7 @@ class TestGetSession:
             duration_seconds=8 * 3600,
         )
 
-        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["score_vs_30d_avg"] is not None
 
@@ -186,82 +186,86 @@ class TestGetSession:
             include_manufacturer=True,
         )
 
-        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
 
         assert resp.status_code == 200
-        current_score = compute_therapy_score({
-            "ahi": 0,
-            "avg_leak": 0.1,
-            "duration_seconds": 8 * 3600,
-            "has_spo2": False,
-            "avg_spo2": None,
-            "min_spo2": None,
-            "manufacturer": "ResMed",
-            "parser_validated": True,
-        }).total
-        previous_score = compute_therapy_score({
-            "ahi": 0,
-            "avg_leak": 0.8,
-            "duration_seconds": 8 * 3600,
-            "has_spo2": False,
-            "avg_spo2": None,
-            "min_spo2": None,
-            "manufacturer": "ResMed",
-            "parser_validated": True,
-        }).total
+        current_score = compute_therapy_score(
+            {
+                "ahi": 0,
+                "avg_leak": 0.1,
+                "duration_seconds": 8 * 3600,
+                "has_spo2": False,
+                "avg_spo2": None,
+                "min_spo2": None,
+                "manufacturer": "ResMed",
+                "parser_validated": True,
+            }
+        ).total
+        previous_score = compute_therapy_score(
+            {
+                "ahi": 0,
+                "avg_leak": 0.8,
+                "duration_seconds": 8 * 3600,
+                "has_spo2": False,
+                "avg_spo2": None,
+                "min_spo2": None,
+                "manufacturer": "ResMed",
+                "parser_validated": True,
+            }
+        ).total
         assert resp.json()["score_vs_30d_avg"] == round(current_score - previous_score, 1)
 
     def test_get_detail_includes_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Tried mouth tape")
-        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["note"] == "Tried mouth tape"
 
     def test_get_detail_includes_tags(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], tags=["Travel", "Sick"])
-        resp = client.get(f"/sessions/{sid}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["tags"] == ["Travel", "Sick"]
 
     def test_get_by_date_returns_empty_tags_when_null(self, client: TestClient, auth_headers, test_user, db):
         folder_date = date(2025, 1, 17)
         _seed_session(db, test_user["id"], folder_date=folder_date)
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["tags"] == []
 
     def test_get_by_date_returns_empty_tags_when_cleared(self, client: TestClient, auth_headers, test_user, db):
         folder_date = date(2025, 1, 18)
         _seed_session(db, test_user["id"], folder_date=folder_date, tags=[])
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["tags"] == []
 
     def test_get_by_date_returns_saved_tags(self, client: TestClient, auth_headers, test_user, db):
         folder_date = date(2025, 1, 19)
         _seed_session(db, test_user["id"], folder_date=folder_date, tags=["Mouth tape", "Good sleep"])
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["tags"] == ["Mouth tape", "Good sleep"]
 
     def test_get_by_date_preserves_note(self, client: TestClient, auth_headers, test_user, db):
         folder_date = date(2025, 1, 20)
         _seed_session(db, test_user["id"], folder_date=folder_date, note="Still congested")
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["note"] == "Still congested"
 
     def test_get_nonexistent(self, client: TestClient, auth_headers):
         """Test get nonexistent."""
         fake_id = "00000000-0000-0000-0000-000000000000"
-        resp = client.get(f"/sessions/{fake_id}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/{fake_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_get_by_date_includes_machine_timezone(self, client: TestClient, auth_headers, test_user, db):
         folder_date = date(2026, 6, 1)
         _seed_session(db, test_user["id"], folder_date=folder_date, machine_tz="America/New_York")
 
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
 
         assert resp.status_code == 200
         assert resp.json()["machine_tz"] == "America/New_York"
@@ -283,7 +287,7 @@ class TestGetSession:
             duration_seconds=101 * 60,
         )
 
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
 
         assert resp.status_code == 200
         data = resp.json()
@@ -315,7 +319,7 @@ class TestGetSession:
             include_manufacturer=True,
         )
 
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
 
         assert resp.status_code == 200
         leak = resp.json()["therapy_score"]["components"]["leak"]
@@ -326,7 +330,9 @@ class TestGetSession:
         assert leak["unit"] == "L/min"
         assert leak["unavailable_reason"] is None
 
-    def test_get_by_date_unknown_manufacturer_keeps_leak_unavailable(self, client: TestClient, auth_headers, test_user, db):
+    def test_get_by_date_unknown_manufacturer_keeps_leak_unavailable(
+        self, client: TestClient, auth_headers, test_user, db
+    ):
         db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
         folder_date = date(2026, 6, 2)
         _seed_session(
@@ -339,7 +345,7 @@ class TestGetSession:
             include_manufacturer=True,
         )
 
-        resp = client.get(f"/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
+        resp = client.get(f"/api/v1/sessions/by-date/{folder_date.isoformat()}", headers=auth_headers)
 
         assert resp.status_code == 200
         assert resp.json()["therapy_score"]["components"]["leak"] is None
@@ -417,27 +423,27 @@ class TestExportSessionPdf:
         assert b"This report includes fewer than 7 nights of data and may not be representative." in pdf
 
     def test_requires_auth(self, client: TestClient):
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260530")
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260530")
         assert resp.status_code == 401
 
     def test_rejects_invalid_date_format(self, client: TestClient, auth_headers):
-        resp = client.get("/sessions/export/pdf?from=2026-05-01&to=20260530", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=2026-05-01&to=20260530", headers=auth_headers)
         assert resp.status_code == 400
         assert "YYYYMMDD" in resp.json()["detail"]
 
     def test_rejects_invalid_calendar_date(self, client: TestClient, auth_headers):
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260230", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260230", headers=auth_headers)
         assert resp.status_code == 400
         assert "valid calendar date" in resp.json()["detail"]
 
     def test_rejects_to_before_from(self, client: TestClient, auth_headers):
-        resp = client.get("/sessions/export/pdf?from=20260530&to=20260501", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260530&to=20260501", headers=auth_headers)
         assert resp.status_code == 400
         assert "to must be on or after from" in resp.json()["detail"]
 
     def test_valid_request_returns_pdf_with_filename(self, client: TestClient, auth_headers, test_user, db):
         _seed_session(db, test_user["id"], date(2026, 5, 1), therapy_mode="APAP", mask_type="Nasal")
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260530", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260530", headers=auth_headers)
 
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("application/pdf")
@@ -446,12 +452,14 @@ class TestExportSessionPdf:
 
     def test_short_range_warns_about_representativeness(self, client: TestClient, auth_headers, test_user, db):
         _seed_session(db, test_user["id"], date(2026, 5, 1))
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260503", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260503", headers=auth_headers)
 
         assert resp.status_code == 200
         assert b"fewer than 7 nights of data" in resp.content
 
-    def test_known_manufacturer_is_reported_without_prominent_unknown(self, client: TestClient, auth_headers, test_user, db):
+    def test_known_manufacturer_is_reported_without_prominent_unknown(
+        self, client: TestClient, auth_headers, test_user, db
+    ):
         db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS manufacturer TEXT"))
         _seed_session(
             db,
@@ -468,7 +476,7 @@ class TestExportSessionPdf:
             include_manufacturer=True,
         )
 
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260502", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260502", headers=auth_headers)
 
         assert resp.status_code == 200
         assert b"ResMed" in resp.content
@@ -486,7 +494,7 @@ class TestExportSessionPdf:
             device_serial=None,
         )
 
-        resp = client.get("/sessions/export/pdf?from=20260501&to=20260501", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/pdf?from=20260501&to=20260501", headers=auth_headers)
 
         assert resp.status_code == 200
         assert resp.content.startswith(b"%PDF")
@@ -496,17 +504,17 @@ class TestExportSessionPdf:
 class TestSessionNotes:
     def test_save_note_persists(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"])
-        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "Had 2 beers"})
+        resp = client.put(f"/api/v1/sessions/{sid}/note", headers=auth_headers, json={"note": "Had 2 beers"})
         assert resp.status_code == 200
         assert resp.json()["note"] == "Had 2 beers"
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["note"] == "Had 2 beers"
 
     def test_update_note_replaces_existing_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Old mask")
-        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "New mask cushion"})
+        resp = client.put(f"/api/v1/sessions/{sid}/note", headers=auth_headers, json={"note": "New mask cushion"})
         assert resp.status_code == 200
         assert resp.json()["note"] == "New mask cushion"
 
@@ -550,43 +558,45 @@ class TestExportAdherencePdf:
         assert result["longest_streak"] == 0
 
     def test_requires_auth(self, client: TestClient):
-        resp = client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530")
+        resp = client.get("/api/v1/sessions/export/adherence/pdf?from=20260501&to=20260530")
         assert resp.status_code == 401
 
     def test_rejects_invalid_date_format(self, client: TestClient, auth_headers):
-        resp = client.get("/sessions/export/adherence/pdf?from=2026-05-01&to=20260530", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/adherence/pdf?from=2026-05-01&to=20260530", headers=auth_headers)
         assert resp.status_code == 400
 
     def test_rejects_to_before_from(self, client: TestClient, auth_headers):
-        resp = client.get("/sessions/export/adherence/pdf?from=20260530&to=20260501", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/export/adherence/pdf?from=20260530&to=20260501", headers=auth_headers)
         assert resp.status_code == 400
 
     def test_valid_request_returns_pdf_with_filename(self, client: TestClient, auth_headers, test_user, db):
         _seed_session(db, test_user["id"], date(2026, 5, 1))
-        client.get("/sessions/export/adherence/pdf?from=20260501&to=20260530", headers=auth_headers)
+        client.get("/api/v1/sessions/export/adherence/pdf?from=20260501&to=20260530", headers=auth_headers)
 
     def test_whitespace_note_clears_existing_note(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Felt congested")
-        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": "   "})
+        resp = client.put(f"/api/v1/sessions/{sid}/note", headers=auth_headers, json={"note": "   "})
         assert resp.status_code == 200
         assert resp.json()["note"] is None
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["note"] is None
 
     def test_save_note_for_missing_session_returns_safe_error(self, client: TestClient, auth_headers):
         fake_id = "00000000-0000-0000-0000-000000000000"
-        resp = client.put(f"/sessions/{fake_id}/note", headers=auth_headers, json={"note": "Used new pillow"})
+        resp = client.put(f"/api/v1/sessions/{fake_id}/note", headers=auth_headers, json={"note": "Used new pillow"})
         assert resp.status_code == 404
         assert resp.json() == {"detail": "Session not found"}
 
     def test_invalid_note_payload_returns_validation_error(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Keep my draft server-side")
-        resp = client.put(f"/sessions/{sid}/note", headers=auth_headers, json={"note": {"text": "not plain text"}})
+        resp = client.put(
+            f"/api/v1/sessions/{sid}/note", headers=auth_headers, json={"note": {"text": "not plain text"}}
+        )
         assert resp.status_code == 422
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["note"] == "Keep my draft server-side"
 
@@ -594,11 +604,11 @@ class TestExportAdherencePdf:
 class TestSessionTags:
     def test_save_tags_persists(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"])
-        resp = client.put(f"/sessions/{sid}/tags", headers=auth_headers, json={"tags": ["Travel", "Alcohol"]})
+        resp = client.put(f"/api/v1/sessions/{sid}/tags", headers=auth_headers, json={"tags": ["Travel", "Alcohol"]})
         assert resp.status_code == 200
         assert resp.json()["tags"] == ["Travel", "Alcohol"]
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["tags"] == ["Travel", "Alcohol"]
 
@@ -607,50 +617,58 @@ class TestSessionTags:
         shorter_sid = _seed_session(db, test_user["id"], folder_date=folder_date, duration_seconds=3600)
         longer_sid = _seed_session(db, test_user["id"], folder_date=folder_date, duration_seconds=7200)
 
-        resp = client.put(f"/sessions/{shorter_sid}/tags", headers=auth_headers, json={"tags": ["New mask", "Good sleep"]})
+        resp = client.put(
+            f"/api/v1/sessions/{shorter_sid}/tags", headers=auth_headers, json={"tags": ["New mask", "Good sleep"]}
+        )
         assert resp.status_code == 200
         assert resp.json()["tags"] == ["New mask", "Good sleep"]
 
-        rows = db.execute(
-            text("""
+        rows = (
+            db.execute(
+                text("""
                 SELECT tags
                 FROM sessions
                 WHERE user_id = CAST(:uid AS uuid)
                   AND folder_date = :folder_date
                 ORDER BY duration_seconds
             """),
-            {"uid": test_user["id"], "folder_date": folder_date},
-        ).mappings().all()
+                {"uid": test_user["id"], "folder_date": folder_date},
+            )
+            .mappings()
+            .all()
+        )
         assert [row["tags"] for row in rows] == [["New mask", "Good sleep"], ["New mask", "Good sleep"]]
 
-        detail = client.get(f"/sessions/{longer_sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{longer_sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["tags"] == ["New mask", "Good sleep"]
 
     def test_clear_tags_with_empty_array(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], tags=["Camping"])
-        resp = client.put(f"/sessions/{sid}/tags", headers=auth_headers, json={"tags": []})
+        resp = client.put(f"/api/v1/sessions/{sid}/tags", headers=auth_headers, json={"tags": []})
         assert resp.status_code == 200
         assert resp.json()["tags"] == []
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["tags"] == []
 
     def test_invalid_tag_is_rejected_without_partial_update(self, client: TestClient, auth_headers, test_user, db):
         sid = _seed_session(db, test_user["id"], note="Keep note", tags=["Travel"])
-        resp = client.put(f"/sessions/{sid}/tags", headers=auth_headers, json={"tags": ["Travel", "Bookmark"]})
+        resp = client.put(f"/api/v1/sessions/{sid}/tags", headers=auth_headers, json={"tags": ["Travel", "Bookmark"]})
         assert resp.status_code == 422
         assert resp.json() == {"detail": "Invalid session tag: Bookmark"}
 
-        detail = client.get(f"/sessions/{sid}", headers=auth_headers)
+        detail = client.get(f"/api/v1/sessions/{sid}", headers=auth_headers)
         assert detail.status_code == 200
         assert detail.json()["tags"] == ["Travel"]
         assert detail.json()["note"] == "Keep note"
 
 
 class TestSessionTagInsights:
-    def test_tag_insights_use_nightly_counts_and_all_night_baseline(self, client: TestClient, auth_headers, test_user, db):
+    def test_tag_insights_use_nightly_counts_and_all_night_baseline(
+        self, client: TestClient, auth_headers, test_user, db
+    ):
         today = date.today()
         multiblock_date = today - timedelta(days=3)
 
@@ -694,7 +712,7 @@ class TestSessionTagInsights:
             total_ahi_events=100,
         )
 
-        resp = client.get("/sessions/tag-insights", headers=auth_headers)
+        resp = client.get("/api/v1/sessions/tag-insights", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert [row["tag"] for row in data] == ["Travel"]

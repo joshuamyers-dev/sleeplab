@@ -166,7 +166,7 @@ def test_registry_raises_on_unknown_provider():
 
 def test_wearable_data_no_provider_returns_empty(client, auth_headers):
     """Test wearable data no provider returns empty."""
-    resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
+    resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["hr"] == []
@@ -176,14 +176,14 @@ def test_wearable_data_no_provider_returns_empty(client, auth_headers):
 
 def test_wearable_data_unauthenticated(client):
     """Test wearable data unauthenticated."""
-    resp = client.get("/wearable/data", params={"date": "2025-01-15"})
+    resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"})
     assert resp.status_code == 401
 
 
 def test_wearable_summary_no_provider_returns_empty(client, auth_headers):
     """Test wearable summary no provider returns empty."""
     resp = client.get(
-        "/wearable/summary",
+        "/api/v1/wearable/summary",
         params={"date_from": "2025-01-01", "date_to": "2025-01-03"},
         headers=auth_headers,
     )
@@ -197,7 +197,7 @@ def test_wearable_data_connect_error_returns_empty(client, auth_headers, db):
 
     # Insert wearable settings for the test user so provider is configured.
     # We need the user_id — read it from the auth token via /auth/me.
-    me = client.get("/auth/me", headers=auth_headers).json()
+    me = client.get("/api/v1/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
         text("""
@@ -220,7 +220,7 @@ def test_wearable_data_connect_error_returns_empty(client, auth_headers, db):
         mock_c.get.side_effect = httpx.ConnectError("refused")
         mock_cls.return_value = mock_c
 
-        resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
+        resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
 
     assert resp.status_code == 200
     assert resp.json()["hr"] == []
@@ -230,7 +230,7 @@ def test_endpoint_timeout_returns_empty(client, auth_headers, db):
     """Test endpoint timeout returns empty."""
     from sqlalchemy import text
 
-    me = client.get("/auth/me", headers=auth_headers).json()
+    me = client.get("/api/v1/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
         text("""
@@ -253,7 +253,7 @@ def test_endpoint_timeout_returns_empty(client, auth_headers, db):
         mock_c.get.side_effect = httpx.TimeoutException("timed out")
         mock_cls.return_value = mock_c
 
-        resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
+        resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
 
     assert resp.status_code == 200
     assert resp.json()["hr"] == []
@@ -265,7 +265,7 @@ def test_endpoint_5xx_returns_empty(client, auth_headers, db):
     """Test endpoint 5xx returns empty."""
     from sqlalchemy import text
 
-    me = client.get("/auth/me", headers=auth_headers).json()
+    me = client.get("/api/v1/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
         text("""
@@ -296,7 +296,7 @@ def test_endpoint_5xx_returns_empty(client, auth_headers, db):
         mock_c.get.side_effect = [server_err_resp, ok, ok]
         mock_cls.return_value = mock_c
 
-        resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
+        resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
 
     assert resp.status_code == 200
     assert resp.json()["hr"] == []
@@ -308,7 +308,7 @@ def test_wearable_data_401_from_api_returns_502(client, auth_headers, db):
     """Test wearable data 401 from api returns 502."""
     from sqlalchemy import text
 
-    me = client.get("/auth/me", headers=auth_headers).json()
+    me = client.get("/api/v1/auth/me", headers=auth_headers).json()
     uid = me["user_id"]
     db.execute(
         text("""
@@ -339,7 +339,7 @@ def test_wearable_data_401_from_api_returns_502(client, auth_headers, db):
         mock_c.get.side_effect = [auth_err, ok, ok]
         mock_cls.return_value = mock_c
 
-        resp = client.get("/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
+        resp = client.get("/api/v1/wearable/data", params={"date": "2025-01-15"}, headers=auth_headers)
 
     assert resp.status_code == 502
 
@@ -367,7 +367,7 @@ def test_stages_to_hours_accumulates_correctly():
 def test_wearable_disabled_returns_empty(client, auth_headers):
     """Test wearable disabled returns empty."""
     with patch.dict(os.environ, {"WEARABLE_ENABLED": "false"}):
-        resp = client.get("/wearable/data?date=2025-01-15", headers=auth_headers)
+        resp = client.get("/api/v1/wearable/data?date=2025-01-15", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["hr"] == []
@@ -412,7 +412,7 @@ def test_stages_to_hours_skips_malformed_timestamps():
 def test_wearable_settings_round_trip(client, auth_headers):
     """Test wearable settings round trip."""
     resp = client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={
             "wearable_provider": "open-wearables",
             "wearable_base_url": "https://wearables.home.example.com",
@@ -430,10 +430,10 @@ def test_wearable_settings_round_trip(client, auth_headers):
 def test_wearable_api_key_not_exposed_in_get(client, auth_headers):
     """Test wearable api key not exposed in get."""
     client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"wearable_api_key": "super-secret"},
         headers=auth_headers,
     )
-    resp = client.get("/import/settings", headers=auth_headers)
+    resp = client.get("/api/v1/import/settings", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["wearable_api_key"] is None
