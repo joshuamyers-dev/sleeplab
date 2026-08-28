@@ -1,7 +1,4 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
@@ -32,7 +29,7 @@ def _float_or_none(value):
     return float(value) if value is not None else None
 
 
-@router.get("/summary", response_model=SummaryStats)
+@router.get("/summary", response_model=SummaryStats, operation_id="get_summary_stats")
 def get_summary(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -173,9 +170,9 @@ def get_summary(
     )
 
 
-@router.get("/adherence", response_model=AdherenceStats)
+@router.get("/adherence", response_model=AdherenceStats, operation_id="get_adherence_stats")
 def get_adherence(
-    days: int = Query(180, ge=7, le=3650),
+    days: int = Query(180, ge=7, le=3650, description="Number of days to look back (7-3650)"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -199,7 +196,9 @@ def get_adherence(
     period_end = date.today()
     period_start = period_end - timedelta(days=days - 1)
 
-    rows = db.execute(text("""
+    rows = (
+        db.execute(
+            text("""
         SELECT
             folder_date,
             SUM(duration_seconds) AS duration_seconds,
@@ -211,11 +210,16 @@ def get_adherence(
           AND folder_date <= :end
         GROUP BY folder_date
         ORDER BY folder_date
-    """), {
-        "uid": current_user["id"],
-        "start": period_start,
-        "end": period_end,
-    }).mappings().all()
+    """),
+            {
+                "uid": current_user["id"],
+                "start": period_start,
+                "end": period_end,
+            },
+        )
+        .mappings()
+        .all()
+    )
 
     nights = [
         NightRecord(
@@ -271,9 +275,9 @@ def get_adherence(
     )
 
 
-@router.get("/overview", response_model=OverviewStats)
+@router.get("/overview", response_model=OverviewStats, operation_id="get_overview_stats")
 def get_overview(
-    days: int = Query(180, ge=7, le=3650),
+    days: int = Query(180, ge=7, le=3650, description="Number of days to look back (7-3650)"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

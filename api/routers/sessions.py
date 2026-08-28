@@ -70,8 +70,9 @@ def _session_column_exists(db: Session, column_name: str) -> bool:
     Used to gate SQL that references columns added in newer migrations so the
     app stays compatible with databases that haven't been fully migrated yet.
     """
-    return bool(db.execute(
-        text("""
+    return bool(
+        db.execute(
+            text("""
             SELECT EXISTS (
                 SELECT 1
                 FROM information_schema.columns
@@ -79,8 +80,9 @@ def _session_column_exists(db: Session, column_name: str) -> bool:
                   AND column_name = :column_name
             )
         """),
-        {"column_name": column_name},
-    ).scalar())
+            {"column_name": column_name},
+        ).scalar()
+    )
 
 
 def _manufacturer_select_expression(db: Session) -> str:
@@ -150,7 +152,6 @@ def _mask_device_serial(serial: str) -> str:
         return f"...{value}"
     return f"...{value[-5:]}"
 
-
     fig.tight_layout()
     fig.savefig(chart_buffer, format="png", bbox_inches="tight")
     plt.close(fig)
@@ -169,7 +170,16 @@ def _build_ahi_chart(nights: list[dict]) -> BytesIO:
     x_values = list(range(len(labels)))
     ax.plot(x_values, values, color="#4f46a5", linewidth=1.4, marker="o", markersize=3)
     ax.axhline(5, color="#9ca3af", linewidth=0.8, linestyle="--")
-    ax.text(0.99, 5.15, "Controlled threshold", color="#6b7280", fontsize=7, ha="right", va="bottom", transform=ax.get_yaxis_transform())
+    ax.text(
+        0.99,
+        5.15,
+        "Controlled threshold",
+        color="#6b7280",
+        fontsize=7,
+        ha="right",
+        va="bottom",
+        transform=ax.get_yaxis_transform(),
+    )
     ax.set_ylim(bottom=0)
     if values and all(value is not None for value in values):
         max_value = max(max(values), 5)
@@ -219,17 +229,25 @@ def _build_adherence_chart(nights: list[dict], config: AdherenceConfig | None = 
     ax.bar(x_values, hours, color=colors_bars, width=0.65)
     ax.axhline(config.usage_threshold_hours, color="#4f46a5", linewidth=0.8, linestyle="--")
     ax.text(
-        0.99, config.usage_threshold_hours + 0.15,
+        0.99,
+        config.usage_threshold_hours + 0.15,
         f"Usage threshold ({config.usage_threshold_hours}h)",
-        color="#6b7280", fontsize=7, ha="right", va="bottom",
+        color="#6b7280",
+        fontsize=7,
+        ha="right",
+        va="bottom",
         transform=ax.get_yaxis_transform(),
     )
     if config.borderline_threshold_hours is not None:
         ax.axhline(config.borderline_threshold_hours, color="#f59e0b", linewidth=0.8, linestyle=":")
         ax.text(
-            0.99, config.borderline_threshold_hours + 0.15,
+            0.99,
+            config.borderline_threshold_hours + 0.15,
             f"Borderline ({config.borderline_threshold_hours}h)",
-            color="#f59e0b", fontsize=7, ha="right", va="bottom",
+            color="#f59e0b",
+            fontsize=7,
+            ha="right",
+            va="bottom",
             transform=ax.get_yaxis_transform(),
         )
     ax.set_ylim(bottom=0)
@@ -272,7 +290,15 @@ def _footer(canvas, _doc):
     canvas.restoreState()
 
 
-def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], *, adherence_config: AdherenceConfig | None = None) -> BytesIO:
+def _build_pdf_report(
+    _start_raw: str,
+    _end_raw: str,
+    start: date,
+    end: date,
+    nights: list[dict],
+    *,
+    adherence_config: AdherenceConfig | None = None,
+) -> BytesIO:
     """Build a ReportLab PDF therapy report for the given date range and return it as a BytesIO."""
     buffer = BytesIO()
     title_style = ParagraphStyle(
@@ -383,7 +409,10 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
 
     equipment_candidates = [
         ("Manufacturer", manufacturer_summary),
-        ("Device serial / identifier", ", ".join(_mask_device_serial(serial) for serial in sorted(device_serials)) or None),
+        (
+            "Device serial / identifier",
+            ", ".join(_mask_device_serial(serial) for serial in sorted(device_serials)) or None,
+        ),
         ("Therapy mode", ", ".join(sorted(therapy_modes)) or None),
         ("Mask", ", ".join(sorted(mask_types)) or None),
     ]
@@ -405,74 +434,95 @@ def _build_pdf_report(_start_raw: str, _end_raw: str, start: date, end: date, ni
         Spacer(1, 0.1 * inch),
         Image(_build_ahi_chart(nights), width=7.0 * inch, height=2.05 * inch),
         Paragraph("Summary", section_style),
-        Table(summary_rows, colWidths=[2.05 * inch, 4.95 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
-            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
-            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.2),
-            ("LEADING", (0, 0), (-1, -1), 10),
-            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]),
+        Table(
+            summary_rows,
+            colWidths=[2.05 * inch, 4.95 * inch],
+            style=[
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+                ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+                ("LEADING", (0, 0), (-1, -1), 10),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ],
+        ),
         Paragraph("Equipment", section_style),
     ]
 
     if equipment_rows:
-        story.append(Table(equipment_rows, colWidths=[2.05 * inch, 4.95 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
-            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
-            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.0),
-            ("LEADING", (0, 0), (-1, -1), 9.5),
-            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
+        story.append(
+            Table(
+                equipment_rows,
+                colWidths=[2.05 * inch, 4.95 * inch],
+                style=[
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.0),
+                    ("LEADING", (0, 0), (-1, -1), 9.5),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ],
+            )
+        )
     notes = [
         "AHI is calculated from recorded apnea and hypopnea events over recorded therapy hours.",
         "Leak values follow SleepLab's existing session display convention.",
     ]
     if adherence_config is not None:
         notes.append(
-            f'Adherence is defined as \u2265 {adherence_config.usage_threshold_hours} hours of therapy use per night.'
+            f"Adherence is defined as \u2265 {adherence_config.usage_threshold_hours} hours of therapy use per night."
         )
     if missing_equipment_details:
         notes.append("Some equipment details were not available for this device.")
     if nights_used < 7:
         notes.append("This report includes fewer than 7 nights of data and may not be representative.")
 
-    story.extend([
-        Spacer(1, 0.12 * inch),
-        Table([[""]], colWidths=[7.0 * inch], style=[
-            ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]),
-        *[Paragraph(note, note_style) for note in notes],
-    ])
+    story.extend(
+        [
+            Spacer(1, 0.12 * inch),
+            Table(
+                [[""]],
+                colWidths=[7.0 * inch],
+                style=[
+                    ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ],
+            ),
+            *[Paragraph(note, note_style) for note in notes],
+        ]
+    )
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     buffer.seek(0)
     return buffer
 
 
-@router.get("/export/pdf")
+@router.get("/export/pdf", operation_id="export_session_report_pdf")
 def export_sessions_pdf(
-    from_: str = Query(..., alias="from"),
-    to: str = Query(...),
-    include_adherence: bool = Query(False),
+    from_: str = Query(..., alias="from", description="Start date in YYYYMMDD format"),
+    to: str = Query(..., description="End date in YYYYMMDD format"),
+    include_adherence: bool = Query(False, description="Include adherence chart in the PDF"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Generate and download a PDF therapy report for a date range.
+
+    Returns a PDF file with AHI trends, summary stats, and equipment details.
+    Set include_adherence=true to add an adherence chart.
+    """
     start = _parse_yyyymmdd(from_, "from")
     end = _parse_yyyymmdd(to, "to")
     if end < start:
@@ -493,8 +543,9 @@ def export_sessions_pdf(
 
     manufacturer_select = _manufacturer_select_expression(db)
 
-    rows = db.execute(
-        text(f"""
+    rows = (
+        db.execute(
+            text(f"""
             WITH night AS (
                 SELECT
                     s.folder_date,
@@ -532,8 +583,11 @@ def export_sessions_pdf(
             FROM night
             ORDER BY folder_date
         """),
-        {"uid": current_user["id"], "start": start, "end": end},
-    ).mappings().all()
+            {"uid": current_user["id"], "start": start, "end": end},
+        )
+        .mappings()
+        .all()
+    )
 
     pdf = _build_pdf_report(from_, to, start, end, [dict(row) for row in rows], adherence_config=config)
     filename = f"sleeplab-report-{from_}-{to}.pdf"
@@ -584,7 +638,9 @@ def _compute_adherence_summary(nights: list[dict], total_nights: int) -> dict:
     }
 
 
-def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig | None = None) -> BytesIO:
+def _build_adherence_report(
+    _start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig | None = None
+) -> BytesIO:
     if config is None:
         config = AdherenceConfig()
     buffer = BytesIO()
@@ -640,8 +696,7 @@ def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: da
 
     total_nights = (end - start).days + 1
     night_records = [
-        NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds"))
-        for n in nights
+        NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds")) for n in nights
     ]
     result = _compute_adherence(night_records, start, end, config)
 
@@ -673,41 +728,53 @@ def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: da
         ["Average nightly usage", f"{result.overall.avg_hours:.1f} hours"],
         ["Longest compliant streak", f"{result.streak_longest} {'night' if result.streak_longest == 1 else 'nights'}"],
     ]
-    story.append(Table(summary_data, colWidths=[2.8 * inch, 4.2 * inch], style=[
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
-        ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.2),
-        ("LEADING", (0, 0), (-1, -1), 10),
-        ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    story.append(
+        Table(
+            summary_data,
+            colWidths=[2.8 * inch, 4.2 * inch],
+            style=[
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+                ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+                ("LEADING", (0, 0), (-1, -1), 10),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ],
+        )
+    )
 
     story.append(Spacer(1, 0.08 * inch))
     story.append(Paragraph("Daily Usage", section_style))
 
     header_row = [["Date", "Usage (hours)", f">= {config.usage_threshold_hours}h Compliant"]]
     table_data = header_row + daily_rows
-    story.append(Table(table_data, colWidths=[1.4 * inch, 1.4 * inch, 1.4 * inch], style=[
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
-        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-        ("LEADING", (0, 0), (-1, -1), 9),
-        ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]))
+    story.append(
+        Table(
+            table_data,
+            colWidths=[1.4 * inch, 1.4 * inch, 1.4 * inch],
+            style=[
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                ("LEADING", (0, 0), (-1, -1), 9),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ],
+        )
+    )
 
     notes = [
         f"Adherence is defined as \u2265 {config.usage_threshold_hours} hours of therapy use per night.",
@@ -716,28 +783,38 @@ def _build_adherence_report(_start_raw: str, _end_raw: str, start: date, end: da
     if len(nights) < 7:
         notes.append("This report includes fewer than 7 nights of data and may not be representative.")
 
-    story.extend([
-        Spacer(1, 0.12 * inch),
-        Table([[""]], colWidths=[7.0 * inch], style=[
-            ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]),
-        *[Paragraph(note, note_style) for note in notes],
-    ])
+    story.extend(
+        [
+            Spacer(1, 0.12 * inch),
+            Table(
+                [[""]],
+                colWidths=[7.0 * inch],
+                style=[
+                    ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ],
+            ),
+            *[Paragraph(note, note_style) for note in notes],
+        ]
+    )
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     buffer.seek(0)
     return buffer
 
 
-@router.get("/export/adherence/pdf")
+@router.get("/export/adherence/pdf", operation_id="export_adherence_report_pdf")
 def export_adherence_pdf(
-    from_: str = Query(..., alias="from"),
-    to: str = Query(...),
+    from_: str = Query(..., alias="from", description="Start date in YYYYMMDD format"),
+    to: str = Query(..., description="End date in YYYYMMDD format"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Generate and download a PDF adherence report for a date range.
+
+    Returns a PDF file with daily usage bars, compliance summary, and streak data.
+    """
     start = _parse_yyyymmdd(from_, "from")
     end = _parse_yyyymmdd(to, "to")
     if end < start:
@@ -756,8 +833,9 @@ def export_adherence_pdf(
 
     manufacturer_select = _manufacturer_select_expression(db)
 
-    rows = db.execute(
-        text(f"""
+    rows = (
+        db.execute(
+            text(f"""
             WITH night AS (
                 SELECT
                     s.folder_date,
@@ -795,8 +873,11 @@ def export_adherence_pdf(
             FROM night
             ORDER BY folder_date
         """),
-        {"uid": current_user["id"], "start": start, "end": end},
-    ).mappings().all()
+            {"uid": current_user["id"], "start": start, "end": end},
+        )
+        .mappings()
+        .all()
+    )
 
     pdf = _build_adherence_report(from_, to, start, end, [dict(row) for row in rows], config)
     filename = f"sleeplab-adherence-{from_}-{to}.pdf"
@@ -807,7 +888,9 @@ def export_adherence_pdf(
     )
 
 
-def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig) -> BytesIO:
+def _build_advanced_adherence_report(
+    _start_raw: str, _end_raw: str, start: date, end: date, nights: list[dict], config: AdherenceConfig
+) -> BytesIO:
     buffer = BytesIO()
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -860,8 +943,7 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
     )
 
     night_records = [
-        NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds"))
-        for n in nights
+        NightRecord(folder_date=n["folder_date"], duration_seconds=n.get("duration_seconds")) for n in nights
     ]
     result = _compute_adherence(night_records, start, end, config)
 
@@ -884,7 +966,9 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
             f"{result.overall.adherence_pct:.1f}% adherent "
             f"(target: \u2265 {config.target_adherence_pct:.0f}%) &nbsp;&nbsp;|&nbsp;&nbsp; "
             f"Threshold: {config.usage_threshold_hours}h/night",
-            ParagraphStyle("OverallStatus", parent=body_style, fontSize=9, leading=12, textColor=colors.HexColor("#4b5563")),
+            ParagraphStyle(
+                "OverallStatus", parent=body_style, fontSize=9, leading=12, textColor=colors.HexColor("#4b5563")
+            ),
         ),
         Spacer(1, 0.06 * inch),
     ]
@@ -899,47 +983,61 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
             ["Average usage", f"{best.avg_hours:.1f} h/night"],
             ["Status", "PASS" if best.passes else "FAIL"],
         ]
-        story.append(Table(best_rows, colWidths=[2.4 * inch, 4.6 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
-            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
-            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.2),
-            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
+        story.append(
+            Table(
+                best_rows,
+                colWidths=[2.4 * inch, 4.6 * inch],
+                style=[
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ],
+            )
+        )
 
     if result.sequential_windows:
         story.append(Paragraph("Window Breakdown", section_style))
         window_header = [["Period", "Date Range", "Compliant", "%", "Status"]]
         window_rows = []
         for w in result.sequential_windows:
-            window_rows.append([
-                f"{w.total_nights}d",
-                f"{_format_date_range(w.start_date, w.end_date)}",
-                f"{w.compliant_nights}/{w.total_nights}",
-                f"{w.adherence_pct:.1f}%",
-                "PASS" if w.passes else "FAIL",
-            ])
-        story.append(Table(window_header + window_rows, colWidths=[1.0 * inch, 2.4 * inch, 1.2 * inch, 0.9 * inch, 0.9 * inch], style=[
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
-            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-            ("LEADING", (0, 0), (-1, -1), 9),
-            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-            ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ]))
+            window_rows.append(
+                [
+                    f"{w.total_nights}d",
+                    f"{_format_date_range(w.start_date, w.end_date)}",
+                    f"{w.compliant_nights}/{w.total_nights}",
+                    f"{w.adherence_pct:.1f}%",
+                    "PASS" if w.passes else "FAIL",
+                ]
+            )
+        story.append(
+            Table(
+                window_header + window_rows,
+                colWidths=[1.0 * inch, 2.4 * inch, 1.2 * inch, 0.9 * inch, 0.9 * inch],
+                style=[
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                    ("LEADING", (0, 0), (-1, -1), 9),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                    ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ],
+            )
+        )
 
     story.append(Paragraph("Adherence Streaks", section_style))
     streak_rows = [
@@ -947,24 +1045,32 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
         ["Longest compliant streak", f"{result.streak_longest} {'night' if result.streak_longest == 1 else 'nights'}"],
         ["Current compliant streak", f"{result.streak_current} {'night' if result.streak_current == 1 else 'nights'}"],
     ]
-    story.append(Table(streak_rows, colWidths=[2.4 * inch, 4.6 * inch], style=[
-        ("FONTNAME", (0, 0), (1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.2),
-        ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    story.append(
+        Table(
+            streak_rows,
+            colWidths=[2.4 * inch, 4.6 * inch],
+            style=[
+                ("FONTNAME", (0, 0), (1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ],
+        )
+    )
 
-    story.extend([
-        Spacer(1, 0.06 * inch),
-        Image(_build_adherence_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
-    ])
+    story.extend(
+        [
+            Spacer(1, 0.06 * inch),
+            Image(_build_adherence_chart(nights, config), width=7.0 * inch, height=2.05 * inch),
+        ]
+    )
 
     story.append(Paragraph("Daily Usage", section_style))
     daily_header = [["Date", "Usage (hours)", f">= {config.usage_threshold_hours}h", "AHI", "Leak"]]
@@ -979,24 +1085,32 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
         else:
             badge = "Fail"
         ahi_str = _format_metric(day_night.get("ahi"))
-        leak_str = _format_metric(day_night.get("avg_leak") * 1000 if day_night.get("avg_leak") is not None else None, " mL/s")
+        leak_str = _format_metric(
+            day_night.get("avg_leak") * 1000 if day_night.get("avg_leak") is not None else None, " mL/s"
+        )
         daily_rows.append([day_night["date"], f"{day_night['usage_hours']:.1f}", badge, ahi_str, leak_str])
 
-    story.append(Table(daily_header + daily_rows, colWidths=[1.2 * inch, 1.0 * inch, 1.0 * inch, 0.9 * inch, 1.1 * inch], style=[
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
-        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-        ("LEADING", (0, 0), (-1, -1), 9),
-        ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]))
+    story.append(
+        Table(
+            daily_header + daily_rows,
+            colWidths=[1.2 * inch, 1.0 * inch, 1.0 * inch, 0.9 * inch, 1.1 * inch],
+            style=[
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#4b5563")),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                ("LEADING", (0, 0), (-1, -1), 9),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f7fa")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ],
+        )
+    )
 
     equipment_candidates = [
         ("Device serial", ", ".join(_mask_device_serial(serial) for serial in sorted(device_serials)) or None),
@@ -1009,24 +1123,30 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
         equipment_candidates.append(("Borderline threshold", f"{config.borderline_threshold_hours} hours/night"))
     equipment_rows = [[label, value] for label, value in equipment_candidates if value]
 
-    story.extend([
-        Spacer(1, 0.06 * inch),
-        Paragraph("Configuration", section_style),
-        Table(equipment_rows, colWidths=[2.4 * inch, 4.6 * inch], style=[
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
-            ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
-            ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.0),
-            ("LEADING", (0, 0), (-1, -1), 9.5),
-            ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]),
-    ])
+    story.extend(
+        [
+            Spacer(1, 0.06 * inch),
+            Paragraph("Configuration", section_style),
+            Table(
+                equipment_rows,
+                colWidths=[2.4 * inch, 4.6 * inch],
+                style=[
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica"),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4b5563")),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.0),
+                    ("LEADING", (0, 0), (-1, -1), 9.5),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.25, colors.HexColor("#e5e7eb")),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f5f7fa")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ],
+            ),
+        ]
+    )
 
     notes = [
         "Adherence criteria are based on user-configurable settings and may not reflect all payer requirements.",
@@ -1036,28 +1156,39 @@ def _build_advanced_adherence_report(_start_raw: str, _end_raw: str, start: date
     if len(nights) < 7:
         notes.append("This report includes fewer than 7 nights of data and may not be representative.")
 
-    story.extend([
-        Spacer(1, 0.12 * inch),
-        Table([[""]], colWidths=[7.0 * inch], style=[
-            ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]),
-        *[Paragraph(note, note_style) for note in notes],
-    ])
+    story.extend(
+        [
+            Spacer(1, 0.12 * inch),
+            Table(
+                [[""]],
+                colWidths=[7.0 * inch],
+                style=[
+                    ("LINEABOVE", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ],
+            ),
+            *[Paragraph(note, note_style) for note in notes],
+        ]
+    )
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     buffer.seek(0)
     return buffer
 
 
-@router.get("/export/adherence/advanced/pdf")
+@router.get("/export/adherence/advanced/pdf", operation_id="export_advanced_adherence_report_pdf")
 def export_advanced_adherence_pdf(
-    from_: str = Query(..., alias="from"),
-    to: str = Query(...),
+    from_: str = Query(..., alias="from", description="Start date in YYYYMMDD format"),
+    to: str = Query(..., description="End date in YYYYMMDD format"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Generate and download an advanced PDF adherence report with window analysis.
+
+    Returns a PDF with best qualifying window, sequential window breakdown, streaks,
+    and daily usage with AHI/leak details. Uses user-configured adherence settings.
+    """
     start = _parse_yyyymmdd(from_, "from")
     end = _parse_yyyymmdd(to, "to")
     if end < start:
@@ -1076,8 +1207,9 @@ def export_advanced_adherence_pdf(
 
     manufacturer_select = _manufacturer_select_expression(db)
 
-    rows = db.execute(
-        text(f"""
+    rows = (
+        db.execute(
+            text(f"""
             WITH night AS (
                 SELECT
                     s.folder_date,
@@ -1115,8 +1247,11 @@ def export_advanced_adherence_pdf(
             FROM night
             ORDER BY folder_date
         """),
-        {"uid": current_user["id"], "start": start, "end": end},
-    ).mappings().all()
+            {"uid": current_user["id"], "start": start, "end": end},
+        )
+        .mappings()
+        .all()
+    )
 
     pdf = _build_advanced_adherence_report(from_, to, start, end, [dict(row) for row in rows], config)
     filename = f"sleeplab-advanced-adherence-{from_}-{to}.pdf"
@@ -1146,16 +1281,20 @@ class SessionTagsUpdate(BaseModel):
     tags: list[str]
 
 
-@router.get("/", response_model=list[SessionSummary])
+@router.get("/", response_model=list[SessionSummary], operation_id="list_sessions")
 def list_sessions(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(30, ge=1, le=600),
-    date_from: date | None = None,
-    date_to: date | None = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(30, ge=1, le=600, description="Items per page (max 600)"),
+    date_from: date | None = Query(None, description="Filter sessions from this date (inclusive)"),
+    date_to: date | None = Query(None, description="Filter sessions to this date (inclusive)"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List sessions with summary stats, sorted by folder_date DESC."""
+    """List sessions with summary stats, sorted by folder_date DESC.
+
+    Multi-block nights are aggregated into a single row per date.
+    Returns paginated results with AHI, event counts, pressure, and leak data.
+    """
     conditions = ["user_id = :uid"]
     params: dict = {"limit": per_page, "offset": (page - 1) * per_page, "uid": current_user["id"]}
 
@@ -1211,14 +1350,19 @@ def list_sessions(
     return [SessionSummary.model_validate(dict(r)) for r in rows]
 
 
-@router.get("/tag-insights", response_model=list[TagInsight])
+@router.get("/tag-insights", response_model=list[TagInsight], operation_id="get_tag_insights")
 def get_tag_insights(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return per-tag AHI averages compared to untagged nights as a baseline."""
-    rows = db.execute(
-        text("""
+    """Return per-tag AHI averages compared to untagged nights as a baseline.
+
+    Analyzes the last 90 days and returns insights for tags applied to 2+ nights.
+    Shows whether each tag correlates with better or worse AHI vs the baseline.
+    """
+    rows = (
+        db.execute(
+            text("""
             WITH night_metric AS (
                 SELECT
                     user_id,
@@ -1278,22 +1422,30 @@ def get_tag_insights(
             CROSS JOIN baseline
             ORDER BY tagged.tag
         """),
-        {"uid": current_user["id"]},
-    ).mappings().all()
+            {"uid": current_user["id"]},
+        )
+        .mappings()
+        .all()
+    )
     return [TagInsight.model_validate(dict(r)) for r in rows]
 
 
-@router.get("/{session_id}", response_model=SessionDetail)
+@router.get("/{session_id}", response_model=SessionDetail, operation_id="get_session_detail")
 def get_session(
     session_id: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Full session detail — aggregated across all blocks for the night."""
+    """Get full session detail — aggregated across all blocks for the night.
+
+    Returns comprehensive metrics including therapy score, respiratory rates,
+    SpO2 data, device info, user notes, and tags. Returns 404 if not found.
+    """
     manufacturer_select = _manufacturer_select_expression(db)
 
-    row = db.execute(
-        text(f"""
+    row = (
+        db.execute(
+            text(f"""
             WITH night AS (
                 SELECT folder_date, user_id
                 FROM sessions
@@ -1352,29 +1504,40 @@ def get_session(
             GROUP BY s.folder_date
         """),
             {"id": session_id, "uid": current_user["id"]},
-        ).mappings().first()
+        )
+        .mappings()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     return _session_detail_response(row, current_user["id"], db)
 
 
-@router.put("/{session_id}/note", response_model=SessionDetail)
+@router.put("/{session_id}/note", response_model=SessionDetail, operation_id="update_session_note")
 def update_session_note(
     session_id: str,
     body: SessionNoteUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Set or clear the user note for every block on the same calendar night as this session."""
-    selected = db.execute(
-        text("""
+    """Set or clear the user note for every block on the same calendar night.
+
+    Applies the note to all session blocks sharing the same folder_date.
+    Send null or empty string to clear the note.
+    """
+    selected = (
+        db.execute(
+            text("""
             SELECT folder_date
             FROM sessions
             WHERE id::text = :id
               AND user_id = CAST(:uid AS uuid)
         """),
-        {"id": session_id, "uid": current_user["id"]},
-    ).mappings().first()
+            {"id": session_id, "uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
     if not selected:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -1396,23 +1559,30 @@ def update_session_note(
     return get_session(session_id=session_id, current_user=current_user, db=db)
 
 
-@router.put("/{session_id}/tags", response_model=SessionDetail)
+@router.put("/{session_id}/tags", response_model=SessionDetail, operation_id="update_session_tags")
 def update_session_tags(
     session_id: str,
     body: SessionTagsUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Replace the tag list for every block on the same calendar night; validates against the allowed tag set."""
-    selected = db.execute(
-        text("""
+    """Replace the tag list for every block on the same calendar night.
+
+    Validates each tag against the allowed set. Returns 422 for invalid tags.
+    """
+    selected = (
+        db.execute(
+            text("""
             SELECT folder_date
             FROM sessions
             WHERE id::text = :id
               AND user_id = CAST(:uid AS uuid)
         """),
-        {"id": session_id, "uid": current_user["id"]},
-    ).mappings().first()
+            {"id": session_id, "uid": current_user["id"]},
+        )
+        .mappings()
+        .first()
+    )
     if not selected:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -1437,13 +1607,17 @@ def update_session_tags(
     return get_session(session_id=session_id, current_user=current_user, db=db)
 
 
-@router.get("/{session_id}/events", response_model=list[EventRecord])
+@router.get("/{session_id}/events", response_model=list[EventRecord], operation_id="get_session_events")
 def get_session_events(
     session_id: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """All respiratory events for a session, sorted by onset."""
+    """Get all respiratory events for a session, sorted by onset time.
+
+    Includes central apnea, obstructive apnea, hypopnea, and arousal events
+    with onset seconds, duration, and absolute datetime.
+    """
     internal_session_id = _require_session(session_id, current_user["id"], db)
     rows = (
         db.execute(
@@ -1463,17 +1637,23 @@ def get_session_events(
     return [EventRecord.model_validate(dict(r)) for r in rows]
 
 
-@router.get("/{session_id}/events/{event_id}/window", response_model=EventWindowResponse)
+@router.get(
+    "/{session_id}/events/{event_id}/window", response_model=EventWindowResponse, operation_id="get_event_window"
+)
 def get_event_window(
     session_id: str,
     event_id: int,
-    before_seconds: int = Query(120, ge=10, le=600),
-    after_seconds: int = Query(180, ge=10, le=600),
-    waveform_downsample: int = Query(1, ge=1, le=25),
+    before_seconds: int = Query(120, ge=10, le=600, description="Seconds before event to include"),
+    after_seconds: int = Query(180, ge=10, le=600, description="Seconds after event to include"),
+    waveform_downsample: int = Query(1, ge=1, le=25, description="Keep every Nth waveform sample"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Focused metrics and BRP waveform around one event."""
+    """Get focused metrics and waveform data around a single respiratory event.
+
+    Returns the event details, neighboring events, time-series metrics, and
+    high-resolution flow/pressure waveform for the specified time window.
+    """
     internal_session_id = _require_session(session_id, current_user["id"], db)
 
     event_row = (
@@ -1586,17 +1766,18 @@ def get_event_window(
     )
 
 
-@router.get("/{session_id}/metrics", response_model=MetricsResponse)
+@router.get("/{session_id}/metrics", response_model=MetricsResponse, operation_id="get_session_metrics")
 def get_session_metrics(
     session_id: str,
     downsample: int = Query(15, ge=1, le=120, description="Keep every Nth row. 1=2s, 15=30s, 30=60s resolution"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    PLD time-series for one session.
+    """Get PLD time-series metrics for one session.
+
     Returns columnar arrays (one list per signal) for efficient charting.
     Default downsample=15 gives 30-second resolution (~580 points for a 5h session).
+    Signals include mask pressure, leak, respiratory rate, tidal volume, and more.
     """
     internal_session_id = _require_session(session_id, current_user["id"], db)
     rows = (
@@ -1629,7 +1810,7 @@ def get_session_metrics(
     return _metrics_response(rows)
 
 
-@router.get("/{session_id}/breath", response_model=MetricsResponse)
+@router.get("/{session_id}/breath", response_model=MetricsResponse, operation_id="get_session_breath")
 def get_session_breath(
     session_id: str,
     offset_minutes: int = Query(0, ge=0, description="Start offset from session start in minutes"),
@@ -1637,9 +1818,10 @@ def get_session_breath(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Full 2-second resolution metrics for a time window within a session.
+    """Get full 2-second resolution metrics for a time window within a session.
+
     Use offset_minutes + window_minutes to navigate through the night breath-by-breath.
+    Each minute returns ~30 rows at 2s intervals. Useful for detailed waveform analysis.
     """
     internal_session_id = _require_session(session_id, current_user["id"], db)
     rows = (
@@ -1703,13 +1885,17 @@ def _metrics_response(rows) -> MetricsResponse:
     )
 
 
-@router.get("/{session_id}/spo2", response_model=SpO2Response)
+@router.get("/{session_id}/spo2", response_model=SpO2Response, operation_id="get_session_spo2")
 def get_session_spo2(
     session_id: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """SpO2 and pulse time-series. Returns 404 if no oximeter data for this session."""
+    """Get SpO2 and pulse time-series for a session.
+
+    Returns timestamps, oxygen saturation percentages, and pulse BPM.
+    Returns 404 if no oximeter data is available for this session.
+    """
     internal_session_id = _require_session(session_id, current_user["id"], db)
     session = (
         db.execute(
@@ -1743,14 +1929,19 @@ def get_session_spo2(
     )
 
 
-@router.put("/{session_id}/timezone", response_model=SessionDetail)
+@router.put("/{session_id}/timezone", response_model=SessionDetail, operation_id="update_session_timezone")
 def update_session_timezone(
     session_id: str,
     body: SessionTimezoneUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Reinterpret a night's imported timestamps using a corrected machine timezone."""
+    """Reinterpret a night's imported timestamps using a corrected machine timezone.
+
+    Preserves the wall-clock time while swapping the timezone label.
+    Updates all related session_events, session_metrics, session_spo2, and
+    session_waveform timestamps accordingly.
+    """
     try:
         new_zone_name = body.machine_tz.strip()
         new_zone = ZoneInfo(new_zone_name)
@@ -1892,8 +2083,9 @@ def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: S
     """
     manufacturer_select = _manufacturer_select_expression(db)
 
-    rows = db.execute(
-        text(f"""
+    rows = (
+        db.execute(
+            text(f"""
             SELECT
                 s.folder_date,
                 SUM(s.duration_seconds) AS duration_seconds,
@@ -1915,8 +2107,11 @@ def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: S
             GROUP BY s.folder_date
             ORDER BY s.folder_date
         """),
-        {"uid": user_id, "folder_date": folder_date},
-    ).mappings().all()
+            {"uid": user_id, "folder_date": folder_date},
+        )
+        .mappings()
+        .all()
+    )
     if not rows:
         return None
 
@@ -1927,12 +2122,16 @@ def _score_vs_30d_avg(user_id: str, folder_date: date, current_score: int, db: S
     return round(current_score - average, 1)
 
 
-@router.delete("/all", status_code=204)
+@router.delete("/all", status_code=204, operation_id="delete_all_sessions")
 def delete_all_sessions(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete all session data for the current user."""
+    """Delete all session data for the current user.
+
+    Removes all sessions, events, metrics, SpO2 data, and waveforms.
+    This action cannot be undone. Returns 204 on success.
+    """
     db.execute(
         text("DELETE FROM sessions WHERE user_id = CAST(:uid AS uuid)"),
         {"uid": current_user["id"]},
@@ -1940,17 +2139,22 @@ def delete_all_sessions(
     db.commit()
 
 
-@router.get("/by-date/{folder_date}", response_model=SessionDetail)
+@router.get("/by-date/{folder_date}", response_model=SessionDetail, operation_id="get_session_by_date")
 def get_session_by_date(
     folder_date: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get session detail by date (YYYY-MM-DD)."""
+    """Get session detail by calendar date.
+
+    Returns the aggregated session detail for the night of the given date (YYYY-MM-DD).
+    Returns 404 if no session exists for that date.
+    """
     manufacturer_select = _manufacturer_select_expression(db)
 
-    row = db.execute(
-        text(f"""
+    row = (
+        db.execute(
+            text(f"""
             WITH night AS (
                 SELECT folder_date, user_id
                 FROM sessions
@@ -2010,7 +2214,10 @@ def get_session_by_date(
             GROUP BY s.folder_date
         """),
             {"date": folder_date, "uid": current_user["id"]},
-        ).mappings().first()
+        )
+        .mappings()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="No session found for this date")
     return _session_detail_response(row, current_user["id"], db)

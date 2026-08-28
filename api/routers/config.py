@@ -12,7 +12,7 @@ from fastapi import APIRouter
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", operation_id="get_app_config")
 def get_config():
     """
     Return runtime configuration for the frontend.

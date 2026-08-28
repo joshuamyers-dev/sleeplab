@@ -119,11 +119,16 @@ def _validate_local_path(raw: str) -> Path:
     return p
 
 
-@router.get("/settings", response_model=ImportSettingsResponse)
+@router.get("/settings", response_model=ImportSettingsResponse, operation_id="get_import_settings")
 def get_import_settings(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get the current user's import and integration settings.
+
+    Returns SleepHQ, local DATALOG, wearable, timezone, LLM, and adherence settings.
+    Sensitive fields (secrets, API keys) are never returned — use has_* flags instead.
+    """
     row = get_user_import_settings_row(db, current_user["id"])
 
     enabled = os.environ.get("SLEEPHQ_ENABLED", "false").lower() == "true"
@@ -178,12 +183,17 @@ def get_import_settings(
     )
 
 
-@router.put("/settings", response_model=ImportSettingsResponse)
+@router.put("/settings", response_model=ImportSettingsResponse, operation_id="save_import_settings")
 def save_import_settings(
     body: ImportSettingsUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Update the current user's import and integration settings.
+
+    Only provided fields are updated; omitted fields remain unchanged.
+    Validates paths, timezones, and LLM provider values before saving.
+    """
     # Validate local path if provided
     if body.local_datalog_path is not None and body.local_datalog_path != "":
         _validate_local_path(body.local_datalog_path)
@@ -243,13 +253,19 @@ def save_import_settings(
                 "llm_base_url": body.llm_base_url,
                 "llm_api_key": body.llm_api_key,
                 "llm_model": body.llm_model,
-                "adherence_threshold_hours": body.usage_threshold_hours if body.usage_threshold_hours is not None else 4.0,
+                "adherence_threshold_hours": body.usage_threshold_hours
+                if body.usage_threshold_hours is not None
+                else 4.0,
                 "adherence_borderline_hours": body.borderline_threshold_hours,
                 "adherence_target_pct": body.target_adherence_pct if body.target_adherence_pct is not None else 70.0,
                 "adherence_window_days": body.adherence_window_days if body.adherence_window_days is not None else 30,
-                "adherence_evaluation_days": body.evaluation_period_days if body.evaluation_period_days is not None else 90,
+                "adherence_evaluation_days": body.evaluation_period_days
+                if body.evaluation_period_days is not None
+                else 90,
                 "adherence_window_logic": body.window_evaluation_logic or "best_consecutive",
-                "adherence_lookback_days": body.maintenance_lookback_days if body.maintenance_lookback_days is not None else 90,
+                "adherence_lookback_days": body.maintenance_lookback_days
+                if body.maintenance_lookback_days is not None
+                else 90,
                 "adherence_enabled": body.adherence_enabled if body.adherence_enabled is not None else True,
             },
         )
@@ -421,12 +437,17 @@ def _run_local_import_task(user_id: str, datalog_path: str) -> None:
         logger.exception("Failed to write import status for user %s", user_id)
 
 
-@router.post("/trigger")
+@router.post("/trigger", operation_id="trigger_sleephq_import")
 def trigger_sleephq_import(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Trigger a background import of sleep data from SleepHQ cloud.
+
+    Requires SLEEPHQ_ENABLED=true and saved credentials. Returns 503 if SleepHQ
+    is not enabled, 400 if credentials are not configured.
+    """
     row = (
         db.execute(
             text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
@@ -465,12 +486,17 @@ def trigger_sleephq_import(
     return {"status": "started", "message": "SleepHQ import started."}
 
 
-@router.post("/trigger-local")
+@router.post("/trigger-local", operation_id="trigger_local_import")
 def trigger_local_import(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Trigger a background import from the configured local DATALOG path.
+
+    Validates that the path exists on the server and is within /data.
+    Returns 400 if no path is configured or the path is inaccessible.
+    """
     row = (
         db.execute(
             text("SELECT * FROM user_import_settings WHERE user_id = CAST(:uid AS uuid)"),
@@ -508,12 +534,17 @@ def trigger_local_import(
     return {"status": "started", "message": "Local DATALOG import started."}
 
 
-@router.post("/trigger/all")
+@router.post("/trigger/all", operation_id="trigger_all_local_imports")
 def trigger_all_local_imports(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_import_secret: str | None = Header(default=None),
 ):
+    """Trigger local DATALOG imports for all users with a configured path.
+
+    Requires X-Import-Secret header matching IMPORT_WEBHOOK_SECRET env var.
+    Used by external automation (e.g. CPAP_data_uploader) to batch-import data.
+    """
     secret = os.environ.get("IMPORT_WEBHOOK_SECRET", "")
     if not secret or x_import_secret != secret:
         raise HTTPException(status_code=403, detail="Invalid or missing X-Import-Secret header.")
@@ -546,7 +577,7 @@ def trigger_all_local_imports(
     return {"triggered": triggered}
 
 
-@router.post("/webhook/{user_id}")
+@router.post("/webhook/{user_id}", operation_id="webhook_import")
 def webhook_per_user(
     user_id: uuid.UUID,
     body: WebhookPayload,

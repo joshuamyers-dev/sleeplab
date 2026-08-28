@@ -185,7 +185,7 @@ def _run_import(datalog_path: str, user_id: str, from_date: str | None, cleanup_
             shutil.rmtree(cleanup_dir, ignore_errors=True)
 
 
-@router.post("/datalog/start")
+@router.post("/datalog/start", operation_id="start_datalog_upload")
 def start_datalog_upload(
     body: StartUploadRequest,
     current_user: dict = Depends(get_current_user),
@@ -234,7 +234,7 @@ def start_datalog_upload(
     }
 
 
-@router.post("/datalog/{upload_id}/batch")
+@router.post("/datalog/{upload_id}/batch", operation_id="upload_datalog_batch")
 def upload_datalog_batch(
     upload_id: str,
     files: list[UploadFile] = File(...),
@@ -287,7 +287,7 @@ def upload_datalog_batch(
     }
 
 
-@router.post("/datalog/{upload_id}/finish")
+@router.post("/datalog/{upload_id}/finish", operation_id="finish_datalog_upload")
 def finish_datalog_upload(
     upload_id: str,
     background_tasks: BackgroundTasks,
@@ -344,7 +344,7 @@ def _require_session(upload_id: str, user_id: str) -> UploadSession:
     return session
 
 
-@router.get("/status")
+@router.get("/status", operation_id="get_upload_status")
 def get_upload_status(current_user: dict = Depends(get_current_user)):
     """Retrieve the current import status for the logged-in user.
 
@@ -365,15 +365,19 @@ def get_upload_status(current_user: dict = Depends(get_current_user)):
     }
 
 
-@router.post("/oximeter", response_model=OximeterImportResponse)
+@router.post("/oximeter", response_model=OximeterImportResponse, operation_id="upload_oximeter_files")
 async def upload_oximeter_files(
     files: list[UploadFile] = File(...),
-    machine_tz: str | None = Form(default=None),
-    overwrite: bool = Form(default=False),
+    machine_tz: str | None = Form(default=None, description="IANA timezone of the CPAP machine"),
+    overwrite: bool = Form(default=False, description="Overwrite existing SpO2 data"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Import Viatom/Wellue binary oximeter files into existing CPAP sessions."""
+    """Import Viatom/Wellue binary oximeter files into existing CPAP sessions.
+
+    Matches each oximeter recording to the best-overlapping CPAP session by date
+    and imports SpO2/pulse samples. Returns per-file import results.
+    """
     if not files:
         raise HTTPException(status_code=400, detail="No oximeter files were uploaded")
 

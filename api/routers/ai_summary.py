@@ -94,13 +94,19 @@ class TrendAISummaryResponse(BaseModel):
     error: str | None = None
 
 
-@router.get("/ai-summary", response_model=AISummaryResponse)
+@router.get("/ai-summary", response_model=AISummaryResponse, operation_id="get_ai_summary")
 def get_ai_summary(
-    days: int = Query(30, ge=1, le=365),
-    force: bool = Query(False),
+    days: int = Query(30, ge=1, le=365, description="Number of days to analyze (1-365)"),
+    force: bool = Query(False, description="Force regeneration, bypassing cache"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get an AI-generated analysis of therapy patterns over the last N days.
+
+    Returns insights, observations, possible patterns, and review items based on
+    aggregated CPAP therapy data. Requires an LLM backend to be configured.
+    Results are cached and can be regenerated with force=true.
+    """
     llm_settings = get_llm_settings(db, current_user["id"])
     if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return AISummaryResponse(error="LLM backend not configured")
@@ -124,13 +130,20 @@ def get_ai_summary(
     )
 
 
-@router.get("/sessions/{session_id}/ai-summary", response_model=SessionAISummaryResponse)
+@router.get(
+    "/sessions/{session_id}/ai-summary", response_model=SessionAISummaryResponse, operation_id="get_session_ai_summary"
+)
 def get_session_ai_summary(
     session_id: str,
-    force: bool = Query(False),
+    force: bool = Query(False, description="Force regeneration, bypassing cache"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get an AI-generated analysis of a single CPAP therapy session.
+
+    Returns observations, recommendations, and a quality flag for one night.
+    Requires an LLM backend to be configured. Returns 404 if session not found.
+    """
     llm_settings = get_llm_settings(db, current_user["id"])
     if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return SessionAISummaryResponse(error="LLM backend not configured")
@@ -158,12 +171,17 @@ def get_session_ai_summary(
     )
 
 
-@router.get("/trend-ai", response_model=TrendAISummaryResponse)
+@router.get("/trend-ai", response_model=TrendAISummaryResponse, operation_id="get_trend_ai_summary")
 def get_trend_ai_summary(
-    force: bool = Query(False),
+    force: bool = Query(False, description="Force regeneration, bypassing cache"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get an AI-generated analysis of therapy trends over the last 30 nights.
+
+    Returns trend direction (improving/stable/worsening/variable), anomalies,
+    and a severity flag. Requires an LLM backend to be configured.
+    """
     llm_settings = get_llm_settings(db, current_user["id"])
     if not has_explicit_llm_settings(db, current_user["id"]) or not is_configured(llm_settings):
         return TrendAISummaryResponse(error="LLM backend not configured")

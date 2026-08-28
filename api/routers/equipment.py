@@ -32,11 +32,15 @@ def _row_to_response(row: dict, ref_date: date | None = None) -> EquipmentRespon
     )
 
 
-@router.get("/", response_model=list[EquipmentResponse])
+@router.get("/", response_model=list[EquipmentResponse], operation_id="list_equipment")
 def list_equipment(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """List all CPAP equipment/accessories for the current user.
+
+    Returns equipment sorted by type and start date (most recent first).
+    """
     rows = (
         db.execute(
             text("""
@@ -55,12 +59,16 @@ def list_equipment(
     return [_row_to_response(dict(r), today) for r in rows]
 
 
-@router.post("/", response_model=EquipmentResponse, status_code=201)
+@router.post("/", response_model=EquipmentResponse, status_code=201, operation_id="create_equipment")
 def create_equipment(
     body: EquipmentCreate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a new CPAP equipment/accessory record.
+
+    Returns the created equipment with days_in_use calculated from today.
+    """
     row = (
         db.execute(
             text("""
@@ -91,13 +99,18 @@ def create_equipment(
     return _row_to_response(dict(row), date.today())
 
 
-@router.put("/{equipment_id}", response_model=EquipmentResponse)
+@router.put("/{equipment_id}", response_model=EquipmentResponse, operation_id="update_equipment")
 def update_equipment(
     equipment_id: str,
     body: EquipmentUpdate,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Update an existing CPAP equipment/accessory record.
+
+    Only provided fields are updated; omitted fields remain unchanged.
+    Returns 404 if the equipment does not exist or does not belong to the user.
+    """
     existing = db.execute(
         text("SELECT 1 FROM user_equipment WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
         {"id": equipment_id, "uid": current_user["id"]},
@@ -132,12 +145,16 @@ def update_equipment(
     return _row_to_response(dict(row), date.today())
 
 
-@router.delete("/{equipment_id}", status_code=204)
+@router.delete("/{equipment_id}", status_code=204, operation_id="delete_equipment")
 def delete_equipment(
     equipment_id: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Delete a CPAP equipment/accessory record.
+
+    Returns 204 on success, 404 if the equipment does not exist or does not belong to the user.
+    """
     result = db.execute(
         text("DELETE FROM user_equipment WHERE id = CAST(:id AS uuid) AND user_id = CAST(:uid AS uuid)"),
         {"id": equipment_id, "uid": current_user["id"]},
@@ -147,12 +164,17 @@ def delete_equipment(
         raise HTTPException(status_code=404, detail="Equipment not found")
 
 
-@router.get("/inferred", response_model=InferredEquipment)
+@router.get("/inferred", response_model=InferredEquipment, operation_id="get_inferred_equipment")
 def get_inferred_equipment(
     ref_date: date = Query(default=None, description="Date to infer active equipment for (defaults to today)"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get the most recently started equipment of each type active as of ref_date.
+
+    Returns one item per equipment type (cushion, headgear, tubing, humidifier_chamber, filter),
+    or None for types with no equipment started before ref_date.
+    """
     if ref_date is None:
         ref_date = date.today()
 
