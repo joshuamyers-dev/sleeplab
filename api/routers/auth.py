@@ -127,7 +127,7 @@ def is_registration_disabled() -> bool:
     return os.environ.get("DISABLE_USER_REGISTRATION", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-@router.post("/register", response_model=AuthResponse, status_code=201)
+@router.post("/register", response_model=AuthResponse, status_code=201, operation_id="register_user")
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user in the database and authenticate them.
 
@@ -176,7 +176,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     return AuthResponse(token=token, user=_serialize_user(row))
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse, operation_id="login_user")
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate an existing user via email and password credentials.
 
@@ -207,7 +207,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     return AuthResponse(token=token, user=_serialize_user(row))
 
 
-@router.post("/logout", status_code=200)
+@router.post("/logout", status_code=200, operation_id="logout_user")
 def logout():
     """Invalidate or perform logout of the current user session on client side.
 
@@ -217,7 +217,7 @@ def logout():
     return {"status": "logged out"}
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, operation_id="get_current_user_profile")
 def me(current_user: dict = Depends(get_current_user)):
     """Retrieve the currently authenticated user's profile details.
 
@@ -230,7 +230,7 @@ def me(current_user: dict = Depends(get_current_user)):
     return _serialize_user(current_user)
 
 
-@router.put("/profile", response_model=UserResponse)
+@router.put("/profile", response_model=UserResponse, operation_id="update_user_profile")
 def update_profile(
     body: UpdateProfileRequest,
     current_user: dict = Depends(get_current_user),
@@ -291,7 +291,7 @@ def update_profile(
     return _serialize_user(row)
 
 
-@router.put("/password", status_code=200)
+@router.put("/password", status_code=200, operation_id="change_user_password")
 def change_password(
     body: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from copy import deepcopy
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -160,7 +161,22 @@ def get_app_version() -> str:
         return DEFAULT_VERSION
 
 
-app = FastAPI(title="SleepLab API", version=get_app_version())
+app = FastAPI(
+    title="SleepLab API",
+    version=get_app_version(),
+    openapi_tags=[
+        {"name": "auth", "description": "User authentication and profile management"},
+        {"name": "sessions", "description": "CPAP session listing, detail, events, metrics, and reports"},
+        {"name": "stats", "description": "Aggregated therapy statistics and adherence tracking"},
+        {"name": "equipment", "description": "CPAP accessory/equipment tracking and replacement dates"},
+        {"name": "wearable", "description": "Wearable sensor data (HR, SpO2, sleep stages)"},
+        {"name": "upload", "description": "DATALOG and oximeter file upload workflows"},
+        {"name": "ai-summary", "description": "AI-generated therapy analysis and trend insights"},
+        {"name": "import", "description": "Import settings and triggers (internal use)"},
+        {"name": "config", "description": "Runtime configuration for the frontend (internal use)"},
+        {"name": "llm", "description": "LLM backend health check (internal use)"},
+    ],
+)
 
 
 def _get_allowed_origins() -> list[str]:
@@ -186,24 +202,26 @@ app.add_middleware(
     allow_credentials=False,
 )
 
-app.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
-app.include_router(stats.router, prefix="/stats", tags=["stats"])
-app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
-app.include_router(upload.router, prefix="/upload", tags=["upload"])
-app.include_router(ai_summary.router, prefix="/stats", tags=["stats"])
-app.include_router(llm.router, prefix="/llm", tags=["llm"])
-app.include_router(import_settings_router.router, prefix="/import", tags=["import"])
-app.include_router(config.router, prefix="/config", tags=["config"])
-app.include_router(equipment_router.router, prefix="/equipment", tags=["equipment"])
-app.include_router(wearable_router.router, prefix="/wearable", tags=["wearable"])
+API_V1 = "/api/v1"
+
+app.include_router(sessions.router, prefix=f"{API_V1}/sessions", tags=["sessions"])
+app.include_router(stats.router, prefix=f"{API_V1}/stats", tags=["stats"])
+app.include_router(auth_router.router, prefix=f"{API_V1}/auth", tags=["auth"])
+app.include_router(upload.router, prefix=f"{API_V1}/upload", tags=["upload"])
+app.include_router(ai_summary.router, prefix=f"{API_V1}/stats", tags=["ai-summary"])
+app.include_router(llm.router, prefix=f"{API_V1}/llm", tags=["llm"])
+app.include_router(import_settings_router.router, prefix=f"{API_V1}/import", tags=["import"])
+app.include_router(config.router, prefix=f"{API_V1}/config", tags=["config"])
+app.include_router(equipment_router.router, prefix=f"{API_V1}/equipment", tags=["equipment"])
+app.include_router(wearable_router.router, prefix=f"{API_V1}/wearable", tags=["wearable"])
 
 
-@app.get("/health")
+@app.get(f"{API_V1}/health")
 def health():
     return {"status": "ok"}
 
 
-@app.get("/version")
+@app.get(f"{API_V1}/version")
 def version():
     current_version = get_app_version()
     release = get_latest_release()
@@ -215,3 +233,60 @@ def version():
         "update_available": is_newer_version(latest_version, current_version),
         "release_url": release["release_url"],
     }
+
+
+PUBLIC_TAGS = {"sessions", "stats", "equipment", "auth", "wearable", "upload", "ai-summary"}
+INTERNAL_TAGS = {"import", "config", "llm"}
+
+
+def _filter_openapi_by_tags(spec: dict, allowed_tags: set[str]) -> dict:
+    filtered = deepcopy(spec)
+    filtered_paths = {}
+    for path, methods in filtered.get("paths", {}).items():
+        filtered_methods = {}
+        for method, operation in methods.items():
+            if method in ("get", "post", "put", "delete", "patch"):
+                op_tags = set(operation.get("tags", []))
+                if op_tags & allowed_tags:
+                    filtered_methods[method] = operation
+        if filtered_methods:
+            filtered_paths[path] = filtered_methods
+    filtered["paths"] = filtered_paths
+    filtered_tags = [t for t in filtered.get("tags", []) if t["name"] in allowed_tags]
+    filtered["tags"] = filtered_tags
+    return filtered
+
+
+@app.get(f"{API_V1}/openapi-public.json")
+def get_public_openapi():
+    """Return the OpenAPI spec filtered to public-facing endpoints only."""
+    spec = app.openapi()
+    return _filter_openapi_by_tags(spec, PUBLIC_TAGS)
+
+
+@app.get(f"{API_V1}/openapi-internal.json")
+def get_internal_openapi():
+    """Return the OpenAPI spec filtered to internal/frontend-facing endpoints only."""
+    spec = app.openapi()
+    return _filter_openapi_by_tags(spec, INTERNAL_TAGS)
+
+
+# --- MCP Server (feature-gated) ---
+if os.environ.get("MCP_ENABLED", "false").lower() in ("true", "1", "on"):
+    try:
+        from fastapi_mcp import AuthConfig, FastApiMCP
+
+        mcp = FastApiMCP(
+            app,
+            name="SleepLab",
+            description="Sleep therapy data analysis platform — MCP tools for AI agents to query CPAP session data, therapy stats, equipment, and wearable sensors.",
+            include_tags=list(PUBLIC_TAGS),
+            describe_all_responses=True,
+            describe_full_response_schema=True,
+            auth_config=AuthConfig(
+                dependencies=[],
+            ),
+        )
+        mcp.mount_http()
+    except ImportError:
+        pass

@@ -21,7 +21,7 @@ class TestRegister:
         monkeypatch.setenv("DISABLE_USER_REGISTRATION", "true")
 
         resp = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": "disabled@example.com",
                 "password": "StrongPass1!",
@@ -34,7 +34,7 @@ class TestRegister:
     def test_register_success(self, client: TestClient):
         """Test register success."""
         resp = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": "newuser@example.com",
                 "password": "StrongPass1!",
@@ -51,7 +51,7 @@ class TestRegister:
     def test_register_duplicate_email(self, client: TestClient, test_user):
         """Test register duplicate email."""
         resp = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": test_user["email"],
                 "password": "StrongPass1!",
@@ -64,7 +64,7 @@ class TestRegister:
     def test_register_weak_password(self, client: TestClient):
         """Test register weak password."""
         resp = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": "weak@example.com",
                 "password": "short",
@@ -81,7 +81,7 @@ class TestLogin:
     def test_login_success(self, client: TestClient, test_user):
         """Test login success."""
         resp = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             json={
                 "email": test_user["email"],
                 "password": "test-password-123",
@@ -95,7 +95,7 @@ class TestLogin:
     def test_login_wrong_password(self, client: TestClient, test_user):
         """Test login wrong password."""
         resp = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             json={
                 "email": test_user["email"],
                 "password": "wrong-password",
@@ -106,7 +106,7 @@ class TestLogin:
     def test_login_nonexistent_user(self, client: TestClient):
         """Test login nonexistent user."""
         resp = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             json={
                 "email": "nobody@example.com",
                 "password": "doesntmatter",
@@ -120,7 +120,7 @@ class TestMe:
 
     def test_me_authenticated(self, client: TestClient, auth_headers, test_user):
         """Test me authenticated."""
-        resp = client.get("/auth/me", headers=auth_headers)
+        resp = client.get("/api/v1/auth/me", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["email"] == test_user["email"]
@@ -128,5 +128,5 @@ class TestMe:
 
     def test_me_unauthenticated(self, client: TestClient):
         """Test me unauthenticated."""
-        resp = client.get("/auth/me")
+        resp = client.get("/api/v1/auth/me")
         assert resp.status_code == 401

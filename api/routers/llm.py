@@ -15,7 +15,7 @@ from ..settings_store import get_llm_settings, has_explicit_llm_settings
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/health", operation_id="get_llm_health")
 def llm_health(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),

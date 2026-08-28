@@ -128,12 +128,16 @@ def _stages_to_hours(stages: list[StageSample]) -> dict:
     return hours
 
 
-@router.get("/data", response_model=WearableDataResponse)
+@router.get("/data", response_model=WearableDataResponse, operation_id="get_wearable_data")
 def get_wearable_data(
-    date: str = Query(..., description="YYYY-MM-DD"),
+    date: str = Query(..., description="Night date in YYYY-MM-DD format"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get raw wearable sensor data (HR, SpO2, sleep stages) for a single night.
+
+    Returns empty arrays if wearable integration is disabled or not configured.
+    """
     if not _wearable_enabled():
         return WearableDataResponse(hr=[], spo2=[], stages=[])
 
@@ -164,13 +168,17 @@ def get_wearable_data(
     return _payload_to_response(payload)
 
 
-@router.get("/summary", response_model=list[WearableDailySummary])
+@router.get("/summary", response_model=list[WearableDailySummary], operation_id="get_wearable_summary")
 def get_wearable_summary(
-    date_from: str = Query(..., description="YYYY-MM-DD"),
-    date_to: str = Query(..., description="YYYY-MM-DD"),
+    date_from: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    date_to: str = Query(..., description="End date in YYYY-MM-DD format"),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Get daily aggregate wearable data (avg HR, avg SpO2, sleep stage hours) for a date range.
+
+    Returns empty list if wearable integration is disabled or not configured.
+    """
     if not _wearable_enabled():
         return []
 

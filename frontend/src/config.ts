@@ -19,11 +19,12 @@ function normalizeApiUrl(value: string | undefined) {
  * Helper function for get api base url.
  */
 export function getApiBaseUrl() {
-  return (
+  const base = (
     normalizeApiUrl(window.__APP_CONFIG__?.API_URL) ??
     normalizeApiUrl(import.meta.env.VITE_API_URL) ??
     'http://127.0.0.1:8000'
   )
+  return `${base}/api/v1`
 }
 
 /**

@@ -69,7 +69,7 @@ class TestOximeterUpload:
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
         resp = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             files=[("files", ("20250115220000", _fixture(), "application/octet-stream"))],
         )
 
@@ -80,7 +80,7 @@ class TestOximeterUpload:
         sid = _seed_session(db, test_user["id"])
 
         resp = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("20250115220000", _fixture(), "application/octet-stream"))],
         )
@@ -121,7 +121,7 @@ class TestOximeterUpload:
         payload = _fixture(datetime(2025, 1, 17, 22, 0, 0))
 
         resp = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("20250117220000", payload, "application/octet-stream"))],
         )
@@ -143,7 +143,7 @@ class TestOximeterUpload:
         sid = _seed_session(db, test_user["id"])
 
         first = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("20250115220000", _fixture(), "application/octet-stream"))],
         )
@@ -151,7 +151,7 @@ class TestOximeterUpload:
         assert first.json()["imported"] == 1
 
         skipped = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("20250115220000", _fixture(), "application/octet-stream"))],
         )
@@ -171,7 +171,7 @@ class TestOximeterUpload:
             records=[(95, 64, 0, 0, 0)],
         )
         overwritten = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             data={"overwrite": "true"},
             files=[("files", ("20250115220000", replacement, "application/octet-stream"))],
@@ -191,7 +191,7 @@ class TestOximeterUpload:
 
     def test_unsupported_upload_returns_failed_status(self, client: TestClient, auth_headers):
         resp = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("unsupported.bin", b"not a viatom file", "application/octet-stream"))],
         )
@@ -211,7 +211,7 @@ class TestOximeterUpload:
         monkeypatch.setattr(upload, "parse_viatom_binary", raise_parser_error)
 
         resp = client.post(
-            "/upload/oximeter",
+            "/api/v1/upload/oximeter",
             headers=auth_headers,
             files=[("files", ("broken.bin", b"broken", "application/octet-stream"))],
         )

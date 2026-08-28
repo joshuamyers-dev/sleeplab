@@ -6,7 +6,7 @@ from unittest.mock import patch
 def test_save_local_path_roundtrip(client, auth_headers):
     """Test save local path roundtrip."""
     resp = client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"local_datalog_path": "/data/DATALOG"},
         headers=auth_headers,
     )
@@ -17,7 +17,7 @@ def test_save_local_path_roundtrip(client, auth_headers):
 def test_save_local_path_traversal_rejected(client, auth_headers):
     """Test save local path traversal rejected."""
     resp = client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"local_datalog_path": "../../etc/passwd"},
         headers=auth_headers,
     )
@@ -27,7 +27,7 @@ def test_save_local_path_traversal_rejected(client, auth_headers):
 def test_save_local_path_subdir_accepted(client, auth_headers):
     """Test save local path subdir accepted."""
     resp = client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"local_datalog_path": "/data/cpap/DATALOG"},
         headers=auth_headers,
     )
@@ -37,13 +37,13 @@ def test_save_local_path_subdir_accepted(client, auth_headers):
 
 def test_trigger_local_no_path(client, auth_headers):
     """Test trigger local no path."""
-    resp = client.post("/import/trigger-local", headers=auth_headers)
+    resp = client.post("/api/v1/import/trigger-local", headers=auth_headers)
     assert resp.status_code == 400
 
 
 def test_trigger_all_no_secret(client):
     """Test trigger all no secret."""
-    resp = client.post("/import/trigger/all")
+    resp = client.post("/api/v1/import/trigger/all")
     assert resp.status_code == 403
 
 
@@ -51,7 +51,7 @@ def test_trigger_all_wrong_secret(client):
     """Test trigger all wrong secret."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
-            "/import/trigger/all",
+            "/api/v1/import/trigger/all",
             headers={"X-Import-Secret": "wrong-secret"},
         )
     assert resp.status_code == 403
@@ -61,7 +61,7 @@ def test_trigger_all_correct_secret_no_users(client):
     """Test trigger all correct secret no users."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
-            "/import/trigger/all",
+            "/api/v1/import/trigger/all",
             headers={"X-Import-Secret": "correct-secret"},
         )
     assert resp.status_code == 200
@@ -71,7 +71,7 @@ def test_trigger_all_correct_secret_no_users(client):
 def test_save_local_frequency(client, auth_headers):
     """Test save local frequency."""
     resp = client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"local_import_frequency": "hourly"},
         headers=auth_headers,
     )
@@ -82,11 +82,11 @@ def test_save_local_frequency(client, auth_headers):
 def test_trigger_local_path_not_found(client, auth_headers):
     """Test trigger local path not found."""
     client.put(
-        "/import/settings",
+        "/api/v1/import/settings",
         json={"local_datalog_path": "/data/nonexistent-path"},
         headers=auth_headers,
     )
-    resp = client.post("/import/trigger-local", headers=auth_headers)
+    resp = client.post("/api/v1/import/trigger-local", headers=auth_headers)
     assert resp.status_code == 400
     assert "not found" in resp.json()["detail"].lower()
 
@@ -96,7 +96,7 @@ def test_trigger_local_path_not_found(client, auth_headers):
 
 def _webhook_url(user_id: str) -> str:
     """Test  webhook url."""
-    return f"/import/webhook/{user_id}"
+    return f"/api/v1/import/webhook/{user_id}"
 
 
 def test_webhook_per_user_no_secret(client, test_user):
@@ -121,7 +121,7 @@ def test_webhook_per_user_malformed_uuid(client):
     """Test webhook per user malformed uuid."""
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
-            "/import/webhook/not-a-uuid",
+            "/api/v1/import/webhook/not-a-uuid",
             json={"event": "cpap_sync_session", "status": "success"},
             headers={"X-Import-Secret": "correct-secret"},
         )
@@ -143,7 +143,7 @@ def test_webhook_per_user_unknown_uuid(client):
 def test_webhook_per_user_status_error_skipped(client, auth_headers, test_user):
     # Ensure import settings row exists
     """Test webhook per user status error skipped."""
-    client.put("/import/settings", json={"local_datalog_path": "/data/DATALOG"}, headers=auth_headers)
+    client.put("/api/v1/import/settings", json={"local_datalog_path": "/data/DATALOG"}, headers=auth_headers)
     with patch.dict(os.environ, {"IMPORT_WEBHOOK_SECRET": "correct-secret"}):
         resp = client.post(
             _webhook_url(test_user["id"]),
@@ -153,7 +153,7 @@ def test_webhook_per_user_status_error_skipped(client, auth_headers, test_user):
     assert resp.status_code == 200
     assert resp.json()["status"] == "skipped"
     # Error status should be recorded
-    settings = client.get("/import/settings", headers=auth_headers).json()
+    settings = client.get("/api/v1/import/settings", headers=auth_headers).json()
     assert settings["last_local_import_status"] is not None
     assert "upstream error" in settings["last_local_import_status"]
 

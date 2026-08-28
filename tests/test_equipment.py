@@ -8,14 +8,14 @@ class TestListEquipment:
 
     def test_empty(self, client: TestClient, auth_headers):
         """Test empty."""
-        resp = client.get("/equipment/", headers=auth_headers)
+        resp = client.get("/api/v1/equipment/", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json() == []
 
     def test_after_create(self, client: TestClient, auth_headers):
         """Test after create."""
         client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "cushion",
@@ -24,7 +24,7 @@ class TestListEquipment:
                 "model": "P10",
             },
         )
-        resp = client.get("/equipment/", headers=auth_headers)
+        resp = client.get("/api/v1/equipment/", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) >= 1
@@ -32,7 +32,7 @@ class TestListEquipment:
 
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
-        resp = client.get("/equipment/")
+        resp = client.get("/api/v1/equipment/")
         assert resp.status_code == 401
 
 
@@ -42,7 +42,7 @@ class TestCreateEquipment:
     def test_create_cushion(self, client: TestClient, auth_headers):
         """Test create cushion."""
         resp = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "cushion",
@@ -62,7 +62,7 @@ class TestCreateEquipment:
     def test_create_tubing(self, client: TestClient, auth_headers):
         """Test create tubing."""
         resp = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "tubing",
@@ -78,7 +78,7 @@ class TestCreateEquipment:
     def test_invalid_type(self, client: TestClient, auth_headers):
         """Test invalid type."""
         resp = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "invalid_type",
@@ -90,7 +90,7 @@ class TestCreateEquipment:
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
         resp = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             json={
                 "equipment_type": "cushion",
                 "start_date": "2025-06-01",
@@ -105,7 +105,7 @@ class TestUpdateEquipment:
     def test_update_start_date(self, client: TestClient, auth_headers):
         """Test update start date."""
         create = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "filter",
@@ -114,7 +114,7 @@ class TestUpdateEquipment:
         )
         eq_id = create.json()["id"]
         resp = client.put(
-            f"/equipment/{eq_id}",
+            f"/api/v1/equipment/{eq_id}",
             headers=auth_headers,
             json={
                 "start_date": "2025-03-01",
@@ -127,7 +127,7 @@ class TestUpdateEquipment:
         """Test nonexistent."""
         fake_id = str(uuid.uuid4())
         resp = client.put(
-            f"/equipment/{fake_id}",
+            f"/api/v1/equipment/{fake_id}",
             headers=auth_headers,
             json={
                 "start_date": "2025-01-01",
@@ -138,7 +138,7 @@ class TestUpdateEquipment:
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
         resp = client.put(
-            "/equipment/some-id",
+            "/api/v1/equipment/some-id",
             json={
                 "start_date": "2025-01-01",
             },
@@ -152,7 +152,7 @@ class TestDeleteEquipment:
     def test_delete_existing(self, client: TestClient, auth_headers):
         """Test delete existing."""
         create = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "headgear",
@@ -160,18 +160,18 @@ class TestDeleteEquipment:
             },
         )
         eq_id = create.json()["id"]
-        resp = client.delete(f"/equipment/{eq_id}", headers=auth_headers)
+        resp = client.delete(f"/api/v1/equipment/{eq_id}", headers=auth_headers)
         assert resp.status_code == 204
 
     def test_nonexistent(self, client: TestClient, auth_headers):
         """Test nonexistent."""
         fake_id = str(uuid.uuid4())
-        resp = client.delete(f"/equipment/{fake_id}", headers=auth_headers)
+        resp = client.delete(f"/api/v1/equipment/{fake_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
-        resp = client.delete("/equipment/some-id")
+        resp = client.delete("/api/v1/equipment/some-id")
         assert resp.status_code == 401
 
 
@@ -180,7 +180,7 @@ class TestInferredEquipment:
 
     def test_empty(self, client: TestClient, auth_headers):
         """Test empty."""
-        resp = client.get("/equipment/inferred", headers=auth_headers)
+        resp = client.get("/api/v1/equipment/inferred", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         for eq_type in ("cushion", "headgear", "tubing", "humidifier_chamber", "filter"):
@@ -189,7 +189,7 @@ class TestInferredEquipment:
     def test_with_equipment(self, client: TestClient, auth_headers):
         """Test with equipment."""
         post_resp = client.post(
-            "/equipment/",
+            "/api/v1/equipment/",
             headers=auth_headers,
             json={
                 "equipment_type": "cushion",
@@ -198,7 +198,7 @@ class TestInferredEquipment:
             },
         )
         assert post_resp.status_code == 201, f"create failed: {post_resp.text}"
-        resp = client.get("/equipment/inferred?ref_date=2025-06-01", headers=auth_headers)
+        resp = client.get("/api/v1/equipment/inferred?ref_date=2025-06-01", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data.get("cushion") is not None
@@ -207,5 +207,5 @@ class TestInferredEquipment:
 
     def test_unauthenticated(self, client: TestClient):
         """Test unauthenticated."""
-        resp = client.get("/equipment/inferred")
+        resp = client.get("/api/v1/equipment/inferred")
         assert resp.status_code == 401
