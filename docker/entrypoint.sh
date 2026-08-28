@@ -13,6 +13,10 @@ if [ "${SLEEPHQ_ENABLED:-false}" = "true" ]; then
     "sleephq-client @ git+https://github.com/frohoff/sleephq-client.git"
 fi
 
+if [ "${MCP_ENABLED:-false}" = "true" ]; then
+  pip install --quiet --no-cache-dir fastapi-mcp
+fi
+
 python /app/docker/wait_for_db.py
 
 python - <<'PY' > /usr/share/nginx/html/config.js
