@@ -1,6 +1,6 @@
 {
   "name": "sleeplab",
-  "version": "1.4.16",
+  "version": "1.4.17",
   "private": true,
   "scripts": {
     "api": "nx serve api",

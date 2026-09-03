@@ -1,3 +1,12 @@
+## [1.4.17](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.16...v1.4.17) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** bump openai from 3.3.1 to 3.6.0 ([#239](https://github.com/joshuamyers-dev/sleeplab/issues/239)) ([2d970be](https://github.com/joshuamyers-dev/sleeplab/commit/2d970be8114554f64991be81bfc2dbb16bfea505))
+* **deps:** bump react-dom and @types/react-dom ([#241](https://github.com/joshuamyers-dev/sleeplab/issues/241)) ([27c0d5e](https://github.com/joshuamyers-dev/sleeplab/commit/27c0d5eeb6c4681b8a32abfb9393510f83018705))
+* **deps:** update mcp requirement from >=2.0.0 to >=2.1.1 ([#240](https://github.com/joshuamyers-dev/sleeplab/issues/240)) ([927808c](https://github.com/joshuamyers-dev/sleeplab/commit/927808c8c9f1fbe8502bfcd423266ef78c97e197))
+
 ## [1.4.16](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.15...v1.4.16) (2026-08-27)
 
 
