@@ -1,3 +1,14 @@
+## [2.0.1](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.0...v2.0.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **deps:** bump matplotlib from 3.11.1 to 3.11.2 ([#259](https://github.com/joshuamyers-dev/sleeplab/issues/259)) ([cc0e042](https://github.com/joshuamyers-dev/sleeplab/commit/cc0e0428b9fe7b2bd4be217e1aa75ff7b77263aa))
+* **deps:** bump openai from 3.8.0 to 3.13.0 ([#257](https://github.com/joshuamyers-dev/sleeplab/issues/257)) ([1376c52](https://github.com/joshuamyers-dev/sleeplab/commit/1376c522b0df96bd8730d16efdf5b0dbea57fa3b))
+* **deps:** bump psycopg2-binary from 2.9.12 to 2.9.13 ([#256](https://github.com/joshuamyers-dev/sleeplab/issues/256)) ([9f4891a](https://github.com/joshuamyers-dev/sleeplab/commit/9f4891a0b45f0216d5114ef0958d8c4754a6d62f))
+* **deps:** bump pyjwt from 2.13.0 to 2.14.0 ([#260](https://github.com/joshuamyers-dev/sleeplab/issues/260)) ([edc25fa](https://github.com/joshuamyers-dev/sleeplab/commit/edc25faade089e002807963bea971a516129b732))
+* **deps:** update mcp requirement from >=2.1.1 to >=2.2.0 ([#261](https://github.com/joshuamyers-dev/sleeplab/issues/261)) ([06ae936](https://github.com/joshuamyers-dev/sleeplab/commit/06ae93600b165bd2fe7df0c7cd3cea2bbe63d69d))
+
 # [2.0.0](https://github.com/joshuamyers-dev/sleeplab/compare/v1.4.17...v2.0.0) (2026-09-10)
 
 
