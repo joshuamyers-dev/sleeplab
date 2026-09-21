@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.1...v2.0.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** bump anyio in the uv group across 1 directory ([#265](https://github.com/joshuamyers-dev/sleeplab/issues/265)) ([6feb28d](https://github.com/joshuamyers-dev/sleeplab/commit/6feb28de852f5a819c3aadb0342ee7987e2cb8d7))
+
 ## [2.0.1](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.0...v2.0.1) (2026-09-17)
 
 
