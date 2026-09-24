@@ -1,3 +1,12 @@
+## [2.0.3](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.2...v2.0.3) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** bump openai from 3.13.0 to 3.16.2 ([#268](https://github.com/joshuamyers-dev/sleeplab/issues/268)) ([cf13d55](https://github.com/joshuamyers-dev/sleeplab/commit/cf13d559c2ce4bce50d40c41fb3ace99c69d0c5b))
+* **deps:** bump sqlalchemy from 2.0.52 to 2.0.54 ([#267](https://github.com/joshuamyers-dev/sleeplab/issues/267)) ([3c7f0c4](https://github.com/joshuamyers-dev/sleeplab/commit/3c7f0c46b6128f0f8fd870bf168eed2fae6f2ef0))
+* **deps:** bump uvicorn from 0.52.4 to 0.53.0 ([#266](https://github.com/joshuamyers-dev/sleeplab/issues/266)) ([d4889eb](https://github.com/joshuamyers-dev/sleeplab/commit/d4889eb18a0c547c124024a9e27d8a125b3d1fcf))
+
 ## [2.0.2](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.1...v2.0.2) (2026-09-21)
 
 
