@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn==0.53.0",
     "sqlalchemy==2.0.54",
     "psycopg2-binary==2.9.13",
-    "PyJWT==2.14.0",
+    "PyJWT==2.15.0",
     "passlib==1.7.4",
     "openai==3.19.2",
     "python-multipart==0.0.32",
