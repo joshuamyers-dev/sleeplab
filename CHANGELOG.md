@@ -1,3 +1,11 @@
+## [2.0.5](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.4...v2.0.5) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** bump the npm_and_yarn group across 1 directory with 2 updates ([#270](https://github.com/joshuamyers-dev/sleeplab/issues/270)) ([50c4e9f](https://github.com/joshuamyers-dev/sleeplab/commit/50c4e9f90234427b61998b5d72bbfda337b516d2))
+* **deps:** bump urllib3 ([#275](https://github.com/joshuamyers-dev/sleeplab/issues/275)) ([b7ef8f8](https://github.com/joshuamyers-dev/sleeplab/commit/b7ef8f87a3efe0f6ebe128dc8ce3cb88ebe68cae))
+
 ## [2.0.4](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.3...v2.0.4) (2026-10-01)
 
 
