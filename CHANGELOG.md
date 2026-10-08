@@ -1,3 +1,14 @@
+## [2.0.6](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.5...v2.0.6) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi from 0.141.1 to 0.142.2 ([#279](https://github.com/joshuamyers-dev/sleeplab/issues/279)) ([302967c](https://github.com/joshuamyers-dev/sleeplab/commit/302967c180f310698ee19631bbfdc8c8d14eaa36))
+* **deps:** bump openai from 3.19.2 to 3.24.0 ([#278](https://github.com/joshuamyers-dev/sleeplab/issues/278)) ([3dc0089](https://github.com/joshuamyers-dev/sleeplab/commit/3dc0089f6efeb40dac4ff328273052a7b0a8e624))
+* **deps:** bump pyjwt from 2.15.0 to 2.15.1 ([#277](https://github.com/joshuamyers-dev/sleeplab/issues/277)) ([77ac69b](https://github.com/joshuamyers-dev/sleeplab/commit/77ac69ba916a32da3b959f3100b4b66eaf8339a8))
+* **deps:** bump sqlalchemy from 2.1.1 to 2.1.3 ([#280](https://github.com/joshuamyers-dev/sleeplab/issues/280)) ([bb87227](https://github.com/joshuamyers-dev/sleeplab/commit/bb87227d6f0ea5e4df8ad713d9184304e59c1442))
+* **deps:** update mcp requirement from >=2.2.0 to >=2.3.0 ([#281](https://github.com/joshuamyers-dev/sleeplab/issues/281)) ([5f82439](https://github.com/joshuamyers-dev/sleeplab/commit/5f8243905dfad1653c2b5706ce59ed3250ffc838))
+
 ## [2.0.5](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.4...v2.0.5) (2026-10-05)
 
 
