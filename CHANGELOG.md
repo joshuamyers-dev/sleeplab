@@ -1,3 +1,12 @@
+## [2.0.7](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.6...v2.0.7) (2026-10-15)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi from 0.142.2 to 0.143.0 ([#283](https://github.com/joshuamyers-dev/sleeplab/issues/283)) ([35f83e9](https://github.com/joshuamyers-dev/sleeplab/commit/35f83e99685cd2c42e9722877d1b829fdd6df580))
+* **deps:** bump openai from 3.24.0 to 3.28.0 ([#284](https://github.com/joshuamyers-dev/sleeplab/issues/284)) ([2f9b4aa](https://github.com/joshuamyers-dev/sleeplab/commit/2f9b4aa5ad79017218780863df494dacaca4efb0))
+* **deps:** bump sqlalchemy from 2.1.3 to 2.1.4 ([#285](https://github.com/joshuamyers-dev/sleeplab/issues/285)) ([a3dd5b7](https://github.com/joshuamyers-dev/sleeplab/commit/a3dd5b76f31bbc3bf34a45c60d69890421b96647))
+
 ## [2.0.6](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.5...v2.0.6) (2026-10-08)
 
 
