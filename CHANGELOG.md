@@ -1,3 +1,11 @@
+## [2.0.9](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.8...v2.0.9) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** bump pillow ([#290](https://github.com/joshuamyers-dev/sleeplab/issues/290)) ([2b00cca](https://github.com/joshuamyers-dev/sleeplab/commit/2b00cca57ffb30fc1deba18d1dccee8334703c16))
+* **deps:** bump the uv group across 1 directory with 2 updates ([#291](https://github.com/joshuamyers-dev/sleeplab/issues/291)) ([a27b3ea](https://github.com/joshuamyers-dev/sleeplab/commit/a27b3ea6eae850d6b9e61dc4fcafe7588b38c0f5))
+
 ## [2.0.8](https://github.com/joshuamyers-dev/sleeplab/compare/v2.0.7...v2.0.8) (2026-10-22)
 
 
